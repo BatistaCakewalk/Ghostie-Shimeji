@@ -15,6 +15,16 @@
             </Animation>
         </Action>
 
+        <Action Name="Float" Type="Stay">
+            <Animation>
+                <Pose Image="/stand.png" ImageAnchor="96,192" Velocity="0,-1" Duration="8"/>
+                <Pose Image="/stand.png" ImageAnchor="96,192" Velocity="0,0" Duration="8"/>
+                <Pose Image="/stand2.png" ImageAnchor="96,192" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,192" Velocity="0,1" Duration="8"/>
+                <Pose Image="/stand.png" ImageAnchor="96,192" Velocity="0,0" Duration="12"/>
+            </Animation>
+        </Action>
+
         <Action Name="Walk" Type="Move" BorderType="Floor" TargetX="${Math.random() * mascot.environment.screen.width}">
             <Animation>
                 <Pose Image="/walk_2.png" ImageAnchor="96,192" Velocity="-6,0" Duration="6"/>
@@ -333,6 +343,10 @@
 
         <Action Name="StandUp" Type="Sequence" Loop="false">
             <ActionReference Name="Stand" Duration="${500+Math.random()*1000}"/>
+        </Action>
+
+        <Action Name="HoverAboveFloor" Type="Sequence" Loop="false">
+            <ActionReference Name="Float" Duration="${400*(1+Math.floor(Math.random()*2))}"/>
         </Action>
 
         <Action Name="SitDown" Type="Sequence" Loop="false">
