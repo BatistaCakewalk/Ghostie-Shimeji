@@ -11,36 +11,42 @@
         <Action Name="Stand" Type="Stay" BorderType="Floor">
             <Animation>
                 <Pose Image="/stand.png" ImageAnchor="96,192" Velocity="0,0" Duration="8"/>
-                <Pose Image="/stand.png" ImageAnchor="96,188" Velocity="0,0" Duration="8"/>
+                <Pose Image="/stand.png" ImageAnchor="96,190" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,188" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,186" Velocity="0,0" Duration="4"/>
                 <Pose Image="/stand2.png" ImageAnchor="96,184" Velocity="0,0" Duration="4"/>
-                <Pose Image="/stand.png" ImageAnchor="96,188" Velocity="0,0" Duration="8"/>
-                <Pose Image="/stand.png" ImageAnchor="96,192" Velocity="0,0" Duration="12"/>
+                <Pose Image="/stand.png" ImageAnchor="96,186" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,188" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,190" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,192" Velocity="0,0" Duration="4"/>
             </Animation>
         </Action>
 
         <Action Name="Walk" Type="Move" BorderType="Floor" TargetX="${Math.random() * mascot.environment.screen.width}">
             <Animation>
-                <Pose Image="/walk_2.png" ImageAnchor="96,192" Velocity="-6,0" Duration="6"/>
-                <Pose Image="/walk_3.png" ImageAnchor="96,188" Velocity="-6,0" Duration="6"/>
-                <Pose Image="/walk_2.png" ImageAnchor="96,184" Velocity="-6,0" Duration="6"/>
-                <Pose Image="/walk_blink.png" ImageAnchor="96,188" Velocity="-6,0" Duration="6"/>
+                <Pose Image="/walk_2.png" ImageAnchor="96,192" Velocity="-6,0" Duration="4"/>
+                <Pose Image="/walk_3.png" ImageAnchor="96,190" Velocity="-6,0" Duration="4"/>
+                <Pose Image="/walk_2.png" ImageAnchor="96,188" Velocity="-6,0" Duration="4"/>
+                <Pose Image="/walk_blink.png" ImageAnchor="96,186" Velocity="-6,0" Duration="4"/>
+                <Pose Image="/walk_2.png" ImageAnchor="96,188" Velocity="-6,0" Duration="4"/>
+                <Pose Image="/walk_3.png" ImageAnchor="96,190" Velocity="-6,0" Duration="4"/>
             </Animation>
         </Action>
 
         <Action Name="Run" Type="Move" BorderType="Floor">
             <Animation>
                 <Pose Image="/walk_2.png" ImageAnchor="96,192" Velocity="-4,0" Duration="2"/>
-                <Pose Image="/walk_3.png" ImageAnchor="96,188" Velocity="-4,0" Duration="2"/>
-                <Pose Image="/walk_2.png" ImageAnchor="96,184" Velocity="-4,0" Duration="2"/>
-                <Pose Image="/walk_3.png" ImageAnchor="96,188" Velocity="-4,0" Duration="2"/>
+                <Pose Image="/walk_3.png" ImageAnchor="96,190" Velocity="-4,0" Duration="2"/>
+                <Pose Image="/walk_2.png" ImageAnchor="96,188" Velocity="-4,0" Duration="2"/>
+                <Pose Image="/walk_3.png" ImageAnchor="96,190" Velocity="-4,0" Duration="2"/>
             </Animation>
         </Action>
 
         <Action Name="Dash" Type="Move" BorderType="Floor">
             <Animation>
-                <Pose Image="/walk_2.png" ImageAnchor="96,192" Velocity="-8,0" Duration="2"/>
+                <Pose Image="/walk_2.png" ImageAnchor="96,188" Velocity="-8,0" Duration="2"/>
                 <Pose Image="/walk_3.png" ImageAnchor="96,188" Velocity="-8,0" Duration="2"/>
-                <Pose Image="/walk_2.png" ImageAnchor="96,184" Velocity="-8,0" Duration="2"/>
+                <Pose Image="/walk_2.png" ImageAnchor="96,188" Velocity="-8,0" Duration="2"/>
                 <Pose Image="/walk_3.png" ImageAnchor="96,188" Velocity="-8,0" Duration="2"/>
             </Animation>
         </Action>
