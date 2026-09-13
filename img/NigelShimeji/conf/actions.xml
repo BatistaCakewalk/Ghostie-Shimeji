@@ -222,18 +222,26 @@
         </Action>
 
         <Action Name="LeapForMouse" Type="Embedded" Class="com.group_finity.mascot.action.Jump"
-                VelocityParam="24">
+                VelocityParam="38">
             <Animation>
-                <Pose Image="/walk_2.png" ImageAnchor="96,196" Velocity="0,0" Duration="250"/>
+                <Pose Image="/walk_2.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
+                <Pose Image="/walk_3.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
+                <Pose Image="/walk_blink.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
             </Animation>
         </Action>
 
         <Action Name="SnatchAtMouse" Type="Animate">
             <Animation>
-                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="4"/>
-                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="4"/>
-                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="4"/>
-                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="4"/>
+                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
+                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
+                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
+                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
+                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
+                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
+                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
+                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
+                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
+                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
             </Animation>
         </Action>
 
@@ -701,6 +709,14 @@
         <Action Name="CatchMouse" Type="Sequence" Loop="false">
             <ActionReference Name="LeapForMouse" TargetX="${mascot.environment.cursor.x}"
                              TargetY="${mascot.environment.cursor.y}"/>
+            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="SnatchAtMouse"/>
+            <Action Type="Select">
+                <ActionReference Name="LeapForMouse"
+                                 Condition="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x)+Math.abs(mascot.anchor.y-mascot.environment.cursor.y) &gt; 220}"
+                                 TargetX="${mascot.environment.cursor.x}"
+                                 TargetY="${mascot.environment.cursor.y}"/>
+            </Action>
             <ActionReference Name="SnatchAtMouse"/>
             <ActionReference Name="Falling" InitialVX="0" InitialVY="0"/>
             <ActionReference Name="Bouncing"/>
