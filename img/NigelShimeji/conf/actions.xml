@@ -230,16 +230,9 @@
             </Animation>
         </Action>
 
-        <Action Name="SnatchAtMouse" Type="Animate">
+        <Action Name="Grasp" Type="Embedded" Class="com.group_finity.mascot.action.GraspMouse"
+                MaxStruggle="300" Regen="2">
             <Animation>
-                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
-                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
-                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
-                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
-                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
-                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
-                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
-                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
                 <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
                 <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
             </Animation>
@@ -710,14 +703,7 @@
             <ActionReference Name="LeapForMouse" TargetX="${mascot.environment.cursor.x}"
                              TargetY="${mascot.environment.cursor.y}"/>
             <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
-            <ActionReference Name="SnatchAtMouse"/>
-            <Action Type="Select">
-                <ActionReference Name="LeapForMouse"
-                                 Condition="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x)+Math.abs(mascot.anchor.y-mascot.environment.cursor.y) &gt; 220}"
-                                 TargetX="${mascot.environment.cursor.x}"
-                                 TargetY="${mascot.environment.cursor.y}"/>
-            </Action>
-            <ActionReference Name="SnatchAtMouse"/>
+            <ActionReference Name="Grasp" Duration="750"/>
             <ActionReference Name="Falling" InitialVX="0" InitialVY="0"/>
             <ActionReference Name="Bouncing"/>
             <ActionReference Name="Stand" Duration="${100+Math.random()*100}"/>
