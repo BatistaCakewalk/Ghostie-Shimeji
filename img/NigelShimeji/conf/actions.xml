@@ -224,17 +224,17 @@
         <Action Name="LeapForMouse" Type="Embedded" Class="com.group_finity.mascot.action.Jump"
                 VelocityParam="38">
             <Animation>
-                <Pose Image="/walk_2.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
-                <Pose Image="/walk_3.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
-                <Pose Image="/walk_blink.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
+                <Pose Image="/lunge.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
+                <Pose Image="/lunge.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
+                <Pose Image="/lunge.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
             </Animation>
         </Action>
 
         <Action Name="Grasp" Type="Embedded" Class="com.group_finity.mascot.action.GraspMouse"
-                MaxStruggle="300" Regen="2">
+                MaxStruggle="1200" Regen="2" MissThreshold="100">
             <Animation>
-                <Pose Image="/drag_right.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
-                <Pose Image="/drag_left.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
+                <Pose Image="/struggle.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
+                <Pose Image="/struggle.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
             </Animation>
         </Action>
 

@@ -35,6 +35,9 @@ public class GraspMouse extends ActionBase {
     private static final String PARAMETER_REGEN = "Regen";
     private static final double DEFAULT_REGEN = 2.0;
 
+    private static final String PARAMETER_MISS_THRESHOLD = "MissThreshold";
+    private static final double DEFAULT_MISS_THRESHOLD = 100.0;
+
     /**
      * Cursor movement at or below this distance (in pixels) counts as "not
      * fighting" and regenerates HP instead of draining it. Filters out
@@ -48,6 +51,8 @@ public class GraspMouse extends ActionBase {
 
     private double hp;
 
+    private boolean proximityChecked;
+
     public GraspMouse(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
         super(schema, animations, context);
     }
@@ -58,6 +63,7 @@ public class GraspMouse extends ActionBase {
 
         maxHp = getMaxStruggle();
         hp = maxHp;
+        proximityChecked = false;
 
         try {
             robot = new Robot();
@@ -84,6 +90,21 @@ public class GraspMouse extends ActionBase {
         getMascot().setDragging(true);
 
         final Point anchor = getMascot().getAnchor().getLocation();
+
+        // init() cannot throw LostGroundException, so the dodge check runs
+        // here on the first tick instead. If Nigel landed too far from the
+        // cursor, the user dodged him: abort straight into the Fall behavior.
+        if (!proximityChecked) {
+            proximityChecked = true;
+
+            final double cursorX = getEnvironment().getCursor().getX();
+            final double cursorY = getEnvironment().getCursor().getY();
+            final double landingDistance = anchor.distance(cursorX, cursorY);
+
+            if (landingDistance > getMissThreshold()) {
+                throw new LostGroundException("Missed the cursor");
+            }
+        }
 
         Point raw = null;
         try {
@@ -122,5 +143,9 @@ public class GraspMouse extends ActionBase {
 
     private double getRegen() throws VariableException {
         return eval(getSchema().getString(PARAMETER_REGEN), Number.class, DEFAULT_REGEN).doubleValue();
+    }
+
+    private double getMissThreshold() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_MISS_THRESHOLD), Number.class, DEFAULT_MISS_THRESHOLD).doubleValue();
     }
 }
