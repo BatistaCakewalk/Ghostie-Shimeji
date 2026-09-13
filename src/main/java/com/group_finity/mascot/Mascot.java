@@ -953,6 +953,16 @@ public class Mascot {
     }
 
     /**
+     * Gets the UI component used as the window of this {@code Mascot}.
+     * Useful for actions that need to change window-level state such as the cursor.
+     *
+     * @return the window component of this {@code Mascot}
+     */
+    public Component getWindowComponent() {
+        return window.asComponent();
+    }
+
+    /**
      * Sets the behavior that is being executed by this {@code Mascot}.
      *
      * @param behavior the behavior to be executed by this {@code Mascot}

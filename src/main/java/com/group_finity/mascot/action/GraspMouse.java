@@ -8,9 +8,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.AWTException;
+import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.Robot;
+import java.awt.Toolkit;
+import java.awt.image.BufferedImage;
 import java.util.List;
 import java.util.ResourceBundle;
 
@@ -53,6 +57,8 @@ public class GraspMouse extends ActionBase {
 
     private boolean proximityChecked;
 
+    private boolean cursorHidden;
+
     public GraspMouse(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
         super(schema, animations, context);
     }
@@ -64,6 +70,11 @@ public class GraspMouse extends ActionBase {
         maxHp = getMaxStruggle();
         hp = maxHp;
         proximityChecked = false;
+        cursorHidden = false;
+
+        // Heal any leak from a previous grasp that was interrupted from the
+        // outside (e.g. the user grabbed Nigel mid-grasp and swapped behaviors).
+        forceRestoreCursor();
 
         try {
             robot = new Robot();
@@ -82,7 +93,12 @@ public class GraspMouse extends ActionBase {
     public boolean hasNext() throws VariableException {
         // Without a Robot there is nothing to grasp with, so let the
         // sequence fall through to whatever comes after us (usually Falling).
-        return super.hasNext() && robot != null;
+        final boolean more = super.hasNext() && robot != null;
+        if (!more) {
+            // Duration expired (or no Robot): never leave the cursor hidden.
+            restoreCursor();
+        }
+        return more;
     }
 
     @Override
@@ -104,8 +120,22 @@ public class GraspMouse extends ActionBase {
             if (landingDistance > getMissThreshold()) {
                 throw new LostGroundException("Missed the cursor");
             }
+
+            // Grasp confirmed: swallow the cursor while we hold it.
+            hideCursor();
         }
 
+        try {
+            tickGrasp(anchor);
+        } catch (final RuntimeException | VariableException | LostGroundException e) {
+            // Whatever goes wrong (or the user breaking free), the cursor
+            // must come back before we leave.
+            restoreCursor();
+            throw e;
+        }
+    }
+
+    private void tickGrasp(final Point anchor) throws LostGroundException, VariableException {
         Point raw = null;
         try {
             if (MouseInfo.getPointerInfo() != null) {
@@ -134,6 +164,43 @@ public class GraspMouse extends ActionBase {
 
         if (hp <= 0) {
             throw new LostGroundException("The mouse broke free of Nigel's grasp");
+        }
+    }
+
+    private void hideCursor() {
+        try {
+            final Component window = getMascot().getWindowComponent();
+            if (window != null) {
+                // There is no predefined invisible cursor, so build a
+                // fully transparent 1x1 one instead.
+                final Cursor invisible = Toolkit.getDefaultToolkit().createCustomCursor(
+                        new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB),
+                        new Point(0, 0), "grasped");
+                window.setCursor(invisible);
+                cursorHidden = true;
+            }
+        } catch (final RuntimeException e) {
+            log.warn("Could not hide cursor for GraspMouse", e);
+        }
+    }
+
+    private void forceRestoreCursor() {
+        cursorHidden = true;
+        restoreCursor();
+    }
+
+    private void restoreCursor() {
+        if (!cursorHidden) {
+            return;
+        }
+        cursorHidden = false;
+        try {
+            final Component window = getMascot().getWindowComponent();
+            if (window != null) {
+                window.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+            }
+        } catch (final RuntimeException e) {
+            log.warn("Could not restore cursor after GraspMouse", e);
         }
     }
 
