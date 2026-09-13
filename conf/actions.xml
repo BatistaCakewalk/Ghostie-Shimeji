@@ -16,18 +16,18 @@
 
         <Action Name="Walk" Type="Move" BorderType="Floor">
             <Animation>
-                <Pose Image="/stand.png" ImageAnchor="64,128" Velocity="-2,0" Duration="6"/>
                 <Pose Image="/walk_2.png" ImageAnchor="64,128" Velocity="-2,0" Duration="6"/>
-                <Pose Image="/stand.png" ImageAnchor="64,128" Velocity="-2,0" Duration="6"/>
-                <Pose Image="/walk_3.png" ImageAnchor="64,128" Velocity="-2,0" Duration="6"/>
+                <Pose Image="/walk_2.png" ImageAnchor="64,128" Velocity="-2,0" Duration="6"/>
+                <Pose Image="/walk_2.png" ImageAnchor="64,128" Velocity="-2,0" Duration="6"/>
+                <Pose Image="/walk_2.png" ImageAnchor="64,128" Velocity="-2,0" Duration="6"/>
             </Animation>
         </Action>
 
         <Action Name="Run" Type="Move" BorderType="Floor">
             <Animation>
-                <Pose Image="/stand.png" ImageAnchor="64,128" Velocity="-4,0" Duration="2"/>
                 <Pose Image="/walk_2.png" ImageAnchor="64,128" Velocity="-4,0" Duration="2"/>
-                <Pose Image="/stand.png" ImageAnchor="64,128" Velocity="-4,0" Duration="2"/>
+                <Pose Image="/walk_2.png" ImageAnchor="64,128" Velocity="-4,0" Duration="2"/>
+                <Pose Image="/walk_2.png" ImageAnchor="64,128" Velocity="-4,0" Duration="2"/>
                 <Pose Image="/walk_3.png" ImageAnchor="64,128" Velocity="-4,0" Duration="2"/>
             </Animation>
         </Action>
