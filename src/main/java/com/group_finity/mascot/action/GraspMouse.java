@@ -35,10 +35,22 @@ public class GraspMouse extends ActionBase {
     private static final Logger log = LoggerFactory.getLogger(GraspMouse.class);
 
     private static final String PARAMETER_MAX_STRUGGLE = "MaxStruggle";
-    private static final double DEFAULT_MAX_STRUGGLE = 300.0;
+    private static final double DEFAULT_MAX_STRUGGLE = 1200.0;
 
     private static final String PARAMETER_REGEN = "Regen";
-    private static final double DEFAULT_REGEN = 2.0;
+    private static final double DEFAULT_REGEN = 5.0;
+
+    private static final String PARAMETER_FAST_THRESHOLD = "FastThreshold";
+    private static final double DEFAULT_FAST_THRESHOLD = 10.0;
+
+    private static final String PARAMETER_FAST_MULTIPLIER = "FastMultiplier";
+    private static final double DEFAULT_FAST_MULTIPLIER = 0.5;
+
+    private static final String PARAMETER_FURIOUS_THRESHOLD = "FuriousThreshold";
+    private static final double DEFAULT_FURIOUS_THRESHOLD = 30.0;
+
+    private static final String PARAMETER_FURIOUS_MULTIPLIER = "FuriousMultiplier";
+    private static final double DEFAULT_FURIOUS_MULTIPLIER = 0.25;
 
     private static final String PARAMETER_MISS_THRESHOLD = "MissThreshold";
     private static final double DEFAULT_MISS_THRESHOLD = 100.0;
@@ -59,6 +71,8 @@ public class GraspMouse extends ActionBase {
 
     private double hp;
 
+    private int fatigue;
+
     private boolean proximityChecked;
 
     private boolean cursorHidden;
@@ -75,6 +89,7 @@ public class GraspMouse extends ActionBase {
 
         maxHp = getMaxStruggle();
         hp = maxHp;
+        fatigue = 0;
         proximityChecked = false;
         cursorHidden = false;
 
@@ -162,9 +177,15 @@ public class GraspMouse extends ActionBase {
         // How far the user dragged the cursor away since we last snapped it back.
         final double struggle = anchor.distance(raw);
         if (struggle <= STRUGGLE_THRESHOLD) {
+            // Resting: cool down and recover.
+            fatigue = Math.max(0, fatigue - 2);
             hp = Math.min(maxHp, hp + getRegen());
         } else {
-            hp -= struggle;
+            // Fighting: frantic shaking is dulled by the curve, and sustained
+            // mashing tires itself out through fatigue.
+            fatigue++;
+            final double fatigueMultiplier = Math.max(0.2, 1.0 - fatigue / 100.0);
+            hp -= applyStruggleCurve(struggle) * fatigueMultiplier;
         }
 
         // Yank it back.
@@ -263,5 +284,35 @@ public class GraspMouse extends ActionBase {
 
     private double getGraspOffsetY() throws VariableException {
         return eval(getSchema().getString(PARAMETER_GRASP_OFFSET_Y), Number.class, DEFAULT_GRASP_OFFSET_Y).doubleValue();
+    }
+
+    /**
+     * Dulls frantic mouse shaking: slow steady pulls count fully, fast
+     * yanks are discounted, furious flailing barely registers.
+     */
+    private double applyStruggleCurve(final double distance) throws VariableException {
+        if (distance < getFastThreshold()) {
+            return distance;
+        }
+        if (distance < getFuriousThreshold()) {
+            return distance * getFastMultiplier();
+        }
+        return distance * getFuriousMultiplier();
+    }
+
+    private double getFastThreshold() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_FAST_THRESHOLD), Number.class, DEFAULT_FAST_THRESHOLD).doubleValue();
+    }
+
+    private double getFastMultiplier() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_FAST_MULTIPLIER), Number.class, DEFAULT_FAST_MULTIPLIER).doubleValue();
+    }
+
+    private double getFuriousThreshold() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_FURIOUS_THRESHOLD), Number.class, DEFAULT_FURIOUS_THRESHOLD).doubleValue();
+    }
+
+    private double getFuriousMultiplier() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_FURIOUS_MULTIPLIER), Number.class, DEFAULT_FURIOUS_MULTIPLIER).doubleValue();
     }
 }

@@ -458,6 +458,38 @@
                 </documentation>
             </annotation>
         </attribute>
+        <attribute name="FastThreshold" type="tns:ScriptableDouble" default="10">
+            <annotation>
+                <documentation>
+                    A scriptable double representing the per-tick cursor distance in pixels below which struggle
+                    counts fully for the GraspMouse action. Defaults to 10.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="FastMultiplier" type="tns:ScriptableDouble" default="0.5">
+            <annotation>
+                <documentation>
+                    A scriptable double representing the discount applied to GraspMouse struggle between
+                    FastThreshold and FuriousThreshold. Defaults to 0.5.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="FuriousThreshold" type="tns:ScriptableDouble" default="30">
+            <annotation>
+                <documentation>
+                    A scriptable double representing the per-tick cursor distance in pixels above which struggle
+                    counts at the furious rate for the GraspMouse action. Defaults to 30.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="FuriousMultiplier" type="tns:ScriptableDouble" default="0.25">
+            <annotation>
+                <documentation>
+                    A scriptable double representing the discount applied to GraspMouse struggle above
+                    FuriousThreshold. Defaults to 0.25.
+                </documentation>
+            </annotation>
+        </attribute>
         <attribute name="X" type="tns:ScriptableInt" default="0">
             <annotation>
                 <documentation>
