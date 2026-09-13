@@ -221,8 +221,10 @@
             </Animation>
         </Action>
 
-        <Action Name="LeapForMouse" Type="Embedded" Class="com.group_finity.mascot.action.Jump"
-                VelocityParam="38">
+        <Action Name="LeapForMouse" Type="Embedded" Class="com.group_finity.mascot.action.CursorLeap"
+                VelocityParam="38"
+                TargetX="${mascot.environment.cursor.x}"
+                TargetY="${mascot.environment.cursor.y+96}">
             <Animation>
                 <Pose Image="/lunge.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
                 <Pose Image="/lunge.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>

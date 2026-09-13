@@ -13,6 +13,7 @@ import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.MouseInfo;
 import java.awt.Point;
+import java.awt.PointerInfo;
 import java.awt.Robot;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
@@ -59,6 +60,26 @@ public class GraspMouse extends ActionBase {
     private static final String PARAMETER_GRASP_OFFSET_Y = "GraspOffsetY";
     private static final double DEFAULT_GRASP_OFFSET_Y = -96.0;
 
+    private static final String PARAMETER_TACKLE_STAGGER_TICKS = "TackleStaggerTicks";
+    private static final int DEFAULT_TACKLE_STAGGER_TICKS = 10;
+
+    private static final String PARAMETER_TACKLE_KNOCKBACK = "TackleKnockback";
+    private static final double DEFAULT_TACKLE_KNOCKBACK = 25.0;
+
+    /**
+     * Closing speed (in px/tick) above which a catch counts as a head-on
+     * tackle instead of a normal grab.
+     */
+    private static final double TACKLE_CLOSING_SPEED = 15.0;
+
+    /**
+     * How many timestamped cursor positions the history buffer holds. The
+     * closing speed used for tackle detection spans the whole buffer, so a
+     * wider buffer needs a longer free-measurement window before the grasp
+     * locks in.
+     */
+    private static final int CURSOR_HISTORY_SIZE = 4;
+
     /**
      * Cursor movement at or below this distance (in pixels) counts as "not
      * fighting" and regenerates HP instead of draining it. Filters out
@@ -88,6 +109,36 @@ public class GraspMouse extends ActionBase {
 
     private Cursor invisibleCursor;
 
+    private CursorSample[] cursorHistory;
+
+    private int cursorHistoryIndex;
+
+    private int cursorHistoryFill;
+
+    private boolean tackle;
+
+    private int staggerRemaining;
+
+    private int contactRemaining;
+
+    private static final class CursorSample {
+        private final int x;
+        private final int y;
+        private final long nanoTime;
+
+        CursorSample(final int x, final int y, final long nanoTime) {
+            this.x = x;
+            this.y = y;
+            this.nanoTime = nanoTime;
+        }
+
+        double distance(final int px, final int py) {
+            final double dx = x - px;
+            final double dy = y - py;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+    }
+
     public GraspMouse(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
         super(schema, animations, context);
     }
@@ -105,6 +156,19 @@ public class GraspMouse extends ActionBase {
         driftAppliedY = 0;
         proximityChecked = false;
         cursorHidden = false;
+        cursorHistory = new CursorSample[CURSOR_HISTORY_SIZE];
+        cursorHistoryIndex = 0;
+        cursorHistoryFill = 0;
+        final Point seed = currentCursor();
+        if (seed != null) {
+            recordCursor(seed);
+        }
+        tackle = false;
+        staggerRemaining = 0;
+        // Free-measurement window before the hold locks in: the cursor stays
+        // unheld while the history buffer fills, so tackle detection gets a
+        // genuine multi-tick velocity instead of a same-frame delta.
+        contactRemaining = Math.max(1, CURSOR_HISTORY_SIZE - 1);
 
         // Heal any leak from a previous grasp that was interrupted from the
         // outside (e.g. the user grabbed Nigel mid-grasp and swapped behaviors).
@@ -155,16 +219,32 @@ public class GraspMouse extends ActionBase {
                 final double cursorY = getEnvironment().getCursor().getY();
                 final double landingDistance = hands.distance(cursorX, cursorY);
 
+                log.info("Proximity check: landingDistance={}, threshold={}", landingDistance, getMissThreshold());
+
                 if (landingDistance > getMissThreshold()) {
                     throw new LostGroundException("Missed the cursor");
                 }
 
-                // Grasp confirmed: swallow the cursor while we hold it.
+                // From here Nigel is untouchable, even mid-stagger, but the cursor stays
+                // visible and free until the hold actually locks in.
                 getMascot().setGrasping(true);
-                hideCursor();
+
+                // Seed the history with the landing tick. The contact window
+                // below keeps sampling so the closing speed is measured over
+                // several ticks, not just the instant of impact.
+                final Point cursor = currentCursor();
+                if (cursor != null) {
+                    recordCursor(cursor);
+                }
             }
 
-            tickGrasp();
+            if (contactRemaining > 0) {
+                tickContact();
+            } else if (tackle && staggerRemaining > 0) {
+                tickStagger();
+            } else {
+                tickGrasp();
+            }
         } catch (final LostGroundException | VariableException | RuntimeException e) {
             // Whatever goes wrong (or the user breaking free), the cursor
             // must come back before we leave.
@@ -228,6 +308,169 @@ public class GraspMouse extends ActionBase {
         if (hp <= 0) {
             throw new LostGroundException("The mouse broke free of Nigel's grasp");
         }
+    }
+
+    /**
+     * The brief dazed pause that follows a head-on tackle. The cursor is NOT
+     * held during this window: the user can still bolt, and there is real
+     * dodge room until the hold snaps in on the last stagger tick.
+     */
+    /**
+     * The contact window right after landing. The cursor is NOT held during
+     * it: every tick it is sampled into the history buffer, so once the window
+     * closes the closing speed can be measured over multiple ticks rather
+     * than a same-frame delta. If the user bolts during the window, that's a
+     * genuine escape.
+     */
+    private void tickContact() throws LostGroundException, VariableException {
+        final Point cursor = currentCursor();
+        if (cursor == null) {
+            throw new LostGroundException("Lost track of the cursor");
+        }
+        recordCursor(cursor);
+
+        final Point hands = getGraspPoint();
+        if (hands.distance(cursor.x, cursor.y) > getMissThreshold()) {
+            throw new LostGroundException("Escaped during the contact window");
+        }
+
+        // Nigel processes the hit while the user still has the cursor.
+        wrestle(0.0, false);
+        clampAnchorToScreen();
+        getAnimation().apply(getMascot(), getTime());
+
+        if (--contactRemaining > 0) {
+            return;
+        }
+
+        // Window over: decide how this catch plays out from the buffered
+        // closing speed.
+        if (isTackle()) {
+            tackle = true;
+            applyKnockback();
+            staggerRemaining = Math.max(1, getTackleStaggerTicks());
+            resetDrift();
+        } else {
+            hideCursor();
+        }
+    }
+
+    /**
+     * The brief dazed pause that follows a head-on tackle. The cursor is NOT
+     * held during this window: the user can still bolt, and there is real
+     * dodge room until the hold snaps in on the last stagger tick.
+     */
+    private void tickStagger() throws LostGroundException, VariableException {
+        log.info("Tackle stagger tick {}", staggerRemaining);
+
+        final Point cursor = currentCursor();
+        if (cursor == null) {
+            throw new LostGroundException("Lost track of the cursor");
+        }
+
+        final Point hands = getGraspPoint();
+        if (hands.distance(cursor.x, cursor.y) > getMissThreshold()) {
+            throw new LostGroundException("Escaped during the stagger");
+        }
+
+        // Dazed wobble, then the grasp locks in.
+        wrestle(0.0, false);
+        clampAnchorToScreen();
+        getAnimation().apply(getMascot(), getTime());
+
+        if (--staggerRemaining <= 0) {
+            hideCursor();
+            tackle = false;
+        }
+    }
+
+    private Point currentCursor() {
+        try {
+            final PointerInfo info = MouseInfo.getPointerInfo();
+            return info == null ? null : info.getLocation();
+        } catch (final SecurityException e) {
+            return null;
+        }
+    }
+
+    private void recordCursor(final Point cursor) {
+        if (cursorHistory == null) {
+            cursorHistory = new CursorSample[CURSOR_HISTORY_SIZE];
+            cursorHistoryIndex = 0;
+            cursorHistoryFill = 0;
+        }
+        cursorHistory[cursorHistoryIndex] = new CursorSample(cursor.x, cursor.y, System.nanoTime());
+        cursorHistoryIndex = (cursorHistoryIndex + 1) % CURSOR_HISTORY_SIZE;
+        cursorHistoryFill = Math.min(cursorHistoryFill + 1, CURSOR_HISTORY_SIZE);
+    }
+
+    private CursorSample oldestSample() {
+        if (cursorHistoryFill <= 1) {
+            return null;
+        }
+        return cursorHistory[cursorHistoryFill == CURSOR_HISTORY_SIZE ? cursorHistoryIndex : 0];
+    }
+
+    private CursorSample newestSample() {
+        if (cursorHistoryFill == 0) {
+            return null;
+        }
+        return cursorHistory[(cursorHistoryIndex - 1 + CURSOR_HISTORY_SIZE) % CURSOR_HISTORY_SIZE];
+    }
+
+    /**
+     * A tackle is a head-on collision: over the buffered window Nigel's
+     * position, the distance from the cursor to Nigel shrank by more than
+     * {@link #TACKLE_CLOSING_SPEED} pixels per tick on average. Wall-clock
+     * timestamps are kept on each sample so the reading is honest even if
+     * {@code init()} and the first tick fire in rapid succession.
+     */
+    private boolean isTackle() {
+        final CursorSample oldest = oldestSample();
+        final CursorSample newest = newestSample();
+        if (oldest == null || newest == null || oldest.nanoTime >= newest.nanoTime) {
+            return false;
+        }
+        final int intervals = Math.min(cursorHistoryFill, CURSOR_HISTORY_SIZE) - 1;
+        if (intervals < 2) {
+            return false;
+        }
+        final Point anchor = getMascot().getAnchor();
+        final double prevDistance = oldest.distance(anchor.x, anchor.y);
+        final double curDistance = newest.distance(anchor.x, anchor.y);
+        final double closingSpeed = (prevDistance - curDistance) / intervals;
+        log.info("Tackle check: prevDist={}, curDist={}, closingSpeed={}, threshold={}",
+                prevDistance, curDistance, closingSpeed, TACKLE_CLOSING_SPEED);
+        return closingSpeed > TACKLE_CLOSING_SPEED;
+    }
+
+    /**
+     * Shoves Nigel away from the direction the cursor came charging in from.
+     */
+    private void applyKnockback() throws VariableException {
+        final CursorSample oldest = oldestSample();
+        final CursorSample newest = newestSample();
+        if (oldest == null || newest == null) {
+            return;
+        }
+        final double dx = newest.x - oldest.x;
+        final double dy = newest.y - oldest.y;
+        final double speed = Math.sqrt(dx * dx + dy * dy);
+        if (speed <= 1.0) {
+            return;
+        }
+        final double knockback = getTackleKnockback();
+        getMascot().getAnchor().translate(
+                (int) Math.round(-dx / speed * knockback),
+                (int) Math.round(-dy / speed * knockback));
+        clampAnchorToScreen();
+    }
+
+    private void resetDrift() {
+        driftTargetX = 0.0;
+        driftTargetY = 0.0;
+        driftAppliedX = 0;
+        driftAppliedY = 0;
     }
 
     /**
@@ -379,5 +622,13 @@ public class GraspMouse extends ActionBase {
 
     private double getFuriousMultiplier() throws VariableException {
         return eval(getSchema().getString(PARAMETER_FURIOUS_MULTIPLIER), Number.class, DEFAULT_FURIOUS_MULTIPLIER).doubleValue();
+    }
+
+    private int getTackleStaggerTicks() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_TACKLE_STAGGER_TICKS), Number.class, DEFAULT_TACKLE_STAGGER_TICKS).intValue();
+    }
+
+    private double getTackleKnockback() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_TACKLE_KNOCKBACK), Number.class, DEFAULT_TACKLE_KNOCKBACK).doubleValue();
     }
 }

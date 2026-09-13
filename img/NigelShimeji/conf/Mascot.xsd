@@ -490,6 +490,23 @@
                 </documentation>
             </annotation>
         </attribute>
+        <attribute name="TackleStaggerTicks" type="tns:ScriptableDouble" default="10">
+            <annotation>
+                <documentation>
+                    A scriptable double representing how many ticks Nigel stays dazed after tackling the
+                    cursor head-on before the grasp locks in. During this window the cursor is not yet held
+                    and the user can still escape. Defaults to 10.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="TackleKnockback" type="tns:ScriptableDouble" default="25">
+            <annotation>
+                <documentation>
+                    A scriptable double representing the pixel impulse applied to Nigel's position, away
+                    from the cursor's approach direction, when he tackles the cursor head-on. Defaults to 25.
+                </documentation>
+            </annotation>
+        </attribute>
         <attribute name="X" type="tns:ScriptableInt" default="0">
             <annotation>
                 <documentation>
