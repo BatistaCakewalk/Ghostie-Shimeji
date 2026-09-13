@@ -419,29 +419,34 @@ public class GraspMouse extends ActionBase {
     }
 
     /**
-     * A tackle is a head-on collision: over the buffered window Nigel's
-     * position, the distance from the cursor to Nigel shrank by more than
-     * {@link #TACKLE_CLOSING_SPEED} pixels per tick on average. Wall-clock
-     * timestamps are kept on each sample so the reading is honest even if
-     * {@code init()} and the first tick fire in rapid succession.
+     * A tackle is a head-on collision. The approach-phase reading (cursor's
+     * own closing speed toward Nigel during the leap, measured by
+     * {@code CursorLeap}) is the primary signal, since a charging user
+     * decelerates at the last moment to "meet" Nigel. The post-landing
+     * contact window reading is kept as a fallback for catches where the
+     * charge only happens right at the grab.
      */
     private boolean isTackle() {
+        final Point anchor = getMascot().getAnchor();
+
+        final double approachClosingSpeed = getMascot().getApproachClosingSpeed();
+
+        double contactClosingSpeed = 0.0;
         final CursorSample oldest = oldestSample();
         final CursorSample newest = newestSample();
-        if (oldest == null || newest == null || oldest.nanoTime >= newest.nanoTime) {
-            return false;
+        if (oldest != null && newest != null && oldest.nanoTime < newest.nanoTime) {
+            final int intervals = Math.min(cursorHistoryFill, CURSOR_HISTORY_SIZE) - 1;
+            if (intervals >= 2) {
+                final double prevDistance = oldest.distance(anchor.x, anchor.y);
+                final double curDistance = newest.distance(anchor.x, anchor.y);
+                contactClosingSpeed = (prevDistance - curDistance) / intervals;
+            }
         }
-        final int intervals = Math.min(cursorHistoryFill, CURSOR_HISTORY_SIZE) - 1;
-        if (intervals < 2) {
-            return false;
-        }
-        final Point anchor = getMascot().getAnchor();
-        final double prevDistance = oldest.distance(anchor.x, anchor.y);
-        final double curDistance = newest.distance(anchor.x, anchor.y);
-        final double closingSpeed = (prevDistance - curDistance) / intervals;
-        log.info("Tackle check: prevDist={}, curDist={}, closingSpeed={}, threshold={}",
-                prevDistance, curDistance, closingSpeed, TACKLE_CLOSING_SPEED);
-        return closingSpeed > TACKLE_CLOSING_SPEED;
+
+        log.info("Tackle check: approachClosingSpeed={}, contactClosingSpeed={}, threshold={}",
+                approachClosingSpeed, contactClosingSpeed, TACKLE_CLOSING_SPEED);
+        return approachClosingSpeed > TACKLE_CLOSING_SPEED
+                || contactClosingSpeed > TACKLE_CLOSING_SPEED;
     }
 
     /**

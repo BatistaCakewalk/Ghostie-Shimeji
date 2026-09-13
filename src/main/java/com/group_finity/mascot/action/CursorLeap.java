@@ -8,6 +8,10 @@ import com.group_finity.mascot.script.VariableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.MouseInfo;
+import java.awt.Point;
+import java.awt.PointerInfo;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.ResourceBundle;
 
@@ -39,6 +43,29 @@ public class CursorLeap extends ActionBase {
 
     private int frozenTargetY;
 
+    /**
+     * Cursor and mascot positions sampled once per tick during the flight,
+     * kept to the most recent {@value #MAX_SAMPLES} samples so the closing
+     * speed used for tackle detection covers the approach phase.
+     */
+    private final List<CursorSample> samples = new ArrayList<>();
+
+    private static final int MAX_SAMPLES = 5;
+
+    private static final class CursorSample {
+        private final double cursorX;
+        private final double cursorY;
+        private final double anchorX;
+        private final double anchorY;
+
+        CursorSample(final double cursorX, final double cursorY, final double anchorX, final double anchorY) {
+            this.cursorX = cursorX;
+            this.cursorY = cursorY;
+            this.anchorX = anchorX;
+            this.anchorY = anchorY;
+        }
+    }
+
     public CursorLeap(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
         super(schema, animations, context);
     }
@@ -52,6 +79,9 @@ public class CursorLeap extends ActionBase {
         // Freeze the aim point on the launch frame.
         frozenTargetX = getTargetX();
         frozenTargetY = getTargetY();
+        samples.clear();
+        // Stale approach readings must not leak from a previous leap.
+        mascot.setApproachClosingSpeed(0.0);
         log.info("CursorLeap init: frozenTargetX={}, frozenTargetY={}, mascotAnchor={}", frozenTargetX, frozenTargetY, mascot.getAnchor());
     }
 
@@ -72,6 +102,8 @@ public class CursorLeap extends ActionBase {
     protected void tick() throws LostGroundException, VariableException {
         log.info("CursorLeap tick: anchor={}, target=({},{}), distance={}", getMascot().getAnchor(), frozenTargetX, frozenTargetY,
                 getMascot().getAnchor().distance(frozenTargetX, frozenTargetY));
+
+        sampleFlight();
 
         if (getMascot().getAnchor().x != frozenTargetX) {
             getMascot().setLookRight(getMascot().getAnchor().x < frozenTargetX);
@@ -97,7 +129,59 @@ public class CursorLeap extends ActionBase {
 
         if (distance <= velocity) {
             getMascot().getAnchor().setLocation(frozenTargetX, frozenTargetY);
+            // Flight over: publish the approach closing speed for GraspMouse.
+            getMascot().setApproachClosingSpeed(measureApproachClosingSpeed());
         }
+    }
+
+    private void sampleFlight() {
+        final Point cursor = currentCursor();
+        if (cursor == null) {
+            return;
+        }
+        final Point anchor = getMascot().getAnchor();
+        samples.add(new CursorSample(cursor.x, cursor.y, anchor.x, anchor.y));
+        while (samples.size() > MAX_SAMPLES) {
+            samples.remove(0);
+        }
+    }
+
+    private Point currentCursor() {
+        try {
+            final PointerInfo info = MouseInfo.getPointerInfo();
+            return info == null ? null : info.getLocation();
+        } catch (final SecurityException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Closing speed of the cursor toward Nigel during the approach: the
+     * component of the cursor's own velocity along the direction from the
+     * cursor to Nigel, averaged over any 3-tick window of the flight. Using
+     * the cursor's motion rather than the shrinking gap means a stationary
+     * cursor can never count as a tackle just because Nigel flew at it.
+     */
+    private double measureApproachClosingSpeed() {
+        double best = 0.0;
+        for (int i = 0; i + 2 < samples.size(); i++) {
+            final CursorSample s0 = samples.get(i);
+            final CursorSample s2 = samples.get(i + 2);
+            final double velocityX = s2.cursorX - s0.cursorX;
+            final double velocityY = s2.cursorY - s0.cursorY;
+            double toNigelX = s2.anchorX - s2.cursorX;
+            double toNigelY = s2.anchorY - s2.cursorY;
+            final double toNigelLength = Math.sqrt(toNigelX * toNigelX + toNigelY * toNigelY);
+            if (toNigelLength < 1.0) {
+                continue;
+            }
+            toNigelX /= toNigelLength;
+            toNigelY /= toNigelLength;
+            // Per-tick closing component over the 2-tick window.
+            final double closingSpeed = (velocityX * toNigelX + velocityY * toNigelY) / 2.0;
+            best = Math.max(best, closingSpeed);
+        }
+        return best;
     }
 
     private int getTargetX() throws VariableException {

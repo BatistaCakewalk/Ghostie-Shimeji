@@ -192,6 +192,16 @@ public class Mascot {
     private volatile boolean grasping = false;
 
     /**
+     * The closing speed (in px/tick) measured during the most recent leap
+     * toward the cursor, as recorded by the {@code CursorLeap} action. Used
+     * by {@code GraspMouse} to decide whether the catch was a head-on tackle.
+     *
+     * @see #getApproachClosingSpeed()
+     * @see #setApproachClosingSpeed(double)
+     */
+    private volatile double approachClosingSpeed = 0.0;
+
+    /**
      * The key of the sound that is currently being played by this {@code Mascot}.
      * When this value is {@code null}, no sound is played.
      *
@@ -1365,6 +1375,28 @@ public class Mascot {
      */
     public void setGrasping(final boolean grasping) {
         this.grasping = grasping;
+    }
+
+    /**
+     * Gets the closing speed (in px/tick) measured during the most recent
+     * leap toward the cursor.
+     *
+     * @return the approach closing speed in px per tick
+     * @see #setApproachClosingSpeed(double)
+     */
+    public double getApproachClosingSpeed() {
+        return approachClosingSpeed;
+    }
+
+    /**
+     * Sets the closing speed (in px/tick) measured during the most recent
+     * leap toward the cursor.
+     *
+     * @param approachClosingSpeed the approach closing speed in px per tick
+     * @see #getApproachClosingSpeed()
+     */
+    public void setApproachClosingSpeed(final double approachClosingSpeed) {
+        this.approachClosingSpeed = approachClosingSpeed;
     }
 
     /**
