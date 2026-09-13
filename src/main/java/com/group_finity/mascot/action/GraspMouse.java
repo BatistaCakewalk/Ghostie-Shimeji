@@ -55,7 +55,7 @@ public class GraspMouse extends ActionBase {
     private static final double DEFAULT_FURIOUS_MULTIPLIER = 0.25;
 
     private static final String PARAMETER_MISS_THRESHOLD = "MissThreshold";
-    private static final double DEFAULT_MISS_THRESHOLD = 100.0;
+    private static final double DEFAULT_MISS_THRESHOLD = 150.0;
 
     private static final String PARAMETER_GRASP_OFFSET_Y = "GraspOffsetY";
     private static final double DEFAULT_GRASP_OFFSET_Y = -96.0;
@@ -372,7 +372,11 @@ public class GraspMouse extends ActionBase {
         }
 
         final Point hands = getGraspPoint();
-        if (hands.distance(cursor.x, cursor.y) > getMissThreshold()) {
+        // Tackle stagger is forgiving: cursor has high momentum from the
+        // collision and will naturally coast past Nigel. Require active
+        // flight, not just overshoot, to escape.
+        final double staggerEscapeThreshold = getMissThreshold() * 3;
+        if (hands.distance(cursor.x, cursor.y) > staggerEscapeThreshold) {
             throw new LostGroundException("Escaped during the stagger");
         }
 
