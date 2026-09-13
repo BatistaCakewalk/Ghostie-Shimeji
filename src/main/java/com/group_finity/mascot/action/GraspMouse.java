@@ -120,6 +120,9 @@ public class GraspMouse extends ActionBase {
         if (!proximityChecked) {
             proximityChecked = true;
 
+            // Measure from the hands (grasp point), not the feet: the leap
+            // already aimed the hands at the cursor, so a good landing reads
+            // near-zero here and the threshold is genuine dodge room.
             final double cursorX = getEnvironment().getCursor().getX();
             final double cursorY = getEnvironment().getCursor().getY();
             final double landingDistance = anchor.distance(cursorX, cursorY);
