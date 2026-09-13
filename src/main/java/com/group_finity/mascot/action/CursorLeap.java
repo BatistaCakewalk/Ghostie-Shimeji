@@ -130,7 +130,9 @@ public class CursorLeap extends ActionBase {
         if (distance <= velocity) {
             getMascot().getAnchor().setLocation(frozenTargetX, frozenTargetY);
             // Flight over: publish the approach closing speed for GraspMouse.
-            getMascot().setApproachClosingSpeed(measureApproachClosingSpeed());
+            final double computedSpeed = measureApproachClosingSpeed();
+            log.info("CursorLeap ending: approachClosingSpeed computed={}", computedSpeed);
+            getMascot().setApproachClosingSpeed(computedSpeed);
         }
     }
 

@@ -219,9 +219,12 @@ public class GraspMouse extends ActionBase {
                 final double cursorY = getEnvironment().getCursor().getY();
                 final double landingDistance = hands.distance(cursorX, cursorY);
 
-                log.info("Proximity check: landingDistance={}, threshold={}", landingDistance, getMissThreshold());
+                final double baseThreshold = getMissThreshold();
+                final double approachForProximity = getMascot().getApproachClosingSpeed();
+                final double effectiveThreshold = approachForProximity > TACKLE_CLOSING_SPEED ? baseThreshold * 3 : baseThreshold;
+                log.info("Proximity check: landingDistance={}, threshold={}, approachClosingSpeed={}", landingDistance, effectiveThreshold, approachForProximity);
 
-                if (landingDistance > getMissThreshold()) {
+                if (landingDistance > effectiveThreshold) {
                     throw new LostGroundException("Missed the cursor");
                 }
 
