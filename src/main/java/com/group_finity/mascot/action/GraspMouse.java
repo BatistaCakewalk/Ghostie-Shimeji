@@ -21,11 +21,12 @@ import java.util.ResourceBundle;
 /**
  * Action for grabbing the user's cursor and refusing to let go.
  * <p>
- * On init the cursor is snapped to the mascot's anchor. Every tick the raw
- * OS cursor position is compared against the anchor: the distance the user
- * managed to drag it away is added to a struggle meter that drains the
- * grasp HP, while staying (nearly) still regenerates HP. The cursor is then
- * yanked back to the anchor.
+ * Once the dodge check passes, the cursor is snapped to the mascot's grasp
+ * point (anchor raised to hand height). Every tick the raw OS cursor
+ * position is compared against that point: the distance the user managed
+ * to drag it away is added to a struggle meter that drains the grasp HP,
+ * while staying (nearly) still regenerates HP. The cursor is then yanked
+ * back to the grasp point.
  * <p>
  * When HP hits 0 a {@link LostGroundException} is thrown, which makes the
  * engine play the {@code Fall} behavior, so Nigel drops the mouse and lands.
@@ -41,6 +42,9 @@ public class GraspMouse extends ActionBase {
 
     private static final String PARAMETER_MISS_THRESHOLD = "MissThreshold";
     private static final double DEFAULT_MISS_THRESHOLD = 100.0;
+
+    private static final String PARAMETER_GRASP_OFFSET_Y = "GraspOffsetY";
+    private static final double DEFAULT_GRASP_OFFSET_Y = -96.0;
 
     /**
      * Cursor movement at or below this distance (in pixels) counts as "not
@@ -58,6 +62,8 @@ public class GraspMouse extends ActionBase {
     private boolean proximityChecked;
 
     private boolean cursorHidden;
+
+    private Cursor invisibleCursor;
 
     public GraspMouse(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
         super(schema, animations, context);
@@ -84,9 +90,10 @@ public class GraspMouse extends ActionBase {
             return;
         }
 
-        // Snatch the cursor immediately.
-        final Point anchor = getMascot().getAnchor().getLocation();
-        robot.mouseMove(anchor.x, anchor.y);
+        // Deliberately no cursor snap here: the proximity check on the first
+        // tick must see the cursor where the user left it, otherwise every
+        // dodge would look like a hit. The first yank happens in tickGrasp(),
+        // only after the check passes.
     }
 
     @Override
@@ -105,7 +112,7 @@ public class GraspMouse extends ActionBase {
     protected void tick() throws LostGroundException, VariableException {
         getMascot().setDragging(true);
 
-        final Point anchor = getMascot().getAnchor().getLocation();
+        final Point anchor = getGraspPoint();
 
         // init() cannot throw LostGroundException, so the dodge check runs
         // here on the first tick instead. If Nigel landed too far from the
@@ -162,9 +169,25 @@ public class GraspMouse extends ActionBase {
         // Look like we're holding on.
         getAnimation().apply(getMascot(), getTime());
 
+        // The mascot's own hover logic resets its window cursor on every
+        // mouse motion event, which our yanks trigger constantly, so
+        // re-assert the hide every tick or it flickers back.
+        reassertCursorHidden();
+
         if (hp <= 0) {
             throw new LostGroundException("The mouse broke free of Nigel's grasp");
         }
+    }
+
+    /**
+     * Gets the point Nigel grabs with: his anchor (feet) raised by
+     * {@code GraspOffsetY} so the cursor sits at his hands instead of
+     * disappearing underneath him.
+     */
+    private Point getGraspPoint() throws VariableException {
+        final Point point = getMascot().getAnchor().getLocation();
+        point.translate(0, (int) getGraspOffsetY());
+        return point;
     }
 
     private void hideCursor() {
@@ -172,15 +195,32 @@ public class GraspMouse extends ActionBase {
             final Component window = getMascot().getWindowComponent();
             if (window != null) {
                 // There is no predefined invisible cursor, so build a
-                // fully transparent 1x1 one instead.
-                final Cursor invisible = Toolkit.getDefaultToolkit().createCustomCursor(
-                        new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB),
-                        new Point(0, 0), "grasped");
-                window.setCursor(invisible);
+                // fully transparent 1x1 one instead. Reuse it so the
+                // per-tick re-assert below stays cheap.
+                if (invisibleCursor == null) {
+                    invisibleCursor = Toolkit.getDefaultToolkit().createCustomCursor(
+                            new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB),
+                            new Point(0, 0), "grasped");
+                }
+                window.setCursor(invisibleCursor);
                 cursorHidden = true;
             }
         } catch (final RuntimeException e) {
             log.warn("Could not hide cursor for GraspMouse", e);
+        }
+    }
+
+    private void reassertCursorHidden() {
+        if (!cursorHidden || invisibleCursor == null) {
+            return;
+        }
+        try {
+            final Component window = getMascot().getWindowComponent();
+            if (window != null && window.getCursor() != invisibleCursor) {
+                window.setCursor(invisibleCursor);
+            }
+        } catch (final RuntimeException e) {
+            log.warn("Could not re-hide cursor for GraspMouse", e);
         }
     }
 
@@ -214,5 +254,9 @@ public class GraspMouse extends ActionBase {
 
     private double getMissThreshold() throws VariableException {
         return eval(getSchema().getString(PARAMETER_MISS_THRESHOLD), Number.class, DEFAULT_MISS_THRESHOLD).doubleValue();
+    }
+
+    private double getGraspOffsetY() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_GRASP_OFFSET_Y), Number.class, DEFAULT_GRASP_OFFSET_Y).doubleValue();
     }
 }

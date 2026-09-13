@@ -231,7 +231,7 @@
         </Action>
 
         <Action Name="Grasp" Type="Embedded" Class="com.group_finity.mascot.action.GraspMouse"
-                MaxStruggle="1200" Regen="2" MissThreshold="100">
+                MaxStruggle="1200" Regen="2" MissThreshold="100" GraspOffsetY="-96">
             <Animation>
                 <Pose Image="/struggle.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
                 <Pose Image="/struggle.png" ImageAnchor="96,200" Velocity="0,0" Duration="2"/>
