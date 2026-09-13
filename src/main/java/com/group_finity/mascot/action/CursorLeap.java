@@ -5,6 +5,8 @@ import com.group_finity.mascot.Mascot;
 import com.group_finity.mascot.animation.Animation;
 import com.group_finity.mascot.script.VariableException;
 import com.group_finity.mascot.script.VariableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.ResourceBundle;
@@ -16,6 +18,8 @@ import java.util.ResourceBundle;
  * and turn every catch into a miss.
  */
 public class CursorLeap extends ActionBase {
+    private static final Logger log = LoggerFactory.getLogger(CursorLeap.class);
+
     private static final String PARAMETER_TARGETX = "TargetX";
     private static final int DEFAULT_TARGETX = 0;
 
@@ -31,9 +35,9 @@ public class CursorLeap extends ActionBase {
 
     private double scaling;
 
-    private int targetX;
+    private int frozenTargetX;
 
-    private int targetY;
+    private int frozenTargetY;
 
     public CursorLeap(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
         super(schema, animations, context);
@@ -46,8 +50,9 @@ public class CursorLeap extends ActionBase {
         scaling = Main.getInstance().getSettings().scaling;
 
         // Freeze the aim point on the launch frame.
-        targetX = getTargetX();
-        targetY = getTargetY();
+        frozenTargetX = getTargetX();
+        frozenTargetY = getTargetY();
+        log.info("CursorLeap init: frozenTargetX={}, frozenTargetY={}, mascotAnchor={}", frozenTargetX, frozenTargetY, mascot.getAnchor());
     }
 
     @Override
@@ -56,8 +61,8 @@ public class CursorLeap extends ActionBase {
             return false;
         }
 
-        final double distanceX = targetX - getMascot().getAnchor().x;
-        final double distanceY = targetY - getMascot().getAnchor().y - Math.abs(distanceX) / 2;
+        final double distanceX = frozenTargetX - getMascot().getAnchor().x;
+        final double distanceY = frozenTargetY - getMascot().getAnchor().y - Math.abs(distanceX) / 2;
         final double distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
 
         return distance != 0;
@@ -65,12 +70,15 @@ public class CursorLeap extends ActionBase {
 
     @Override
     protected void tick() throws LostGroundException, VariableException {
-        if (getMascot().getAnchor().x != targetX) {
-            getMascot().setLookRight(getMascot().getAnchor().x < targetX);
+        log.info("CursorLeap tick: anchor={}, target=({},{}), distance={}", getMascot().getAnchor(), frozenTargetX, frozenTargetY,
+                getMascot().getAnchor().distance(frozenTargetX, frozenTargetY));
+
+        if (getMascot().getAnchor().x != frozenTargetX) {
+            getMascot().setLookRight(getMascot().getAnchor().x < frozenTargetX);
         }
 
-        final double distanceX = targetX - getMascot().getAnchor().x;
-        final double distanceY = targetY - getMascot().getAnchor().y - Math.abs(distanceX) / 2;
+        final double distanceX = frozenTargetX - getMascot().getAnchor().x;
+        final double distanceY = frozenTargetY - getMascot().getAnchor().y - Math.abs(distanceX) / 2;
 
         final double distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
 
@@ -88,7 +96,7 @@ public class CursorLeap extends ActionBase {
         }
 
         if (distance <= velocity) {
-            getMascot().getAnchor().setLocation(targetX, targetY);
+            getMascot().getAnchor().setLocation(frozenTargetX, frozenTargetY);
         }
     }
 
