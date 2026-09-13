@@ -8,12 +8,12 @@
 
         <!-- Standing -->
 
-        <Action Name="Stand" Type="Stay">
+        <Action Name="Stand" Type="Stay" BorderType="Floor">
             <Animation>
-                <Pose Image="/stand.png" ImageAnchor="96,192" Velocity="0,-1" Duration="8"/>
                 <Pose Image="/stand.png" ImageAnchor="96,192" Velocity="0,0" Duration="8"/>
-                <Pose Image="/stand2.png" ImageAnchor="96,192" Velocity="0,0" Duration="4"/>
-                <Pose Image="/stand.png" ImageAnchor="96,192" Velocity="0,1" Duration="8"/>
+                <Pose Image="/stand.png" ImageAnchor="96,188" Velocity="0,0" Duration="8"/>
+                <Pose Image="/stand2.png" ImageAnchor="96,184" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,188" Velocity="0,0" Duration="8"/>
                 <Pose Image="/stand.png" ImageAnchor="96,192" Velocity="0,0" Duration="12"/>
             </Animation>
         </Action>
@@ -335,7 +335,7 @@
         </Action>
 
         <Action Name="StandUp" Type="Sequence" Loop="false">
-            <ActionReference Name="Stand" Duration="${400*(1+Math.floor(Math.random()*2))}"/>
+            <ActionReference Name="Stand" Duration="${500+Math.random()*1000}"/>
         </Action>
 
         <Action Name="SitDown" Type="Sequence" Loop="false">
