@@ -20,8 +20,7 @@
 
         <!-- On the Floor -->
         <Condition Condition="#{mascot.environment.floor.isOn(mascot.anchor)}">
-            <Behavior Name="StandUp" Frequency="15" Hidden="true"/>
-            <Behavior Name="HoverAboveFloor" Frequency="15" Hidden="true"/>
+            <Behavior Name="StandUp" Frequency="30" Hidden="true"/>
             <Behavior Name="Walk" Frequency="40" Hidden="true"/>
             <Behavior Name="ChaseMouse" Frequency="30" Hidden="true"/>
         </Condition>
