@@ -438,6 +438,11 @@ public class Mascot {
      * @see MouseListener#mousePressed(MouseEvent)
      */
     private void mousePressed(final MouseEvent event) {
+        // A grasping mascot is untouchable: no pickup, no context menu.
+        if (isGrasping()) {
+            event.consume();
+            return;
+        }
         // Check for popup triggers in both mousePressed and mouseReleased
         // because popup menus are triggered differently on different systems
         if (event.isPopupTrigger()) {
@@ -463,6 +468,11 @@ public class Mascot {
      * @see MouseListener#mousePressed(MouseEvent)
      */
     private void mouseReleased(final MouseEvent event) {
+        // A grasping mascot is untouchable: no pickup, no context menu.
+        if (isGrasping()) {
+            event.consume();
+            return;
+        }
         // Check for popup triggers in both mousePressed and mouseReleased
         // because popup menus are triggered differently on different systems
         if (event.isPopupTrigger()) {
