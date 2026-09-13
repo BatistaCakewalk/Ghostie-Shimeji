@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Mascot xmlns="http://www.group-finity.com/Mascot" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.group-finity.com/Mascot Mascot.xsd">
+
+    <BehaviorList>
+        <Behavior Name="SitAndFaceMouse" Frequency="0"/>
+        <Behavior Name="SitAndSpinHead" Frequency="0"/>
+
+        <!-- ALWAYS REQUIRED -->
+        <Behavior Name="Fall" Frequency="0" Hidden="true"/>
+
+        <!-- ALWAYS REQUIRED -->
+        <Behavior Name="Dragged" Frequency="0" Hidden="true"/>
+
+        <!-- ALWAYS REQUIRED -->
+        <Behavior Name="Thrown" Frequency="0" Hidden="true"/>
+
+        <Behavior Name="PullUp" Frequency="0" Hidden="true"/>
+        <Behavior Name="Divided" Frequency="0" Hidden="true"/>
+
+        <!-- On the Floor -->
+        <Condition Condition="#{mascot.environment.floor.isOn(mascot.anchor)}">
+            <Behavior Name="StandUp" Frequency="20" Hidden="true"/>
+            <Behavior Name="Walk" Frequency="50" Hidden="true"/>
+            <Behavior Name="ChaseMouse" Frequency="30" Hidden="true"/>
+        </Condition>
+
+    </BehaviorList>
+</Mascot>
