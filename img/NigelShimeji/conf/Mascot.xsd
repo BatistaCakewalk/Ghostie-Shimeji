@@ -425,6 +425,39 @@
                 </restriction>
             </simpleType>
         </attribute>
+        <attribute name="MaxStruggle" type="tns:ScriptableDouble" default="300">
+            <annotation>
+                <documentation>
+                    A scriptable double representing the grasp HP of the GraspMouse action, measured in pixels of
+                    cumulative cursor struggle distance. Defaults to 300.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="Regen" type="tns:ScriptableDouble" default="2">
+            <annotation>
+                <documentation>
+                    A scriptable double representing how much grasp HP the GraspMouse action regenerates per tick
+                    while the cursor stays (nearly) still. Defaults to 2.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="MissThreshold" type="tns:ScriptableDouble" default="100">
+            <annotation>
+                <documentation>
+                    A scriptable double representing the maximum distance in pixels between the mascot and the cursor
+                    at which the GraspMouse action still connects. Beyond this the grasp misses. Defaults to 100.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="GraspOffsetY" type="tns:ScriptableDouble" default="-96">
+            <annotation>
+                <documentation>
+                    A scriptable double representing the vertical offset in pixels applied to the mascot's anchor to
+                    find the GraspMouse action's grab point, so the cursor is held at hand height instead of at the
+                    mascot's feet. Defaults to -96.
+                </documentation>
+            </annotation>
+        </attribute>
         <attribute name="X" type="tns:ScriptableInt" default="0">
             <annotation>
                 <documentation>
