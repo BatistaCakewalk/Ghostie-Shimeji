@@ -129,6 +129,7 @@ public class GraspMouse extends ActionBase {
             }
 
             // Grasp confirmed: swallow the cursor while we hold it.
+            getMascot().setGrasping(true);
             hideCursor();
         }
 
@@ -230,6 +231,7 @@ public class GraspMouse extends ActionBase {
     }
 
     private void restoreCursor() {
+        getMascot().setGrasping(false);
         if (!cursorHidden) {
             return;
         }

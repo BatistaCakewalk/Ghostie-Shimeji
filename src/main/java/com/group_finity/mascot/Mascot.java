@@ -182,6 +182,16 @@ public class Mascot {
     private boolean dragging = false;
 
     /**
+     * Whether this {@code Mascot} is currently grasping the mouse cursor
+     * (e.g. via the {@code GraspMouse} action). While true, cursor-shape
+     * refreshes are skipped so a hidden cursor stays hidden.
+     *
+     * @see #isGrasping()
+     * @see #setGrasping(boolean)
+     */
+    private volatile boolean grasping = false;
+
+    /**
      * The key of the sound that is currently being played by this {@code Mascot}.
      * When this value is {@code null}, no sound is played.
      *
@@ -763,6 +773,10 @@ public class Mascot {
             SwingUtilities.invokeLater(() -> refreshCursor(useHand));
             return;
         }
+        // A grasping mascot hides the cursor on purpose; don't stomp it.
+        if (isGrasping()) {
+            return;
+        }
         int newType = useHand ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR;
         Component windowComponent = window.asComponent();
         if (windowComponent.getCursor().getType() != newType) {
@@ -1296,6 +1310,27 @@ public class Mascot {
      */
     public void setDragging(final boolean dragging) {
         this.dragging = dragging;
+    }
+
+    /**
+     * Gets whether this {@code Mascot} is currently grasping the mouse cursor.
+     *
+     * @return {@code true} if this {@code Mascot} is grasping the mouse cursor; {@code false} otherwise
+     * @see #setGrasping(boolean)
+     */
+    public boolean isGrasping() {
+        return grasping;
+    }
+
+    /**
+     * Sets whether this {@code Mascot} is currently grasping the mouse cursor.
+     *
+     * @param grasping {@code true} to mark this {@code Mascot} as grasping the mouse cursor;
+     * {@code false} to mark it as not grasping
+     * @see #isGrasping()
+     */
+    public void setGrasping(final boolean grasping) {
+        this.grasping = grasping;
     }
 
     /**
