@@ -323,6 +323,11 @@ public class Mascot {
             windowComponent.addMouseMotionListener(new MouseMotionListener() {
                 @Override
                 public void mouseMoved(final MouseEvent e) {
+                    // While grasping, the cursor is hidden on purpose: skip all
+                    // cursor logic so motion events can't flicker it back.
+                    if (Mascot.this.isGrasping()) {
+                        return;
+                    }
                     if (paused) {
                         refreshCursor(false);
                     } else {
@@ -336,6 +341,11 @@ public class Mascot {
 
                 @Override
                 public void mouseDragged(final MouseEvent e) {
+                    // While grasping, the cursor is hidden on purpose: skip all
+                    // cursor logic so motion events can't flicker it back.
+                    if (Mascot.this.isGrasping()) {
+                        return;
+                    }
                     if (paused) {
                         refreshCursor(false);
                     } else {
@@ -994,6 +1004,20 @@ public class Mascot {
      * @see #getBehavior()
      */
     public void setBehavior(final Behavior behavior) throws BehaviorExecutionException {
+        // Swapping behaviors is an exit from whatever was running: if a grasp
+        // is being abandoned from the outside, restore interactivity and the
+        // cursor so neither can leak.
+        if (isGrasping()) {
+            setGrasping(false);
+            try {
+                final Component windowComponent = window == null ? null : window.asComponent();
+                if (windowComponent != null && windowComponent.getCursor().getType() == Cursor.CUSTOM_CURSOR) {
+                    windowComponent.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+                }
+            } catch (final RuntimeException e) {
+                log.warn("Could not restore cursor after interrupted grasp for mascot \"{}\"", this, e);
+            }
+        }
         this.behavior = behavior;
         if (this.behavior != null) {
             this.behavior.init(this);

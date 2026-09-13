@@ -702,6 +702,7 @@
         <!-- Leap targets are offset by -GraspOffsetY (+96) so Nigel's HANDS arrive at the
              cursor, not his feet. Keep in sync with GraspOffsetY on the Grasp action below. -->
         <Action Name="CatchMouse" Type="Sequence" Loop="false">
+            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
             <ActionReference Name="LeapForMouse" TargetX="${mascot.environment.cursor.x}"
                              TargetY="${mascot.environment.cursor.y+96}"/>
             <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>

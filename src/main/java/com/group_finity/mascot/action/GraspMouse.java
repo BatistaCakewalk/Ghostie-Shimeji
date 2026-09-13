@@ -2,6 +2,7 @@ package com.group_finity.mascot.action;
 
 import com.group_finity.mascot.Mascot;
 import com.group_finity.mascot.animation.Animation;
+import com.group_finity.mascot.environment.Area;
 import com.group_finity.mascot.script.VariableException;
 import com.group_finity.mascot.script.VariableMap;
 import org.slf4j.Logger;
@@ -73,6 +74,14 @@ public class GraspMouse extends ActionBase {
 
     private int fatigue;
 
+    private double driftTargetX;
+
+    private double driftTargetY;
+
+    private int driftAppliedX;
+
+    private int driftAppliedY;
+
     private boolean proximityChecked;
 
     private boolean cursorHidden;
@@ -90,6 +99,10 @@ public class GraspMouse extends ActionBase {
         maxHp = getMaxStruggle();
         hp = maxHp;
         fatigue = 0;
+        driftTargetX = 0.0;
+        driftTargetY = 0.0;
+        driftAppliedX = 0;
+        driftAppliedY = 0;
         proximityChecked = false;
         cursorHidden = false;
 
@@ -127,41 +140,47 @@ public class GraspMouse extends ActionBase {
     protected void tick() throws LostGroundException, VariableException {
         getMascot().setDragging(true);
 
-        final Point anchor = getGraspPoint();
+        try {
+            // init() cannot throw LostGroundException, so the dodge check runs
+            // here on the first tick instead. If Nigel landed too far from the
+            // cursor, the user dodged him: abort straight into the Fall behavior.
+            if (!proximityChecked) {
+                proximityChecked = true;
 
-        // init() cannot throw LostGroundException, so the dodge check runs
-        // here on the first tick instead. If Nigel landed too far from the
-        // cursor, the user dodged him: abort straight into the Fall behavior.
-        if (!proximityChecked) {
-            proximityChecked = true;
+                // Measure from the hands (grasp point), not the feet: the leap
+                // already aimed the hands at the cursor, so a good landing reads
+                // near-zero here and the threshold is genuine dodge room.
+                final Point hands = getGraspPoint();
+                final double cursorX = getEnvironment().getCursor().getX();
+                final double cursorY = getEnvironment().getCursor().getY();
+                final double landingDistance = hands.distance(cursorX, cursorY);
 
-            // Measure from the hands (grasp point), not the feet: the leap
-            // already aimed the hands at the cursor, so a good landing reads
-            // near-zero here and the threshold is genuine dodge room.
-            final double cursorX = getEnvironment().getCursor().getX();
-            final double cursorY = getEnvironment().getCursor().getY();
-            final double landingDistance = anchor.distance(cursorX, cursorY);
+                if (landingDistance > getMissThreshold()) {
+                    throw new LostGroundException("Missed the cursor");
+                }
 
-            if (landingDistance > getMissThreshold()) {
-                throw new LostGroundException("Missed the cursor");
+                // Grasp confirmed: swallow the cursor while we hold it.
+                getMascot().setGrasping(true);
+                hideCursor();
             }
 
-            // Grasp confirmed: swallow the cursor while we hold it.
-            getMascot().setGrasping(true);
-            hideCursor();
-        }
-
-        try {
-            tickGrasp(anchor);
-        } catch (final RuntimeException | VariableException | LostGroundException e) {
+            tickGrasp();
+        } catch (final LostGroundException | VariableException | RuntimeException e) {
             // Whatever goes wrong (or the user breaking free), the cursor
             // must come back before we leave.
             restoreCursor();
             throw e;
+        } catch (final Throwable t) {
+            // Even Errors must not leak a hidden cursor. Rethrow untouched.
+            restoreCursor();
+            if (t instanceof Error) {
+                throw (Error) t;
+            }
+            throw new RuntimeException(t);
         }
     }
 
-    private void tickGrasp(final Point anchor) throws LostGroundException, VariableException {
+    private void tickGrasp() throws LostGroundException, VariableException {
         Point raw = null;
         try {
             if (MouseInfo.getPointerInfo() != null) {
@@ -175,8 +194,9 @@ public class GraspMouse extends ActionBase {
         }
 
         // How far the user dragged the cursor away since we last snapped it back.
-        final double struggle = anchor.distance(raw);
-        if (struggle <= STRUGGLE_THRESHOLD) {
+        final double struggle = getGraspPoint().distance(raw);
+        final boolean fighting = struggle > STRUGGLE_THRESHOLD;
+        if (!fighting) {
             // Resting: cool down and recover.
             fatigue = Math.max(0, fatigue - 2);
             hp = Math.min(maxHp, hp + getRegen());
@@ -188,8 +208,14 @@ public class GraspMouse extends ActionBase {
             hp -= applyStruggleCurve(struggle) * fatigueMultiplier;
         }
 
-        // Yank it back.
-        robot.mouseMove(anchor.x, anchor.y);
+        // Wrestle: drift or thrash Nigel around, bounded so the anchor can
+        // never wander off on its own.
+        wrestle(struggle, fighting);
+        clampAnchorToScreen();
+
+        // Cursor stays inside him at the new position.
+        final Point hands = getGraspPoint();
+        robot.mouseMove(hands.x, hands.y);
 
         // Look like we're holding on.
         getAnimation().apply(getMascot(), getTime());
@@ -201,6 +227,45 @@ public class GraspMouse extends ActionBase {
 
         if (hp <= 0) {
             throw new LostGroundException("The mouse broke free of Nigel's grasp");
+        }
+    }
+
+    /**
+     * Moves Nigel each tick to sell the wrestling: a slow floaty sine when
+     * calm, violent jitter scaled by fight intensity when struggling. All
+     * offsets are clamped to a small box around the catch point, and applied
+     * in whole pixels, so the anchor can never drift away over time.
+     */
+    private void wrestle(final double struggle, final boolean fighting) throws VariableException {
+        if (!fighting) {
+            driftTo(Math.sin(getTime() * 0.05) * 3.0, Math.cos(getTime() * 0.07) * 2.0);
+        } else {
+            final double intensity = Math.min(1.0, struggle / Math.max(1.0, getFuriousThreshold()));
+            driftTo(driftTargetX + (Math.random() * 12.0 - 6.0) * intensity,
+                    driftTargetY + (Math.random() * 8.0 - 4.0) * intensity);
+        }
+    }
+
+    private void driftTo(final double targetX, final double targetY) {
+        // Clamp the target box first, then move in whole pixels so no
+        // fractional residue can accumulate into long-term drift.
+        final int nextX = (int) Math.round(Math.max(-12.0, Math.min(12.0, targetX)));
+        final int nextY = (int) Math.round(Math.max(-8.0, Math.min(8.0, targetY)));
+        getMascot().getAnchor().translate(nextX - driftAppliedX, nextY - driftAppliedY);
+        driftAppliedX = nextX;
+        driftAppliedY = nextY;
+        driftTargetX = Math.max(-12.0, Math.min(12.0, targetX));
+        driftTargetY = Math.max(-8.0, Math.min(8.0, targetY));
+    }
+
+    private void clampAnchorToScreen() {
+        try {
+            final Area screen = getEnvironment().getScreen();
+            final Point anchor = getMascot().getAnchor();
+            anchor.x = Math.max(screen.getLeft(), Math.min(screen.getRight(), anchor.x));
+            anchor.y = Math.max(screen.getTop(), Math.min(screen.getBottom(), anchor.y));
+        } catch (final RuntimeException e) {
+            log.warn("Could not clamp Nigel to the screen during grasp", e);
         }
     }
 
