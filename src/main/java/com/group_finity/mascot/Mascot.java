@@ -201,6 +201,35 @@ public class Mascot {
      */
     private volatile double approachClosingSpeed = 0.0;
 
+    private static volatile Mascot mouseOwner = null;
+
+    public static synchronized boolean tryAcquireMouse(final Mascot mascot) {
+        if (mouseOwner == null || mouseOwner == mascot) {
+            mouseOwner = mascot;
+            return true;
+        }
+        return false;
+    }
+
+    public static synchronized void releaseMouse(final Mascot mascot) {
+        if (mouseOwner == mascot) {
+            mouseOwner = null;
+        }
+    }
+
+    public static synchronized boolean isMouseOwned() {
+        return mouseOwner != null;
+    }
+
+    public boolean isMouseOwnedByOther() {
+        final Mascot owner = mouseOwner;
+        return owner != null && owner != this;
+    }
+
+    public static synchronized Mascot getMouseOwner() {
+        return mouseOwner;
+    }
+
     /**
      * The key of the sound that is currently being played by this {@code Mascot}.
      * When this value is {@code null}, no sound is played.
@@ -751,6 +780,7 @@ public class Mascot {
      * Clears all resources held by this {@code Mascot} and removes it from its {@link Manager}.
      */
     public synchronized void dispose() {
+        releaseMouse(this);
         log.info("Destroying mascot \"{}\"", this);
 
         SwingUtilities.invokeLater(() -> {

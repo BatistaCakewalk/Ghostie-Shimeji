@@ -208,7 +208,13 @@ public class GraspMouse extends ActionBase {
 
         // Heal any leak from a previous grasp that was interrupted from the
         // outside (e.g. the user grabbed Nigel mid-grasp and swapped behaviors).
+        // Preserve our own CursorLeap claim — forceRestore would otherwise release it.
+        final Mascot ownerBefore = Mascot.getMouseOwner();
+        final boolean wasOwner = ownerBefore == mascot;
         forceRestoreCursor();
+        if (wasOwner) {
+            Mascot.tryAcquireMouse(mascot);
+        }
 
         try {
             robot = new Robot();
@@ -261,7 +267,15 @@ public class GraspMouse extends ActionBase {
                 log.info("Proximity check: landingDistance={}, threshold={}, approachClosingSpeed={}", landingDistance, effectiveThreshold, approachForProximity);
 
                 if (landingDistance > effectiveThreshold) {
+                    Mascot.releaseMouse(getMascot());
                     throw new LostGroundException("Missed the cursor");
+                }
+
+                // Only one Nigel may hold the mouse at a time.
+                if (!Mascot.tryAcquireMouse(getMascot())) {
+                    final Mascot owner = Mascot.getMouseOwner();
+                    log.info("Grasp blocked: mouse already owned by {}", owner);
+                    throw new LostGroundException("Mouse already grabbed by " + owner);
                 }
 
                 // From here Nigel is untouchable, even mid-stagger, but the cursor stays
@@ -691,6 +705,7 @@ public class GraspMouse extends ActionBase {
 
     private void restoreCursor() {
         getMascot().setGrasping(false);
+        Mascot.releaseMouse(getMascot());
         if (!cursorHidden) {
             return;
         }

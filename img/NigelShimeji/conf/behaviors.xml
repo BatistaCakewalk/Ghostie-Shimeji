@@ -22,8 +22,8 @@
         <Condition Condition="#{mascot.environment.floor.isOn(mascot.anchor)}">
             <Behavior Name="StandUp" Frequency="6" Hidden="true"/>
             <Behavior Name="Walk" Frequency="7" Hidden="true"/>
-            <Behavior Name="ChaseMouse" Frequency="7" Hidden="true"/>
-            <Behavior Name="CatchMouse" Frequency="2" Hidden="true"/>
+            <Behavior Name="ChaseMouse" Frequency="7" Hidden="true" Condition="#{!mascot.isMouseOwnedByOther()}"/>
+            <Behavior Name="CatchMouse" Frequency="2" Hidden="true" Condition="#{!mascot.isMouseOwnedByOther()}"/>
         </Condition>
 
     </BehaviorList>
