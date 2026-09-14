@@ -535,6 +535,27 @@
                 </documentation>
             </annotation>
         </attribute>
+        <attribute name="SwallowChance" type="tns:ScriptableDouble" default="0.3">
+            <annotation>
+                <documentation>
+                    A scriptable double representing the probability that a long idle turns into a swallow instead of a cuddle. Defaults to 0.3.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="SwallowClickCount" type="tns:ScriptableDouble" default="12">
+            <annotation>
+                <documentation>
+                    A scriptable double representing how many rapid clicks are required to make Nigel spit a swallowed cursor back out. Defaults to 12.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="SwallowClickWindow" type="tns:ScriptableDouble" default="90">
+            <annotation>
+                <documentation>
+                    A scriptable double representing how many ticks the rapid clicks must land within to break the swallow. Defaults to 90.
+                </documentation>
+            </annotation>
+        </attribute>
         <attribute name="X" type="tns:ScriptableInt" default="0">
             <annotation>
                 <documentation>

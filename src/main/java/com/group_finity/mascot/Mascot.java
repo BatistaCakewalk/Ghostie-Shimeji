@@ -201,6 +201,13 @@ public class Mascot {
      */
     private volatile double approachClosingSpeed = 0.0;
 
+    /**
+     * Mouse presses that landed while this {@code Mascot} was grasping the
+     * cursor. Drained by the grasp action each tick; used to detect the
+     * rapid clicking that breaks Nigel's swallow hold.
+     */
+    private volatile int graspClicks = 0;
+
     private static volatile Mascot mouseOwner = null;
 
     public static synchronized boolean tryAcquireMouse(final Mascot mascot) {
@@ -488,7 +495,9 @@ public class Mascot {
      */
     private void mousePressed(final MouseEvent event) {
         // A grasping mascot is untouchable: no pickup, no context menu.
+        // Presses still count: rapid clicking is how the user makes Nigel spit a swallowed cursor back out.
         if (isGrasping()) {
+            registerGraspClick();
             event.consume();
             return;
         }
@@ -1405,6 +1414,24 @@ public class Mascot {
      */
     public void setGrasping(final boolean grasping) {
         this.grasping = grasping;
+    }
+
+    /**
+     * Records a mouse press that landed while grasping the cursor.
+     */
+    public void registerGraspClick() {
+        graspClicks++;
+    }
+
+    /**
+     * Gets and clears the grasp click counter.
+     *
+     * @return presses since the last drain
+     */
+    public int getAndResetGraspClicks() {
+        final int clicks = graspClicks;
+        graspClicks = 0;
+        return clicks;
     }
 
     /**
