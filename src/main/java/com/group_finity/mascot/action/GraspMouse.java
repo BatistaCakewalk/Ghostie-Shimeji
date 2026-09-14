@@ -147,6 +147,7 @@ public class GraspMouse extends ActionBase {
     private int cuddleTicks;
     private int shakeCount;
     private int shakeWindowRemaining;
+    private int postCuddleGrace;
     private String cuddleImageKey1;
     private String cuddleImageKey2;
     private boolean cuddleImagesLoaded;
@@ -204,6 +205,7 @@ public class GraspMouse extends ActionBase {
         cuddleTicks = 0;
         shakeCount = 0;
         shakeWindowRemaining = 0;
+        postCuddleGrace = 0;
         // cuddle image keys persist across grasps to avoid reloading
 
         // Heal any leak from a previous grasp that was interrupted from the
@@ -247,6 +249,10 @@ public class GraspMouse extends ActionBase {
         getMascot().setDragging(true);
 
         try {
+            if (getEnvironment().isFullscreen() || getEnvironment().isMouseLocked()) {
+                log.info("Grasp suppressed: fullscreen/mouse-lock detected for {}", getMascot());
+                throw new LostGroundException("Fullscreen/mouse-lock active");
+            }
             // init() cannot throw LostGroundException, so the dodge check runs
             // here on the first tick instead. If Nigel landed too far from the
             // cursor, the user dodged him: abort straight into the Fall behavior.
@@ -314,6 +320,9 @@ public class GraspMouse extends ActionBase {
     }
 
     private void tickGrasp() throws LostGroundException, VariableException {
+        if (getEnvironment().isFullscreen() || getEnvironment().isMouseLocked()) {
+            throw new LostGroundException("Fullscreen/mouse-lock active");
+        }
         Point raw = null;
         try {
             if (MouseInfo.getPointerInfo() != null) {
@@ -331,6 +340,7 @@ public class GraspMouse extends ActionBase {
         final boolean fighting = struggle > STRUGGLE_THRESHOLD;
 
         // --- Cuddle mode handling ---
+        boolean justBrokeCuddle = false;
         if (cuddleMode) {
             // Cuddle duration check
             cuddleTicks++;
@@ -360,7 +370,15 @@ public class GraspMouse extends ActionBase {
                     cuddleTicks = 0;
                     shakeCount = 0;
                     shakeWindowRemaining = 0;
-                    idleTicks = 0;
+                    // Shorter re-enter after a brief struggle: ~1-1.5s vs 10s
+                    try {
+                        idleTicks = getCuddleIdleTicks() - 60;
+                    } catch (final VariableException e) {
+                        idleTicks = DEFAULT_CUDDLE_IDLE_TICKS - 60;
+                    }
+                    postCuddleGrace = 180;
+                    log.info("Cuddle break: keeping idle progress at {} (need ~60 more ticks ~1s), grace {}", idleTicks, postCuddleGrace);
+                    justBrokeCuddle = true;
                     // Fall through to normal grasp handling for this tick
                 }
             }
@@ -395,7 +413,23 @@ public class GraspMouse extends ActionBase {
         }
 
         // --- Normal mode idle tracking ---
-        if (!fighting) {
+        if (postCuddleGrace > 0) {
+            postCuddleGrace--;
+            if (!fighting) {
+                idleTicks++;
+                if (idleTicks >= getCuddleIdleTicks()) {
+                    log.info("Entering cuddle mode after {} idle ticks (quick re-enter)", idleTicks);
+                    cuddleMode = true;
+                    cuddleTicks = 0;
+                    shakeCount = 0;
+                    shakeWindowRemaining = 0;
+                    postCuddleGrace = 0;
+                }
+            }
+            // fighting during grace: keep idleTicks, don't reset
+        } else if (justBrokeCuddle) {
+            // Keep half-idle progress for this tick so a brief struggle doesn't reset to full 10s
+        } else if (!fighting) {
             idleTicks++;
             if (idleTicks >= getCuddleIdleTicks()) {
                 log.info("Entering cuddle mode after {} idle ticks", idleTicks);

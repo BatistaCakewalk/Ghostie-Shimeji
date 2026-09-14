@@ -256,6 +256,23 @@ class WindowsEnvironment extends AbstractEnvironment {
     }
 
     @Override
+    public boolean isMouseLocked() {
+        // Windows-specific: check if cursor is clipped to a small rect (FPS lock via ClipCursor)
+        try {
+            final com.sun.jna.platform.win32.WinDef.RECT rect = new com.sun.jna.platform.win32.WinDef.RECT();
+            if (User32Extra.INSTANCE.GetClipCursor(rect)) {
+                final int w = rect.right - rect.left;
+                final int h = rect.bottom - rect.top;
+                if (w > 0 && h > 0 && w < 200 && h < 200) {
+                    return true;
+                }
+            }
+        } catch (final Exception ignored) {
+        }
+        return super.isMouseLocked();
+    }
+
+    @Override
     public Area getActiveWindow() {
         return activeWindow;
     }
