@@ -83,8 +83,20 @@ public class GraspMouse extends ActionBase {
     private static final String PARAMETER_CUDDLE_SHAKE_COUNT = "CuddleShakeCount";
     private static final int DEFAULT_CUDDLE_SHAKE_COUNT = 5;
 
+    private static final String PARAMETER_SWALLOW_CHANCE = "SwallowChance";
+    private static final double DEFAULT_SWALLOW_CHANCE = 0.3;
+
+    private static final String PARAMETER_SWALLOW_CLICK_COUNT = "SwallowClickCount";
+    private static final int DEFAULT_SWALLOW_CLICK_COUNT = 12;
+
+    private static final String PARAMETER_SWALLOW_CLICK_WINDOW = "SwallowClickWindow";
+    private static final int DEFAULT_SWALLOW_CLICK_WINDOW = 90;
+
     private static final int CUDDLE_SHAKE_WINDOW = 30;
     private static final int CUDDLE_ANIM_INTERVAL = 30;
+    private static final int SWALLOW_GULP_TICKS = 40;
+    private static final int SWALLOW_AFTER_TICKS = 40;
+    private static final int BLOAT_ANIM_INTERVAL = 30;
 
     /**
      * Closing speed (in px/tick) above which a catch counts as a head-on
@@ -148,6 +160,21 @@ public class GraspMouse extends ActionBase {
     private int shakeCount;
     private int shakeWindowRemaining;
     private int postCuddleGrace;
+
+    // Swallow mode state: cursor fully trapped, only rapid clicking frees it
+    private boolean swallowMode;
+    private int swallowTicks;
+    private int swallowClicks;
+    private int swallowWindowRemaining;
+    private int swallowDir;
+    private int swallowWander;
+    private String swallowKeyStart;
+    private String swallowKeyAfter;
+    private String bloatKey1;
+    private String bloatKey2;
+    private String bloatWalkKey1;
+    private String bloatWalkKey2;
+    private boolean swallowImagesLoaded;
     private String cuddleImageKey1;
     private String cuddleImageKey2;
     private boolean cuddleImagesLoaded;
@@ -206,7 +233,13 @@ public class GraspMouse extends ActionBase {
         shakeCount = 0;
         shakeWindowRemaining = 0;
         postCuddleGrace = 0;
-        // cuddle image keys persist across grasps to avoid reloading
+        swallowMode = false;
+        swallowTicks = 0;
+        swallowClicks = 0;
+        swallowWindowRemaining = 0;
+        swallowDir = 0;
+        swallowWander = 0;
+        // cuddle/swallow image keys persist across grasps to avoid reloading
 
         // Heal any leak from a previous grasp that was interrupted from the
         // outside (e.g. the user grabbed Nigel mid-grasp and swapped behaviors).
@@ -319,6 +352,30 @@ public class GraspMouse extends ActionBase {
         }
     }
 
+    /**
+     * Rolls what a long idle turns into: usually a cuddle, sometimes a
+     * swallow. Resets the relevant state either way.
+     */
+    private void enterIdleReward(final boolean quickReenter) throws VariableException {
+        idleTicks = 0;
+        postCuddleGrace = 0;
+        if (Math.random() < getSwallowChance()) {
+            log.info("Entering swallow mode (quick re-enter: {})", quickReenter);
+            swallowMode = true;
+            swallowTicks = 0;
+            swallowClicks = 0;
+            swallowWindowRemaining = 0;
+            swallowDir = 0;
+            swallowWander = 0;
+            return;
+        }
+        log.info("Entering cuddle mode after idle (quick re-enter: {})", quickReenter);
+        cuddleMode = true;
+        cuddleTicks = 0;
+        shakeCount = 0;
+        shakeWindowRemaining = 0;
+    }
+
     private void tickGrasp() throws LostGroundException, VariableException {
         if (getEnvironment().isFullscreen() || getEnvironment().isMouseLocked()) {
             throw new LostGroundException("Fullscreen/mouse-lock active");
@@ -338,6 +395,79 @@ public class GraspMouse extends ActionBase {
         // How far the user dragged the cursor away since we last snapped it back.
         final double struggle = getGraspPoint().distance(raw);
         final boolean fighting = struggle > STRUGGLE_THRESHOLD;
+
+        // Drain presses every tick so the counter never goes stale in normal/cuddle mode.
+        final int clicks = getMascot().getAndResetGraspClicks();
+
+        // --- Swallow mode handling ---
+        if (swallowMode) {
+            swallowTicks++;
+
+            if (swallowWindowRemaining > 0) {
+                swallowWindowRemaining--;
+                if (swallowWindowRemaining == 0) {
+                    swallowClicks = 0;
+                }
+            }
+            if (clicks > 0) {
+                if (swallowWindowRemaining == 0) {
+                    swallowWindowRemaining = getSwallowClickWindow();
+                    swallowClicks = clicks;
+                } else {
+                    swallowClicks += clicks;
+                }
+                log.info("Swallow clicks: {} this tick, {} in window", clicks, swallowClicks);
+            } else if (swallowClicks > 0 && swallowTicks % 15 == 0) {
+                // Stale clicks bleed off: stop clicking and progress fades ~1 click per 15 ticks.
+                swallowClicks--;
+            }
+            if (swallowClicks >= getSwallowClickCount()) {
+                log.info("Nigel spat the cursor back out after {} clicks", swallowClicks);
+                throw new LostGroundException("Nigel spat the cursor back out");
+            }
+
+            // Fully trapped: HP frozen, cursor pinned hard.
+            final boolean gulping = swallowTicks <= SWALLOW_GULP_TICKS + SWALLOW_AFTER_TICKS;
+            final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
+            boolean waddling = false;
+            if (gulping) {
+                // Gulp in place where he caught it.
+                wrestle(0.0, false);
+            } else if (!grounded) {
+                // Sway side to side on the way down instead of dropping like an elevator.
+                final int sway = (int) Math.round(Math.sin(swallowTicks * 0.15) * 2.0);
+                getMascot().getAnchor().translate(sway, 3);
+            } else {
+                // Waddle in bursts with idle pauses, like he's showing off his prize.
+                if (swallowWander == 0) {
+                    if (swallowDir == 0 || Math.random() < 0.6) {
+                        swallowDir = Math.random() < 0.5 ? -1 : 1;
+                        swallowWander = 60 + (int) (Math.random() * 90);
+                    } else {
+                        swallowWander = -(40 + (int) (Math.random() * 60));
+                    }
+                }
+                if (swallowWander > 0) {
+                    getMascot().getAnchor().translate(swallowDir * 2, 0);
+                    final Area screen = getEnvironment().getScreen();
+                    final Point anchor = getMascot().getAnchor();
+                    if (anchor.x <= screen.getLeft() + 2 || anchor.x >= screen.getRight() - 2) {
+                        swallowDir = -swallowDir;
+                    }
+                    getMascot().setLookRight(swallowDir > 0);
+                    waddling = true;
+                    swallowWander--;
+                } else {
+                    swallowWander++;
+                }
+            }
+            clampAnchorToScreen();
+            final Point hands = getGraspPoint();
+            robot.mouseMove(hands.x, hands.y);
+            applySwallowAnimation(waddling);
+            reassertCursorHidden();
+            return;
+        }
 
         // --- Cuddle mode handling ---
         boolean justBrokeCuddle = false;
@@ -418,12 +548,7 @@ public class GraspMouse extends ActionBase {
             if (!fighting) {
                 idleTicks++;
                 if (idleTicks >= getCuddleIdleTicks()) {
-                    log.info("Entering cuddle mode after {} idle ticks (quick re-enter)", idleTicks);
-                    cuddleMode = true;
-                    cuddleTicks = 0;
-                    shakeCount = 0;
-                    shakeWindowRemaining = 0;
-                    postCuddleGrace = 0;
+                    enterIdleReward(true);
                 }
             }
             // fighting during grace: keep idleTicks, don't reset
@@ -432,11 +557,7 @@ public class GraspMouse extends ActionBase {
         } else if (!fighting) {
             idleTicks++;
             if (idleTicks >= getCuddleIdleTicks()) {
-                log.info("Entering cuddle mode after {} idle ticks", idleTicks);
-                cuddleMode = true;
-                cuddleTicks = 0;
-                shakeCount = 0;
-                shakeWindowRemaining = 0;
+                enterIdleReward(false);
             }
         } else {
             idleTicks = 0;
@@ -783,6 +904,54 @@ public class GraspMouse extends ActionBase {
         }
     }
 
+    private void ensureSwallowImagesLoaded() {
+        if (swallowImagesLoaded) {
+            return;
+        }
+        try {
+            final double scaling = Main.getInstance().getSettings().scaling;
+            final Filter filter = Main.getInstance().getSettings().filter;
+            final double opacity = Main.getInstance().getSettings().opacity;
+            final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                    ? getMascot().getImageSet() : "NigelShimeji";
+            // All 192x192 with anchor 96,200 matching the struggle pose
+            swallowKeyStart = ImagePairs.load(Path.of(imageSet, "Swallow.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(swallowKeyStart, imageSet);
+            swallowKeyAfter = ImagePairs.load(Path.of(imageSet, "SwallowAfter.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(swallowKeyAfter, imageSet);
+            bloatKey1 = ImagePairs.load(Path.of(imageSet, "BloatStand.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(bloatKey1, imageSet);
+            bloatKey2 = ImagePairs.load(Path.of(imageSet, "BloatStand2.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(bloatKey2, imageSet);
+            bloatWalkKey1 = ImagePairs.load(Path.of(imageSet, "BloatWalk1.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(bloatWalkKey1, imageSet);
+            bloatWalkKey2 = ImagePairs.load(Path.of(imageSet, "BloatWalk2.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(bloatWalkKey2, imageSet);
+            swallowImagesLoaded = true;
+        } catch (final IOException | RuntimeException e) {
+            log.warn("Failed to load swallow images for GraspMouse", e);
+        }
+    }
+
+    private void applySwallowAnimation(final boolean waddling) {
+        ensureSwallowImagesLoaded();
+        final String key;
+        if (swallowTicks < SWALLOW_GULP_TICKS) {
+            key = swallowKeyStart;
+        } else if (swallowTicks < SWALLOW_GULP_TICKS + SWALLOW_AFTER_TICKS) {
+            key = swallowKeyAfter;
+        } else if (waddling) {
+            key = ((swallowTicks - SWALLOW_GULP_TICKS - SWALLOW_AFTER_TICKS) / BLOAT_ANIM_INTERVAL) % 2 == 0
+                    ? bloatWalkKey1 : bloatWalkKey2;
+        } else {
+            key = ((swallowTicks - SWALLOW_GULP_TICKS - SWALLOW_AFTER_TICKS) / BLOAT_ANIM_INTERVAL) % 2 == 0
+                    ? bloatKey1 : bloatKey2;
+        }
+        if (key != null && ImagePairs.contains(key)) {
+            getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
+        }
+    }
+
     private double getMaxStruggle() throws VariableException {
         return eval(getSchema().getString(PARAMETER_MAX_STRUGGLE), Number.class, DEFAULT_MAX_STRUGGLE).doubleValue();
     }
@@ -851,5 +1020,17 @@ public class GraspMouse extends ActionBase {
 
     private int getCuddleShakeCount() throws VariableException {
         return eval(getSchema().getString(PARAMETER_CUDDLE_SHAKE_COUNT), Number.class, DEFAULT_CUDDLE_SHAKE_COUNT).intValue();
+    }
+
+    private double getSwallowChance() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SWALLOW_CHANCE), Number.class, DEFAULT_SWALLOW_CHANCE).doubleValue();
+    }
+
+    private int getSwallowClickCount() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SWALLOW_CLICK_COUNT), Number.class, DEFAULT_SWALLOW_CLICK_COUNT).intValue();
+    }
+
+    private int getSwallowClickWindow() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SWALLOW_CLICK_WINDOW), Number.class, DEFAULT_SWALLOW_CLICK_WINDOW).intValue();
     }
 }
