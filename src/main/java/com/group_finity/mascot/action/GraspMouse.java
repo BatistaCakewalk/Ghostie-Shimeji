@@ -249,6 +249,10 @@ public class GraspMouse extends ActionBase {
         getMascot().setDragging(true);
 
         try {
+            if (getEnvironment().isFullscreen() || getEnvironment().isMouseLocked()) {
+                log.info("Grasp suppressed: fullscreen/mouse-lock detected for {}", getMascot());
+                throw new LostGroundException("Fullscreen/mouse-lock active");
+            }
             // init() cannot throw LostGroundException, so the dodge check runs
             // here on the first tick instead. If Nigel landed too far from the
             // cursor, the user dodged him: abort straight into the Fall behavior.
@@ -316,6 +320,9 @@ public class GraspMouse extends ActionBase {
     }
 
     private void tickGrasp() throws LostGroundException, VariableException {
+        if (getEnvironment().isFullscreen() || getEnvironment().isMouseLocked()) {
+            throw new LostGroundException("Fullscreen/mouse-lock active");
+        }
         Point raw = null;
         try {
             if (MouseInfo.getPointerInfo() != null) {

@@ -74,6 +74,16 @@ public class CursorLeap extends ActionBase {
     public void init(final Mascot mascot) throws VariableException {
         super.init(mascot);
 
+        if (mascot.getEnvironment().isFullscreen() || mascot.getEnvironment().isMouseLocked()) {
+            log.info("CursorLeap suppressed: fullscreen/mouse-lock detected, mascot {}", mascot);
+            scaling = Main.getInstance().getSettings().scaling;
+            frozenTargetX = mascot.getAnchor().x;
+            frozenTargetY = mascot.getAnchor().y;
+            samples.clear();
+            mascot.setApproachClosingSpeed(0.0);
+            return;
+        }
+
         scaling = Main.getInstance().getSettings().scaling;
 
         // Freeze the aim point on the launch frame.

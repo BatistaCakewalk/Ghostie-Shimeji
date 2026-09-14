@@ -133,6 +133,52 @@ public interface Environment {
     void refreshCache();
 
     /**
+     * Checks whether a fullscreen application is currently active.
+     * This is used to suppress mouse-grabbing behaviors when the user is gaming or watching video.
+     *
+     * @return {@code true} if a fullscreen window is detected; {@code false} otherwise
+     */
+    default boolean isFullscreen() {
+        final Area active = getActiveWindow();
+        if (!active.isVisible() || active.getWidth() <= 0 || active.getHeight() <= 0) {
+            return false;
+        }
+        // Java exclusive fullscreen
+        try {
+            final java.awt.GraphicsDevice device = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+            if (device.getFullScreenWindow() != null) {
+                return true;
+            }
+        } catch (final Exception ignored) {
+        }
+        // Borderless / exclusive fullscreen covers an entire monitor
+        for (final Area screen : getScreens()) {
+            if (active.getLeft() == screen.getLeft() && active.getTop() == screen.getTop()
+                    && active.getWidth() == screen.getWidth() && active.getHeight() == screen.getHeight()) {
+                return true;
+            }
+        }
+        // Fallback: active covers the virtual screen union (multi-monitor fullscreen)
+        final Area screen = getScreen();
+        if (active.getLeft() <= screen.getLeft() && active.getTop() <= screen.getTop()
+                && active.getRight() >= screen.getRight() && active.getBottom() >= screen.getBottom()
+                && active.getWidth() >= screen.getWidth() && active.getHeight() >= screen.getHeight()) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks whether the mouse is currently locked/captured by an application
+     * (e.g., FPS game using ClipCursor or raw input where the cursor is confined to center).
+     *
+     * @return {@code true} if mouse is considered locked
+     */
+    default boolean isMouseLocked() {
+        return false;
+    }
+
+    /**
      * Releases any native resources held by this environment.
      */
     void dispose();
