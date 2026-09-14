@@ -23,7 +23,7 @@
             <Behavior Name="StandUp" Frequency="6" Hidden="true"/>
             <Behavior Name="Walk" Frequency="7" Hidden="true"/>
             <Behavior Name="ChaseMouse" Frequency="7" Hidden="true"/>
-            <Behavior Name="CatchMouse" Frequency="8" Hidden="true"/>
+            <Behavior Name="CatchMouse" Frequency="2" Hidden="true"/>
         </Condition>
 
     </BehaviorList>
