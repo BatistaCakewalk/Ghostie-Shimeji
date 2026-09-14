@@ -6,8 +6,6 @@ A strange little guy that lives on your desktop. He hovers, stares, and will mos
 
 Heavily customized fork of [Shimeji-ee](https://github.com/DalekCraft2/Shimeji-Desktop) (Kilkakon/Shimeji-ee → Yuki Yamada's original Shimeji) focused on a single character — **Nigel**.
 
-> Only `img/NigelShimeji` is tracked. Vanilla `Shimeji`/`KuroShimeji` were removed — move any other sets into `img/unused/` to hide them.
-
 ## Requirements
 
 * Windows Vista+ / macOS / Linux X11
