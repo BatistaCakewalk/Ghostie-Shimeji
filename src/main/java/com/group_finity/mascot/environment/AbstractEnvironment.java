@@ -218,6 +218,26 @@ public abstract class AbstractEnvironment implements Environment {
     }
 
     @Override
+    public boolean isMouseLocked() {
+        // Generic heuristic: FPS games pin cursor to center of a monitor
+        final Area active = getActiveWindow();
+        if (!active.isVisible()) {
+            return false;
+        }
+        final Location cursor = getCursor();
+        final int cx = cursor.getX();
+        final int cy = cursor.getY();
+        for (final Area screen : getScreens()) {
+            final int sx = (screen.getLeft() + screen.getRight()) / 2;
+            final int sy = (screen.getTop() + screen.getBottom()) / 2;
+            if (Math.abs(cx - sx) < 5 && Math.abs(cy - sy) < 5) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public void dispose() {
         if (thread.isAlive()) {
             thread.interrupt();

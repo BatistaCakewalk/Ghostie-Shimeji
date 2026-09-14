@@ -354,6 +354,26 @@ public class MascotEnvironment {
     }
 
     /**
+     * Checks whether a fullscreen application is currently active.
+     *
+     * @return {@code true} if fullscreen is detected
+     * @see Environment#isFullscreen()
+     */
+    public boolean isFullscreen() {
+        return impl.isFullscreen();
+    }
+
+    /**
+     * Checks whether the mouse is currently locked by an application (e.g., FPS).
+     *
+     * @return {@code true} if mouse is locked
+     * @see Environment#isMouseLocked()
+     */
+    public boolean isMouseLocked() {
+        return impl.isMouseLocked();
+    }
+
+    /**
      * Checks whether the mascot is on the top or bottom border of exactly one screen.
      * Returns {@code false} if the mascot is on multiple top/bottom borders (i.e., the mascot is on the border between
      * two screens).
