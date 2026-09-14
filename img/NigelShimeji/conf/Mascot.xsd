@@ -507,6 +507,34 @@
                 </documentation>
             </annotation>
         </attribute>
+        <attribute name="CuddleIdleTicks" type="tns:ScriptableDouble" default="600">
+            <annotation>
+                <documentation>
+                    A scriptable double representing how many consecutive idle ticks (struggle less than 3px) before Nigel enters cuddle mode. Defaults to 600.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="CuddleDurationTicks" type="tns:ScriptableDouble" default="18000">
+            <annotation>
+                <documentation>
+                    A scriptable double representing how many ticks cuddle mode lasts before Nigel lets go. Defaults to 18000.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="CuddleShakeThreshold" type="tns:ScriptableDouble" default="50">
+            <annotation>
+                <documentation>
+                    A scriptable double representing the per-tick cursor distance in pixels above which a shake is counted in cuddle mode. Defaults to 50.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="CuddleShakeCount" type="tns:ScriptableDouble" default="5">
+            <annotation>
+                <documentation>
+                    A scriptable double representing how many shakes within 30 ticks are required to break out of cuddle mode. Defaults to 5.
+                </documentation>
+            </annotation>
+        </attribute>
         <attribute name="X" type="tns:ScriptableInt" default="0">
             <annotation>
                 <documentation>

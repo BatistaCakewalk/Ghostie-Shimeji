@@ -1,8 +1,11 @@
 package com.group_finity.mascot.action;
 
+import com.group_finity.mascot.Main;
 import com.group_finity.mascot.Mascot;
 import com.group_finity.mascot.animation.Animation;
 import com.group_finity.mascot.environment.Area;
+import com.group_finity.mascot.image.Filter;
+import com.group_finity.mascot.image.ImagePairs;
 import com.group_finity.mascot.script.VariableException;
 import com.group_finity.mascot.script.VariableMap;
 import org.slf4j.Logger;
@@ -17,6 +20,8 @@ import java.awt.PointerInfo;
 import java.awt.Robot;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.ResourceBundle;
 
@@ -65,6 +70,21 @@ public class GraspMouse extends ActionBase {
 
     private static final String PARAMETER_TACKLE_KNOCKBACK = "TackleKnockback";
     private static final double DEFAULT_TACKLE_KNOCKBACK = 25.0;
+
+    private static final String PARAMETER_CUDDLE_IDLE_TICKS = "CuddleIdleTicks";
+    private static final int DEFAULT_CUDDLE_IDLE_TICKS = 600;
+
+    private static final String PARAMETER_CUDDLE_DURATION_TICKS = "CuddleDurationTicks";
+    private static final int DEFAULT_CUDDLE_DURATION_TICKS = 18000;
+
+    private static final String PARAMETER_CUDDLE_SHAKE_THRESHOLD = "CuddleShakeThreshold";
+    private static final double DEFAULT_CUDDLE_SHAKE_THRESHOLD = 50.0;
+
+    private static final String PARAMETER_CUDDLE_SHAKE_COUNT = "CuddleShakeCount";
+    private static final int DEFAULT_CUDDLE_SHAKE_COUNT = 5;
+
+    private static final int CUDDLE_SHAKE_WINDOW = 30;
+    private static final int CUDDLE_ANIM_INTERVAL = 30;
 
     /**
      * Closing speed (in px/tick) above which a catch counts as a head-on
@@ -121,6 +141,16 @@ public class GraspMouse extends ActionBase {
 
     private int contactRemaining;
 
+    // Cuddle mode state
+    private int idleTicks;
+    private boolean cuddleMode;
+    private int cuddleTicks;
+    private int shakeCount;
+    private int shakeWindowRemaining;
+    private String cuddleImageKey1;
+    private String cuddleImageKey2;
+    private boolean cuddleImagesLoaded;
+
     private static final class CursorSample {
         private final int x;
         private final int y;
@@ -169,6 +199,12 @@ public class GraspMouse extends ActionBase {
         // unheld while the history buffer fills, so tackle detection gets a
         // genuine multi-tick velocity instead of a same-frame delta.
         contactRemaining = Math.max(1, CURSOR_HISTORY_SIZE - 1);
+        idleTicks = 0;
+        cuddleMode = false;
+        cuddleTicks = 0;
+        shakeCount = 0;
+        shakeWindowRemaining = 0;
+        // cuddle image keys persist across grasps to avoid reloading
 
         // Heal any leak from a previous grasp that was interrupted from the
         // outside (e.g. the user grabbed Nigel mid-grasp and swapped behaviors).
@@ -279,6 +315,85 @@ public class GraspMouse extends ActionBase {
         // How far the user dragged the cursor away since we last snapped it back.
         final double struggle = getGraspPoint().distance(raw);
         final boolean fighting = struggle > STRUGGLE_THRESHOLD;
+
+        // --- Cuddle mode handling ---
+        if (cuddleMode) {
+            // Cuddle duration check
+            cuddleTicks++;
+            if (cuddleTicks >= getCuddleDurationTicks()) {
+                throw new LostGroundException("Nigel reluctantly let go");
+            }
+
+            // Shake window countdown
+            if (shakeWindowRemaining > 0) {
+                shakeWindowRemaining--;
+                if (shakeWindowRemaining == 0) {
+                    shakeCount = 0;
+                }
+            }
+
+            // Violent shake detector
+            if (struggle > getCuddleShakeThreshold()) {
+                if (shakeWindowRemaining == 0) {
+                    shakeWindowRemaining = CUDDLE_SHAKE_WINDOW;
+                    shakeCount = 1;
+                } else {
+                    shakeCount++;
+                }
+                if (shakeCount >= getCuddleShakeCount()) {
+                    log.info("Cuddle broken by shaking: {} shakes in window", shakeCount);
+                    cuddleMode = false;
+                    cuddleTicks = 0;
+                    shakeCount = 0;
+                    shakeWindowRemaining = 0;
+                    idleTicks = 0;
+                    // Fall through to normal grasp handling for this tick
+                }
+            }
+
+            if (cuddleMode) {
+                // HP regeneration suspended in cuddle mode
+                if (fighting) {
+                    fatigue++;
+                    final double fatigueMultiplier = Math.max(0.2, 1.0 - fatigue / 100.0);
+                    hp -= applyStruggleCurve(struggle) * fatigueMultiplier;
+                } else {
+                    fatigue = Math.max(0, fatigue - 2);
+                }
+
+                // Calm drift regardless of movement
+                wrestle(0.0, false);
+                clampAnchorToScreen();
+
+                // Cursor stays inside him at the new position.
+                final Point hands = getGraspPoint();
+                robot.mouseMove(hands.x, hands.y);
+
+                applyCuddleAnimation();
+                reassertCursorHidden();
+
+                if (hp <= 0) {
+                    throw new LostGroundException("The mouse broke free of Nigel's grasp");
+                }
+                return;
+            }
+            // If cuddle was broken this tick, continue to normal handling below
+        }
+
+        // --- Normal mode idle tracking ---
+        if (!fighting) {
+            idleTicks++;
+            if (idleTicks >= getCuddleIdleTicks()) {
+                log.info("Entering cuddle mode after {} idle ticks", idleTicks);
+                cuddleMode = true;
+                cuddleTicks = 0;
+                shakeCount = 0;
+                shakeWindowRemaining = 0;
+            }
+        } else {
+            idleTicks = 0;
+        }
+
         if (!fighting) {
             // Resting: cool down and recover.
             fatigue = Math.max(0, fatigue - 2);
@@ -590,6 +705,35 @@ public class GraspMouse extends ActionBase {
         }
     }
 
+    private void ensureCuddleImagesLoaded() {
+        if (cuddleImagesLoaded) {
+            return;
+        }
+        try {
+            final double scaling = Main.getInstance().getSettings().scaling;
+            final Filter filter = Main.getInstance().getSettings().filter;
+            final double opacity = Main.getInstance().getSettings().opacity;
+            final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                    ? getMascot().getImageSet() : "NigelShimeji";
+            // Images are 192x192 with anchor 96,200 matching struggle pose
+            cuddleImageKey1 = ImagePairs.load(Path.of(imageSet, "cuddlemouse1.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(cuddleImageKey1, imageSet);
+            cuddleImageKey2 = ImagePairs.load(Path.of(imageSet, "cuddlemouse2.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(cuddleImageKey2, imageSet);
+            cuddleImagesLoaded = true;
+        } catch (final IOException | RuntimeException e) {
+            log.warn("Failed to load cuddle images for GraspMouse", e);
+        }
+    }
+
+    private void applyCuddleAnimation() {
+        ensureCuddleImagesLoaded();
+        final String key = (cuddleTicks / CUDDLE_ANIM_INTERVAL) % 2 == 0 ? cuddleImageKey1 : cuddleImageKey2;
+        if (key != null && ImagePairs.contains(key)) {
+            getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
+        }
+    }
+
     private double getMaxStruggle() throws VariableException {
         return eval(getSchema().getString(PARAMETER_MAX_STRUGGLE), Number.class, DEFAULT_MAX_STRUGGLE).doubleValue();
     }
@@ -642,5 +786,21 @@ public class GraspMouse extends ActionBase {
 
     private double getTackleKnockback() throws VariableException {
         return eval(getSchema().getString(PARAMETER_TACKLE_KNOCKBACK), Number.class, DEFAULT_TACKLE_KNOCKBACK).doubleValue();
+    }
+
+    private int getCuddleIdleTicks() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_CUDDLE_IDLE_TICKS), Number.class, DEFAULT_CUDDLE_IDLE_TICKS).intValue();
+    }
+
+    private int getCuddleDurationTicks() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_CUDDLE_DURATION_TICKS), Number.class, DEFAULT_CUDDLE_DURATION_TICKS).intValue();
+    }
+
+    private double getCuddleShakeThreshold() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_CUDDLE_SHAKE_THRESHOLD), Number.class, DEFAULT_CUDDLE_SHAKE_THRESHOLD).doubleValue();
+    }
+
+    private int getCuddleShakeCount() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_CUDDLE_SHAKE_COUNT), Number.class, DEFAULT_CUDDLE_SHAKE_COUNT).intValue();
     }
 }

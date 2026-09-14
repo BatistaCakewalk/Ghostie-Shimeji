@@ -708,7 +708,7 @@
             <ActionReference Name="LeapForMouse" TargetX="${mascot.environment.cursor.x}"
                              TargetY="${mascot.environment.cursor.y+96}"/>
             <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
-            <ActionReference Name="Grasp" Duration="750"/>
+            <ActionReference Name="Grasp" Duration="20000"/>
             <Action Type="Select">
                 <ActionReference Name="LeapForMouse"
                                  Condition="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x)+Math.abs(mascot.anchor.y-mascot.environment.cursor.y) &gt; 220}"
