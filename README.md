@@ -1,200 +1,85 @@
-# Fork notes
+![Nigel Banner](FunnyShimejiBanner.png)
 
-This is a fork of [Kilkakon's fork](https://kilkakon.com/shimeji/) of
-[Shimeji-ee](https://code.google.com/archive/p/shimeji-ee/) that updates the runtime from JRE 6 to JDK 25.
-It also contains:
+# Nigel Shimeji
 
-* Bug fixes
-* More detailed log messages
-* Fixes in the default mascot action/behavior XML files
-* More documentation (including comments and documentation from the original Shimeji, now translated through a better
-  Google Translate than before)
-* Updated dependencies
-* Formatting fixes
-* Proper DPI scaling
-* and a lot more that I don't have the energy to list.
+A strange little guy that lives on your desktop. He hovers, stares, and will most likely make your day worse.
 
-I have also switched the project from Ant to Maven, and ported the `launch4j.xml` file from the original Shimeji to the
-Launch4j Maven Plugin.
+Heavily customized fork of [Shimeji-ee](https://github.com/DalekCraft2/Shimeji-Desktop) (Kilkakon/Shimeji-ee → Yuki Yamada's original Shimeji) focused on a single character — **Nigel**.
 
-It also contains Linux support based on code from [asdfman's linux-shimeji](https://github.com/asdfman/linux-shimeji),
-macOS support based on code from [nonowarn's shimeji4mac](https://github.com/nonowarn/shimeji4mac), and some inspiration
-from [LavenderSnek's ShimejiEE-cross-platform](https://github.com/LavenderSnek/ShimejiEE-cross-platform).
-
-The rest of this file is the original README, albeit ported to Markdown and with slightly more up-to-date information.
-
-# Shimeji-ee: Shimeji English Enhanced
-
-Shimeji-ee is a desktop mascot for Windows, macOS, and Linux that freely wanders and plays around the screen. The mascot
-is very configurable; its actions are defined through XML and its animations/images can be (painstakingly) customized.
-Shimeji was originally created by Yuki Yamada of
-[Group Finity](https://web.archive.org/web/20160901003054/http://www.group-finity.com/Shimeji/). This branch of the
-original Shimeji project not only translates the program/source to English, but adds additional enhancements to
-Shimeji by Kilkakon and other members of the community.
-
-## Contents
-
-1. [Links](#links)
-2. [Requirements](#requirements)
-3. [How to Start](#how-to-start)
-4. [Basic Configuration](#basic-configuration)
-5. [Advanced Configuration](#advanced-configuration)
-6. [How to Quit](#how-to-quit)
-7. [How to Uninstall](#how-to-uninstall)
-8. [Licensing](#licensing)
-9. [Trouble Shooting](#trouble-shooting)
-
-## Links
-
-* [Kilkakon's Shimeji homepage](https://kilkakon.com/shimeji/)
-* [linux-shimeji repository](https://github.com/asdfman/linux-shimeji)
-* [shimeji4mac repository](https://github.com/nonowarn/shimeji4mac)
-* [ShimejiEE-cross-platform repository](https://github.com/LavenderSnek/ShimejiEE-cross-platform)
-* [Shimeji-ee homepage](https://code.google.com/archive/p/shimeji-ee/)
-* [Shimeji homepage (archive)](https://web.archive.org/web/20160901003054/http://www.group-finity.com/Shimeji/)
-* [Shimeji mirror download](https://www.vector.co.jp/soft/winnt/amuse/se476479.html)
+> Only `img/NigelShimeji` is tracked. Vanilla `Shimeji`/`KuroShimeji` were removed — move any other sets into `img/unused/` to hide them.
 
 ## Requirements
 
-* Windows Vista or newer / macOS / Linux (X11)
-* Java 25 or newer
+* Windows Vista+ / macOS / Linux X11
+* Java 25+
+* Maven 3 (bundled via IntelliJ) for building
 
-## How to Start
+## Quick start
 
-1. Open the Shimeji-ee JAR file (`Shimeji-ee.jar`).
-    * On Windows, you can alternatively open `Shimeji-ee.exe`.
-    * On macOS/Linux, you can alternatively open `Shimeji-ee`.
-2. Right-click the tray icon for general options.
-3. Right-click a Shimeji for options relating to it.
-
-For a tutorial on how to get Shimeji running, watch [this video](https://www.youtube.com/watch?v=S7fPCGh5xxo).
-
-You can also watch the [FAQ](https://www.youtube.com/watch?v=A1y9C1Vbn6Q) if you encounter problems.
-
-You can also join Kilkakon's [Discord server](https://discord.gg/dcJGAn3).
-
-## Basic Configuration
-
-If you want multiple Shimeji types, you must have multiple image sets. Basically, you put different folders with the
-correct Shimeji images under the `img` directory.
-
-For example, if you want to add, say, a new Batman Shimeji:
-
-1. Create an `img/Batman` folder.
-2. You must have an image set that mimics the contents of `img/Shimeji`. Create and put new versions of `shime1.png` -
-   `shime46.png` (with Batman images, of course) in the `img/Batman` folder. The filenames must be the same as the
-   `img/Shimeji` files. Refer to `img/Shimeji` for the proper character positions.
-3. Start Shimeji-ee. Now Shimeji and Batman will drop. Right-click Batman to perform Batman specific options. Pressing
-   "Call Shimeji" in the tray icon menu will randomly create and add either Shimeji or Batman.
-
-When Shimeji-ee starts, one Shimeji for every image set in the `img` folder will be created. If you have too many image
-sets, a lot of your computer's memory will be used... so be careful.
-
-Shimeji-ee will ignore all the image sets that are in the `img/unused` folder, so you can hide image sets in there.
-There is also a tool, Image Set Chooser, that will let you select image sets at run time. It remembers previous options
-via the `conf/settings.properties` file. Don't choose too many at once.
-
-For more information, read through the configuration files in `conf/`. Most options are somewhat complicated, but it's
-not too hard to limit the total number of Shimeji or to turn off certain behaviors (hint: set frequency to 0).
-
-## Advanced Configuration
-
-All configuration files are located in the `conf` folders. In general, none of these should need to be touched.
-
-The `logging.properties` file defines how logging errors is done.
-
-The `actions.xml` file specifies the different actions Shimeji can do. When listing images, only include the file name.
-More detail on this file will hopefully be added later.
-
-The `behaviors.xml` file specifies when Shimeji performs each action. More detail on this file will hopefully be added
-later.
-
-The `settings.properties` file details which Shimeji are active as well as the windows with which they can interact.
-These settings can be changed using the program itself.
-
-Each type of Shimeji is configured through:
-
-1. An image set. This is located in `img/[NAME]`. The image set must contain all image files specified in the actions
-   file.
-2. An actions file. Unless `img/[NAME]/conf/actions.xml` or `conf/[NAME]/actions.xml` exists, `conf/actions.xml` will
-   be used.
-3. A behaviors file. Unless `img/[NAME]/conf/behaviors.xml` or `conf/[NAME]/behaviors.xml` exists, `conf/behaviors.xml`
-   will be used.
-
-When Shimeji-ee starts, one Shimeji for every image set in the `img` folder will be created. If you have too many image
-sets, a lot of your computer's memory will be used... so be careful.
-
-Shimeji-ee will ignore all the image sets that are in the `img/unused` folder, so you can hide image sets in there.
-There is also a tool, Image Set Chooser, that will let you select image sets at run time. It remembers previous options
-via the `conf/settings.properties` file. Don't choose too many at once.
-
-The Image Set Chooser looks for the `shime1.png` image. If it's not found, no image set preview will be shown. Even if
-you're not using an image named `shime1.png` in your image set, you should include one for the Image Set Chooser's sake.
-
-Editing an existing configuration is fairly straightforward, but writing a brand-new configuration file is very
-time-consuming and requires a lot of trial and error. Hopefully someone will write a guide for it someday, but until
-then, you'll have to look at the existing `conf` files to figure it out. Basically, for every behavior, there must be a
-corresponding action. Actions and behaviors can be a sequence of other actions or behaviors.
-
-The following actions must be present for the `actions.xml` to be valid:
-
-* ChaseMouse
-* Fall
-* Dragged
-* Thrown
-
-The following behaviors must be present for the `behaviors.xml` to be valid:
-
-* ChaseMouse
-* Fall
-* Dragged
-* Thrown
-
-The icon used for the system tray is `img/icon.png`.
-
-## How to Quit
-
-Right-click the tray icon of Shimeji-ee, and select "Dismiss All".
-
-## How to Uninstall
-
-Delete the unzipped folder.
+1. Download `target/Shimeji-ee_*.zip` from Releases or build below.
+2. Unzip, run `Shimeji-ee.jar` (or `Shimeji-ee.exe` on Windows).
+3. Right-click tray icon → general options; right-click Nigel → mascot options; `Call Shimeji` spawns more.
 
 ## Building
 
-1. Download the source code. This can be done by either downloading a ZIP file containing the source or using Git to
-   clone the repository to your computer. Both options are available through the green "Code" button at the top of the
-   GitHub page. Git is recommended if you plan to contribute changes to this repository.
-2. Install Java 25 or newer.
-3. Install [IntelliJ IDEA Community Edition](https://www.jetbrains.com/idea/download/).
-4. Open the source code directory in the IDE.
-5. Open the Maven tool window on the right side of the UI. The icon to open the window should look like an "m".
-6. Right-click the "Shimeji-ee" item and select "Run Maven build". This will build the project and output the files to
-   the `target/` directory. The distributable file should be a ZIP file named `Shimeji-ee_[version].zip`.
+```bash
+# IntelliJ: open folder → Maven tool window (m) → Shimeji-ee → Run Maven build
+# CLI:
+mvn package
+# outputs target/Shimeji-ee.jar, target/Shimeji-ee.exe, target/Shimeji-ee_*.zip
+```
 
-## Licensing
+The fork is Maven-based (migrated from Ant), `launch4j` for exe, proper DPI `scaling`.
 
-Programmers may feel free to use the source. The Shimeji-ee source is under the New BSD license.
+## Project structure
 
-Shimeji by Yuki Yamada is licensed under the zlib/libpng license.
+```
+img/NigelShimeji/          # only tracked image set (192x192, anchor 96,200)
+  conf/actions.xml         # Stand/Walk/LeapForMouse/Grasp/Fall etc.
+  conf/behaviors.xml       # floor Condition → StandUp/Walk/ChaseMouse/CatchMouse Frequencies
+  *.png                    # stand, walk, lunge, struggle, cuddle, drag, fall...
+conf/Mascot.xsd            # synced to img/NigelShimeji/conf/Mascot.xsd
+src/main/java/com/group_finity/mascot/action/
+  GraspMouse.java          # cursor grab + cuddle/tackle/struggle
+  CursorLeap.java          # frozen-target leap
+  Mascot.java              # isGrasping, approachClosingSpeed, window cursor guard
+src/main/resources/schema.properties
+```
 
-## Trouble Shooting
+## Configuration
 
-For a tutorial on how to get Shimeji running, watch [this video](https://www.youtube.com/watch?v=S7fPCGh5xxo).
+Each mascot resolves `img/[NAME]/conf/actions.xml` → `conf/actions.xml` fallback, same for `behaviors.xml`. Required actions/behaviors: `Fall`, `Dragged`, `Thrown`, `ChaseMouse`.
 
-You can also watch the [FAQ](https://www.youtube.com/watch?v=A1y9C1Vbn6Q) if you encounter problems.
+**Frequencies** are weights: `P = Frequency / sum(Frequencies)` inside the active `Condition`. Example floor:
 
-You can also join Kilkakon's [Discord server](https://discord.gg/dcJGAn3).
+```xml
+<Condition Condition="#{mascot.environment.floor.isOn(mascot.anchor)}">
+  <Behavior Name="StandUp" Frequency="6"/>
+  <Behavior Name="Walk" Frequency="7"/>
+  <Behavior Name="ChaseMouse" Frequency="7"/>
+  <Behavior Name="CatchMouse" Frequency="2"/> <!-- 2/22≈9.1% -->
+</Condition>
+```
 
-Shimeji-ee takes a LOT of time to start if you have a lot of image sets, so give it some time. Try moving all but one
-image set from the `img` folder to the `img/unused` folder to see if you have a memory problem.
+Raise `CatchMouse` to `10` → `10/30≈33%` of floor picks. `Grasp` itself is `Duration="750"` — must be `> CuddleIdle+Duration (~18600)` to allow full cuddle, so currently set to `~20000` or removed.
 
-If the Shimeji-ee icon appears, but no Shimeji appear:
+**Grasp attributes** (on `<Action Name="Grasp" ...>`):
 
-1. Make sure you have the newest version of Shimeji-ee.
-2. Make sure you only have image set folders in your `img` directory.
-3. Make sure you have Java 25 or newer on your system.
-4. If you're somewhat computer savvy, you can try running Shimeji-ee from the command line. Navigate to the Shimeji-ee
-   directory and run this command: `"C:\Program Files\Java\jdk-25\bin\java" -jar Shimeji-ee.jar`
-5. Try checking the log (`ShimejieeLogX.log`) for errors. If you find a bug (which is very likely), report it on
-   Kilkakon's Discord server.
+`MaxStruggle`, `Regen`, `MissThreshold (150→450 on tackle)`, `GraspOffsetY`, `FastThreshold/Multiplier`, `FuriousThreshold/Multiplier`, `TackleStaggerTicks`, `TackleKnockback`, `CuddleIdleTicks`, `CuddleDurationTicks`, `CuddleShakeThreshold`, `CuddleShakeCount`.
+
+Image sets: drop a folder mimicking `img/NigelShimeji` (same filenames) into `img/`; `img/unused/` is ignored. `conf/settings.properties` / Image Set Chooser remembers active sets.
+
+## Troubleshooting
+
+* Takes long to start / no mascot: move extra sets to `img/unused/`, check `ShimejieeLog*.log`, run `java -jar Shimeji-ee.jar` for stacktrace. Tray icon but no mascot → wrong folder contents or Java version.
+* `BUILD FAILURE release version 25 not supported` + `Unsupported major.minor version 69.0` with `mvn` is IntelliJ's bundled Maven Guice on JDK25 warning — not a source error; direct `javac` or `mvn -DskipTests` with proper JDK still produces `target/Shimeji-ee.jar`.
+* Cursor flicker during grasp is `Mascot.mouseMoved/mouseDragged` early-return + per-tick `reassertCursorHidden()` — intended.
+
+## Credits / Licensing
+
+* Original Shimeji — Yuki Yamada (Group Finity) — zlib/libpng
+* Shimeji-ee — Kilkakon + community — New BSD
+* Linux/macOS ports — asdfman/linux-shimeji, nonowarn/shimeji4mac, LavenderSnek/ShimejiEE-cross-platform
+* This fork — JDK 25 migration, Maven, DPI scaling, `GraspMouse`/`CursorLeap`/cuddle gameplay — same New BSD
+
+Fork base: https://github.com/DalekCraft2/Shimeji-Desktop — original README archived as `originalreadme.txt`.
