@@ -85,8 +85,9 @@ public class Telekinesis extends ActionBase {
     private GlowOverlay cursorGlow;
     private int pullTicks;
     private boolean warnedForcing;
-    private int shakeAppliedX;
-    private int shakeAppliedY;
+    private int shakeBaseX;
+    private int shakeBaseY;
+    private boolean shaking;
     private String teleFullKey;
     private boolean teleFullLoaded;
 
@@ -156,8 +157,9 @@ public class Telekinesis extends ActionBase {
             cursorGlow = new GlowOverlay(true);
             pullTicks = 0;
             warnedForcing = false;
-            shakeAppliedX = 0;
-            shakeAppliedY = 0;
+            shakeBaseX = mascot.getAnchor().x;
+            shakeBaseY = mascot.getAnchor().y;
+            shaking = false;
             live = true;
             synchronized (HOLDS) {
                 HOLDS.put(mascot, this);
@@ -218,35 +220,33 @@ public class Telekinesis extends ActionBase {
         synchronized (HOLDS) {
             HOLDS.remove(getMascot());
         }
-        // Revert any shake offset so the anchor doesn't rest displaced.
-        if (shakeAppliedX != 0 || shakeAppliedY != 0) {
-            getMascot().getAnchor().translate(-shakeAppliedX, -shakeAppliedY);
-            shakeAppliedX = 0;
-            shakeAppliedY = 0;
+        // Restore the exact pre-shake anchor so the pull never ends airborne.
+        if (shaking) {
+            shaking = false;
+            getMascot().getAnchor().setLocation(shakeBaseX, shakeBaseY);
         }
         disposeGlows();
     }
 
     /**
      * Rattles Nigel's body in place while reeling: a slow tremble after a
-     * bit, violent shaking at full strength. Absolute sine offsets, so the
-     * anchor can never wander off.
+     * bit, violent shaking at full strength. Absolute positioning around the
+     * recorded base, so screen clamping can never desync into drift.
      */
     private void shakeBody() {
         if (pullTicks <= 90) {
             return;
         }
+        shaking = true;
         final double progress = Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS);
         final double amplitude = 1.0 + 5.0 * progress;
-        final int nextX = (int) Math.round(Math.sin(pullTicks * 0.6) * amplitude);
-        final int nextY = (int) Math.round(Math.cos(pullTicks * 0.8) * amplitude * 0.7);
-        getMascot().getAnchor().translate(nextX - shakeAppliedX, nextY - shakeAppliedY);
-        shakeAppliedX = nextX;
-        shakeAppliedY = nextY;
+        final int nextX = shakeBaseX + (int) Math.round(Math.sin(pullTicks * 0.6) * amplitude);
+        final int nextY = shakeBaseY + (int) Math.round(Math.cos(pullTicks * 0.8) * amplitude * 0.7);
         final Area screen = getEnvironment().getScreen();
         final Point anchor = getMascot().getAnchor();
-        anchor.x = Math.max(screen.getLeft(), Math.min(screen.getRight(), anchor.x));
-        anchor.y = Math.max(screen.getTop(), Math.min(screen.getBottom(), anchor.y));
+        anchor.setLocation(
+                Math.max(screen.getLeft(), Math.min(screen.getRight(), nextX)),
+                Math.max(screen.getTop(), Math.min(screen.getBottom(), nextY)));
     }
 
     /**
