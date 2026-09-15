@@ -616,7 +616,9 @@ public class Mascot {
                                 // Menu-ordered ambushes queue first: Nigel keeps
                                 // doing whatever he was doing, then starts fresh
                                 // so backing off actually works.
-                                if (behaviorName.equals("CatchMouse") || behaviorName.equals("Telekinesis")) {
+                                if (behaviorName.equals("CatchMouse") || behaviorName.equals("Telekinesis")
+                                        || behaviorName.equals("TelekinesisWindow")
+                                        || behaviorName.equals("TelekinesisMouse")) {
                                     queueMenuBehavior(behaviorName);
                                     return;
                                 }

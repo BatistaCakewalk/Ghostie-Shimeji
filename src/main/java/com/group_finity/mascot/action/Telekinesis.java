@@ -51,6 +51,8 @@ public class Telekinesis extends ActionBase {
 
     private static final String PARAMETER_DURATION = "Duration";
 
+    private static final String PARAMETER_TELE_MODE = "TeleMode";
+
     /**
      * Windows are kept this far inside the screen so edge-triggered managers
      * (Aero Snap, FancyZones) never grab them mid-flight and stutter.
@@ -139,8 +141,16 @@ public class Telekinesis extends ActionBase {
         // Clear any stale hold (no fall: it never really started).
         cancelFor(mascot);
 
-        // Either a window lift or a mouse reel, never both.
-        pullMouse = Math.random() < 0.5;
+        // Either a window lift or a mouse reel, never both. A TeleMode
+        // reference parameter forces one side; otherwise roll 50/50.
+        final String mode = getTeleMode();
+        if ("mouse".equalsIgnoreCase(mode)) {
+            pullMouse = true;
+        } else if ("window".equalsIgnoreCase(mode)) {
+            pullMouse = false;
+        } else {
+            pullMouse = Math.random() < 0.5;
+        }
         robot = null;
         cursorGlow = null;
         if (pullMouse) {
@@ -201,6 +211,13 @@ public class Telekinesis extends ActionBase {
         faceWindow();
         log.info("Telekinesis init: holding window at ({}, {}) size {}x{}",
                 (int) startX, (int) startY, winW, winH);
+    }
+
+    @Override
+    public boolean isDraggable() throws VariableException {
+        // Window lifts can be grabbed out of (dropping the window);
+        // mouse reels cannot be cancelled by grabbing.
+        return !pullMouse;
     }
 
     @Override
@@ -512,6 +529,10 @@ public class Telekinesis extends ActionBase {
             }
             cursorGlow = null;
         }
+    }
+
+    private String getTeleMode() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_TELE_MODE), String.class, "");
     }
 
     private double getRadiusX() throws VariableException {

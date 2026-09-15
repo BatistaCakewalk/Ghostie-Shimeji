@@ -5,6 +5,10 @@
     <BehaviorList>
         <Behavior Name="SitAndFaceMouse" Frequency="0" Hidden="true"/>
         <Behavior Name="SitAndSpinHead" Frequency="0" Hidden="true"/>
+        <Behavior Name="TelekinesisWindow" Frequency="0"
+                Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.isGrasping() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
+        <Behavior Name="TelekinesisMouse" Frequency="0"
+                Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.isGrasping() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
 
         <!-- ALWAYS REQUIRED -->
         <Behavior Name="Fall" Frequency="0" Hidden="true"/>
