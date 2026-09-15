@@ -72,7 +72,6 @@ public class Telekinesis extends ActionBase {
     private static final double PULL_ARRIVE = 40.0;
     private static final int PULL_RAMP_TICKS = 300;
     private static final int PULL_RED_TICKS = 150;
-    private static final int PULL_MIN_TICKS = 180;
 
     /**
      * Hands height above the anchor, mirroring GraspMouse's GraspOffsetY, so
@@ -464,9 +463,13 @@ public class Telekinesis extends ActionBase {
         if (cursorGlow != null) {
             cursorGlow.showAt(new Rectangle(raw.x - 24, raw.y - 24, 48, 48), getTime(), 0, (float) heat);
         }
-        // Minimum show length: hold the caught cursor in the reddening glow
-        // a beat before the struggle takes over.
-        if (distance <= PULL_ARRIVE && pullTicks >= PULL_MIN_TICKS) {
+        // Arrival: the cursor overlaps Nigel's 192x192 sprite canvas
+        // (anchor 96,200 sits 8px below it for the hover gap) or is at hands.
+        final int relX = raw.x - anchor.x;
+        final int relY = raw.y - anchor.y;
+        final boolean onSprite = Math.abs(relX) <= 96 && relY <= 0 && relY >= -200;
+        // Immediate handoff on contact: no minimum-show wait.
+        if (onSprite || distance <= PULL_ARRIVE) {
             final boolean devour = pullTicks >= PULL_RAMP_TICKS;
             log.info("Telekinesis mouse pull arrived: raw=({}, {}), anchor=({}, {}), dist={}, ticks={}, {}",
                     raw.x, raw.y, anchor.x, anchor.y, distance, pullTicks,
