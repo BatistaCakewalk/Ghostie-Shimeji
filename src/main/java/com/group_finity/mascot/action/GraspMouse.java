@@ -703,7 +703,13 @@ public class GraspMouse extends ActionBase {
         // re-assert the hide every tick or it flickers back.
         reassertCursorHidden();
 
+        if (getTime() % 25 == 0) {
+            log.info("Grasp status: tick={}, hp={}/{}, struggle={}, fatigue={}",
+                    getTime(), hp, maxHp, struggle, fatigue);
+        }
+
         if (hp <= 0) {
+            log.info("Grasp broken: ticksHeld={}, finalStruggle={}, fatigue={}", getTime(), struggle, fatigue);
             throw new LostGroundException("The mouse broke free of Nigel's grasp");
         }
     }

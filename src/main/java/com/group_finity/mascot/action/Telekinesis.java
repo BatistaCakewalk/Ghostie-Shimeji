@@ -69,7 +69,7 @@ public class Telekinesis extends ActionBase {
     private boolean targetOccluded;
 
     private static final double PULL_STEP = 28.0;
-    private static final double PULL_ARRIVE = 30.0;
+    private static final double PULL_ARRIVE = 250.0;
     private static final int PULL_RAMP_TICKS = 300;
     private static final int PULL_RED_TICKS = 150;
     private static final int PULL_MIN_TICKS = 180;
@@ -446,7 +446,11 @@ public class Telekinesis extends ActionBase {
         final Point anchor = getMascot().getAnchor();
         final double handsX = anchor.x;
         final double handsY = anchor.y + PULL_OFFSET_Y;
-        getMascot().setLookRight(anchor.x < raw.x);
+        // Deadband: flipping facing every tick when the cursor sits on top of
+        // him thrashes the image pipeline and stalls the grab handoff.
+        if (Math.abs(anchor.x - raw.x) > 4) {
+            getMascot().setLookRight(anchor.x < raw.x);
+        }
         final double dx = handsX - raw.x;
         final double dy = handsY - raw.y;
         final double distance = Math.sqrt(dx * dx + dy * dy);
