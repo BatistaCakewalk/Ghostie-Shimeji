@@ -85,6 +85,8 @@ public class Telekinesis extends ActionBase {
     private GlowOverlay cursorGlow;
     private int pullTicks;
     private boolean warnedForcing;
+    private int shakeAppliedX;
+    private int shakeAppliedY;
     private String teleFullKey;
     private boolean teleFullLoaded;
 
@@ -154,6 +156,8 @@ public class Telekinesis extends ActionBase {
             cursorGlow = new GlowOverlay(true);
             pullTicks = 0;
             warnedForcing = false;
+            shakeAppliedX = 0;
+            shakeAppliedY = 0;
             live = true;
             synchronized (HOLDS) {
                 HOLDS.put(mascot, this);
@@ -214,7 +218,35 @@ public class Telekinesis extends ActionBase {
         synchronized (HOLDS) {
             HOLDS.remove(getMascot());
         }
+        // Revert any shake offset so the anchor doesn't rest displaced.
+        if (shakeAppliedX != 0 || shakeAppliedY != 0) {
+            getMascot().getAnchor().translate(-shakeAppliedX, -shakeAppliedY);
+            shakeAppliedX = 0;
+            shakeAppliedY = 0;
+        }
         disposeGlows();
+    }
+
+    /**
+     * Rattles Nigel's body in place while reeling: a slow tremble after a
+     * bit, violent shaking at full strength. Absolute sine offsets, so the
+     * anchor can never wander off.
+     */
+    private void shakeBody() {
+        if (pullTicks <= 30) {
+            return;
+        }
+        final double progress = Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS);
+        final double amplitude = 1.0 + 5.0 * progress;
+        final int nextX = (int) Math.round(Math.sin(pullTicks * 0.6) * amplitude);
+        final int nextY = (int) Math.round(Math.cos(pullTicks * 0.8) * amplitude * 0.7);
+        getMascot().getAnchor().translate(nextX - shakeAppliedX, nextY - shakeAppliedY);
+        shakeAppliedX = nextX;
+        shakeAppliedY = nextY;
+        final Area screen = getEnvironment().getScreen();
+        final Point anchor = getMascot().getAnchor();
+        anchor.x = Math.max(screen.getLeft(), Math.min(screen.getRight(), anchor.x));
+        anchor.y = Math.max(screen.getTop(), Math.min(screen.getBottom(), anchor.y));
     }
 
     /**
@@ -269,6 +301,7 @@ public class Telekinesis extends ActionBase {
             // Mouse-reel mode: no window involved at all.
             if (pullMouse) {
                 pullCursorTowardsMascot();
+                shakeBody();
                 getAnimation().apply(getMascot(), getTime());
                 // Full strength pose once the ramp completes.
                 if (pullTicks >= PULL_RAMP_TICKS) {
