@@ -289,6 +289,18 @@ class WindowsEnvironment extends AbstractEnvironment {
      */
     private final Map<Area, HWND> grabbableWindowHandles = new IdentityHashMap<>();
 
+    /**
+     * When each window handle was last grabbed, to stop repeat yoinks of the
+     * same window back to back.
+     */
+    private final Map<HWND, Long> lastGrabbedAt = new IdentityHashMap<>();
+
+    private static final long GRAB_COOLDOWN_MILLIS = 60_000;
+
+    private static boolean isBlacklistedProcess(final String image) {
+        return image != null && (image.contains("rainmeter") || image.contains("sharex"));
+    }
+
     @Override
     public List<Area> getGrabbableWindows() {
         final List<Area> result = new ArrayList<>();
@@ -334,7 +346,8 @@ class WindowsEnvironment extends AbstractEnvironment {
                 if (classLen > 0) {
                     final String cls = new String(className, 0, classLen);
                     if (cls.equals("Shell_TrayWnd") || cls.equals("Shell_SecondaryTrayWnd")
-                            || cls.equals("Progman") || cls.equals("WorkerW")) {
+                            || cls.equals("Progman") || cls.equals("WorkerW")
+                            || cls.equals("tooltips_class32")) {
                         return true;
                     }
                 }
@@ -352,6 +365,14 @@ class WindowsEnvironment extends AbstractEnvironment {
                 // small borderless widgets (Rainmeter etc.) still pass.
                 if (coversMonitor(rect)) {
                     return true;
+                }
+                // Fully buried windows (e.g. entirely behind a maximized app)
+                // are out; anything peeking out still passes.
+                try {
+                    if (isCovered(hWnd, 95)) {
+                        return true;
+                    }
+                } catch (final RuntimeException ignored) {
                 }
                 final Area area = new Area();
                 area.set(rect);
@@ -375,14 +396,21 @@ class WindowsEnvironment extends AbstractEnvironment {
 
         // Blacklisted by process (recording overlays, widgets and managers
         // alike); only the surviving candidates pay for the handle lookup.
+        // Recently grabbed windows sit out for a cooldown so the same window
+        // isn't yoinked over and over.
+        final long now = System.currentTimeMillis();
+        lastGrabbedAt.entrySet().removeIf(entry -> now - entry.getValue() > GRAB_COOLDOWN_MILLIS);
         result.removeIf(area -> {
             final HWND handle = grabbableWindowHandles.get(area);
             if (handle == null) {
                 return false;
             }
+            final Long grabbedAt = lastGrabbedAt.get(handle);
+            if (grabbedAt != null) {
+                return true;
+            }
             final String image = getProcessImageName(handle);
-            final boolean blacklisted = image != null
-                    && (image.contains("rainmeter") || image.contains("sharex"));
+            final boolean blacklisted = isBlacklistedProcess(image);
             if (blacklisted) {
                 grabbableWindowHandles.remove(area);
             }
@@ -390,6 +418,30 @@ class WindowsEnvironment extends AbstractEnvironment {
         });
 
         return result;
+    }
+
+    @Override
+    public void markWindowGrabbed(final Area area) {
+        final HWND handle = grabbableWindowHandles.get(area);
+        if (handle != null) {
+            lastGrabbedAt.put(handle, System.currentTimeMillis());
+        }
+    }
+
+    @Override
+    public boolean isFullscreen() {
+        // Blacklisted overlays (ShareX region capture etc.) go fullscreen
+        // without the user gaming; don't let them trip the guard.
+        try {
+            if (activeWindowHandle != null) {
+                final String image = getProcessImageName(activeWindowHandle);
+                if (isBlacklistedProcess(image)) {
+                    return false;
+                }
+            }
+        } catch (final RuntimeException ignored) {
+        }
+        return defaultIsFullscreen();
     }
 
     private static String getProcessImageName(final HWND hWnd) {
@@ -426,6 +478,108 @@ class WindowsEnvironment extends AbstractEnvironment {
             return User32.INSTANCE.IsWindow(hWnd);
         } catch (final RuntimeException e) {
             return false;
+        }
+    }
+
+    @Override
+    public boolean isWindowMinimized(final Area area) {
+        final HWND hWnd = grabbableWindowHandles.get(area);
+        if (hWnd == null) {
+            return false;
+        }
+        try {
+            return User32Extra.INSTANCE.IsIconic(hWnd);
+        } catch (final RuntimeException e) {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean isWindowOccluded(final Area area) {
+        final HWND target = grabbableWindowHandles.get(area);
+        if (target == null) {
+            return false;
+        }
+        try {
+            return isCovered(target, 10);
+        } catch (final RuntimeException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Checks whether higher windows cover at least the given percent of the
+     * target window. Own windows are ignored so Nigel himself never counts.
+     *
+     * @param target the window to check
+     * @param percentThreshold coverage percent (0-100) that counts as covered
+     * @return {@code true} if covered past the threshold
+     */
+    private boolean isCovered(final HWND target, final int percentThreshold) {
+        final Rectangle targetRect = getWindowRect(target, true);
+        if (targetRect == null || targetRect.width <= 0 || targetRect.height <= 0) {
+            return true;
+        }
+        final long targetArea = (long) targetRect.width * targetRect.height;
+        HWND above = User32.INSTANCE.GetWindow(target,
+                new com.sun.jna.platform.win32.WinDef.DWORD(User32.GW_HWNDPREV));
+        int steps = 0;
+        while (above != null && steps++ < 200) {
+            final HWND current = above;
+            try {
+                if (User32.INSTANCE.IsWindowVisible(current) && !isOwnWindow(current)
+                        && !User32Extra.INSTANCE.IsIconic(current) && !isCloaked(current)) {
+                    final Rectangle rect = getWindowRect(current, true);
+                    if (rect != null && !rect.isEmpty()) {
+                        final Rectangle intersection = rect.intersection(targetRect);
+                        if (!intersection.isEmpty()
+                                && (long) intersection.width * intersection.height
+                                        >= targetArea * percentThreshold / 100) {
+                            return true;
+                        }
+                    }
+                }
+            } catch (final RuntimeException ignored) {
+            }
+            above = User32.INSTANCE.GetWindow(current,
+                    new com.sun.jna.platform.win32.WinDef.DWORD(User32.GW_HWNDPREV));
+        }
+        return false;
+    }
+
+    private boolean isOwnWindow(final HWND hWnd) {
+        try {
+            final IntByReference pidRef = new IntByReference();
+            User32.INSTANCE.GetWindowThreadProcessId(hWnd, pidRef);
+            return pidRef.getValue() == Kernel32.INSTANCE.GetCurrentProcessId();
+        } catch (final Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean isCloaked(final HWND hWnd) {
+        if (!VersionHelpers.IsWindows8OrGreater()) {
+            return false;
+        }
+        try {
+            final LongByReference flagsRef = new LongByReference();
+            final HRESULT result = Dwmapi.INSTANCE.DwmGetWindowAttribute(hWnd, Dwmapi.DWMWA_CLOAKED, flagsRef.getPointer(), 8);
+            return result.equals(WinError.S_OK) && flagsRef.getValue() != 0;
+        } catch (final RuntimeException e) {
+            return false;
+        }
+    }
+
+    @Override
+    public long getNativeWindowHandle(final Area area) {
+        final HWND hWnd = grabbableWindowHandles.get(area);
+        if (hWnd == null) {
+            return 0;
+        }
+        try {
+            return com.sun.jna.Pointer.nativeValue(hWnd.getPointer());
+        } catch (final RuntimeException e) {
+            return 0;
         }
     }
 

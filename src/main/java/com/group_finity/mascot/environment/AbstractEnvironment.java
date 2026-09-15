@@ -237,6 +237,17 @@ public abstract class AbstractEnvironment implements Environment {
         return false;
     }
 
+    /**
+     * Runs the default fullscreen check from {@link Environment}, for
+     * subclasses that override {@link #isFullscreen()} but still need the
+     * base behavior as a fallback.
+     *
+     * @return {@code true} if a fullscreen window is detected
+     */
+    protected boolean defaultIsFullscreen() {
+        return Environment.super.isFullscreen();
+    }
+
     @Override
     public void dispose() {
         if (thread.isAlive()) {

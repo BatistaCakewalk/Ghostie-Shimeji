@@ -60,6 +60,8 @@ public class Telekinesis extends ActionBase {
     private int winH;
     private int lastSentX;
     private int lastSentY;
+    private int occlusionCooldown;
+    private boolean targetOccluded;
 
     private Area target;
 
@@ -121,6 +123,7 @@ public class Telekinesis extends ActionBase {
             return;
         }
         target = candidates.get((int) (Math.random() * candidates.size()));
+        getEnvironment().markWindowGrabbed(target);
         startX = target.getLeft();
         startY = target.getTop();
         curX = startX;
@@ -129,7 +132,9 @@ public class Telekinesis extends ActionBase {
         winH = Math.max(1, target.getHeight());
         lastSentX = Integer.MIN_VALUE;
         lastSentY = Integer.MIN_VALUE;
-        glow = new GlowOverlay();
+        occlusionCooldown = 0;
+        targetOccluded = false;
+        glow = new GlowOverlay(getEnvironment().getNativeWindowHandle(target));
         live = true;
         synchronized (HOLDS) {
             HOLDS.put(mascot, this);
@@ -166,16 +171,16 @@ public class Telekinesis extends ActionBase {
     private void beginFall() {
         live = false;
         fallVY = 0.0;
+        // The drop is unmarked: glow goes away the moment the hold breaks.
+        disposeGlow();
         log.info("Telekinesis cancelled: dropping window at ({}, {})", (int) curX, (int) curY);
         final Timer timer = new Timer(40, null);
-        final int[] fallPhase = {0};
         timer.addActionListener(event -> {
             try {
                 if (!getEnvironment().isWindowOpen(target)) {
                     finishFall(timer);
                     return;
                 }
-                fallPhase[0]++;
                 fallVY = Math.min(30.0, fallVY + 2.0);
                 curY += fallVY;
                 final Area screen = getEnvironment().getScreen();
@@ -186,10 +191,6 @@ public class Telekinesis extends ActionBase {
                     return;
                 }
                 getEnvironment().moveWindow(target, (int) Math.round(curX), (int) Math.round(curY));
-                if (glow != null) {
-                    glow.showAt(new Rectangle((int) Math.round(curX) - 10, (int) Math.round(curY) - 10,
-                            winW + 20, winH + 20), fallPhase[0]);
-                }
             } catch (final RuntimeException e) {
                 finishFall(timer);
             }
@@ -215,6 +216,10 @@ public class Telekinesis extends ActionBase {
             if (!getEnvironment().isWindowOpen(target)) {
                 log.info("Telekinesis cancelled: window closed mid-lift");
                 throw new LostGroundException("Window closed");
+            }
+            if (getEnvironment().isWindowMinimized(target)) {
+                log.info("Telekinesis cancelled: window minimized mid-lift");
+                throw new LostGroundException("Window minimized");
             }
             if (getEnvironment().isFullscreen() || getEnvironment().isMouseLocked()) {
                 throw new LostGroundException("Fullscreen/mouse-lock active");
@@ -256,7 +261,17 @@ public class Telekinesis extends ActionBase {
                 lastSentY = sendY;
             }
             if (glow != null) {
-                glow.showAt(new Rectangle(sendX - 10, sendY - 10, winW + 20, winH + 20), getTime());
+                // Occlusion is a z-order walk, so check it a few times a
+                // second instead of every tick.
+                if (--occlusionCooldown <= 0) {
+                    occlusionCooldown = 8;
+                    targetOccluded = getEnvironment().isWindowOccluded(target);
+                }
+                if (targetOccluded) {
+                    glow.hide();
+                } else {
+                    glow.showAt(new Rectangle(sendX - 10, sendY - 10, winW + 20, winH + 20), getTime());
+                }
             }
             getAnimation().apply(getMascot(), getTime());
         } catch (final LostGroundException | VariableException | RuntimeException e) {
@@ -316,14 +331,16 @@ public class Telekinesis extends ActionBase {
     private static final class GlowOverlay {
         private JWindow window;
         private volatile int phase;
+        private volatile long targetHandle;
+        private volatile boolean clickThrough;
 
-        GlowOverlay() {
+        GlowOverlay(final long targetHandle) {
+            this.targetHandle = targetHandle;
             try {
                 SwingUtilities.invokeLater(() -> {
                     try {
                         window = new JWindow();
                         window.setBackground(new Color(0, 0, 0, 0));
-                        window.setAlwaysOnTop(true);
                         window.setFocusableWindowState(false);
                         final JPanel panel = new JPanel() {
                             @Override
@@ -369,13 +386,51 @@ public class Telekinesis extends ActionBase {
                 SwingUtilities.invokeLater(() -> {
                     try {
                         if (window != null) {
-                            window.setBounds(bounds);
+                            // Visible first: the window must be displayable
+                            // before getWindowPointer works.
                             if (!window.isVisible()) {
                                 window.setVisible(true);
                             }
+                            // Click-through so the glow never eats clicks meant
+                            // for the held app (Windows only, once, best effort).
+                            if (!clickThrough) {
+                                clickThrough = true;
+                                try {
+                                    if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT)
+                                            .contains("win")) {
+                                        final com.sun.jna.platform.win32.WinDef.HWND own =
+                                                new com.sun.jna.platform.win32.WinDef.HWND(
+                                                        com.sun.jna.Native.getWindowPointer(window));
+                                        final int ex = com.sun.jna.platform.win32.User32.INSTANCE
+                                                .GetWindowLong(own,
+                                                        com.sun.jna.platform.win32.User32.GWL_EXSTYLE);
+                                        com.sun.jna.platform.win32.User32.INSTANCE.SetWindowLong(own,
+                                                com.sun.jna.platform.win32.User32.GWL_EXSTYLE,
+                                                ex | com.sun.jna.platform.win32.User32.WS_EX_TRANSPARENT
+                                                        | com.sun.jna.platform.win32.User32.WS_EX_LAYERED);
+                                    }
+                                } catch (final RuntimeException | UnsatisfiedLinkError | NoClassDefFoundError e) {
+                                    log.warn("Could not make telekinesis glow click-through", e);
+                                }
+                            }
+                            if (targetHandle != 0) {
+                                // Restack directly above the target instead of
+                                // topmost, so covering windows cover the glow too.
+                                final com.sun.jna.platform.win32.WinDef.HWND insertAfter =
+                                        new com.sun.jna.platform.win32.WinDef.HWND(
+                                                new com.sun.jna.Pointer(targetHandle));
+                                final com.sun.jna.platform.win32.WinDef.HWND own =
+                                        new com.sun.jna.platform.win32.WinDef.HWND(
+                                                com.sun.jna.Native.getWindowPointer(window));
+                                com.sun.jna.platform.win32.User32.INSTANCE.SetWindowPos(own, insertAfter,
+                                        bounds.x, bounds.y, bounds.width, bounds.height,
+                                        com.sun.jna.platform.win32.User32.SWP_NOACTIVATE);
+                            } else {
+                                window.setBounds(bounds);
+                            }
                             window.repaint();
                         }
-                    } catch (final RuntimeException e) {
+                    } catch (final RuntimeException | UnsatisfiedLinkError e) {
                         log.warn("Could not move telekinesis glow window", e);
                     }
                 });

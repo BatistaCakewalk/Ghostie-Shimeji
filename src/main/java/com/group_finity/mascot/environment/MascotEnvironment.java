@@ -387,6 +387,49 @@ public class MascotEnvironment {
     }
 
     /**
+     * Gets the native handle value of the specified window.
+     *
+     * @param area the window to check
+     * @return the native window handle value, or {@code 0}
+     * @see Environment#getNativeWindowHandle(Area)
+     */
+    public long getNativeWindowHandle(final Area area) {
+        return impl.getNativeWindowHandle(area);
+    }
+
+    /**
+     * Checks whether the specified window is currently minimized.
+     *
+     * @param area the window to check
+     * @return {@code true} if the window is minimized
+     * @see Environment#isWindowMinimized(Area)
+     */
+    public boolean isWindowMinimized(final Area area) {
+        return impl.isWindowMinimized(area);
+    }
+
+    /**
+     * Records that the specified window was just grabbed.
+     *
+     * @param area the window that was grabbed
+     * @see Environment#markWindowGrabbed(Area)
+     */
+    public void markWindowGrabbed(final Area area) {
+        impl.markWindowGrabbed(area);
+    }
+
+    /**
+     * Checks whether the specified window is substantially covered by higher windows.
+     *
+     * @param area the window to check
+     * @return {@code true} if the window is covered
+     * @see Environment#isWindowOccluded(Area)
+     */
+    public boolean isWindowOccluded(final Area area) {
+        return impl.isWindowOccluded(area);
+    }
+
+    /**
      * Checks whether the specified window is currently the foreground window.
      *
      * @param area the window to check

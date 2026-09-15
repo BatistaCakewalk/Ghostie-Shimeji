@@ -164,6 +164,17 @@ public interface Environment {
     }
 
     /**
+     * Gets the native handle value of the specified window, for z-order
+     * operations. Platform-specific; {@code 0} if unknown.
+     *
+     * @param area the window, as returned by {@link #getGrabbableWindows()}
+     * @return the native window handle value, or {@code 0}
+     */
+    default long getNativeWindowHandle(final Area area) {
+        return 0;
+    }
+
+    /**
      * Checks whether the specified window is currently the foreground window.
      *
      * @param area the window to check, as returned by {@link #getGrabbableWindows()}
@@ -171,6 +182,36 @@ public interface Environment {
      */
     default boolean isWindowForeground(final Area area) {
         return true;
+    }
+
+    /**
+     * Checks whether the specified window is currently minimized.
+     *
+     * @param area the window to check, as returned by {@link #getGrabbableWindows()}
+     * @return {@code true} if the window is minimized
+     */
+    default boolean isWindowMinimized(final Area area) {
+        return false;
+    }
+
+    /**
+     * Records that the specified window was just grabbed, so repeat picks
+     * can be throttled.
+     *
+     * @param area the window that was grabbed, as returned by {@link #getGrabbableWindows()}
+     */
+    default void markWindowGrabbed(final Area area) {
+    }
+
+    /**
+     * Checks whether the specified window is substantially covered by higher
+     * windows (e.g. a maximized app), so overlays should hide.
+     *
+     * @param area the window to check, as returned by {@link #getGrabbableWindows()}
+     * @return {@code true} if the window is covered
+     */
+    default boolean isWindowOccluded(final Area area) {
+        return false;
     }
 
     /**
