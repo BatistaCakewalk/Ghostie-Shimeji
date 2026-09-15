@@ -581,6 +581,18 @@ public class Mascot {
         final JMenuItem followCursorItem = new JMenuItem(languageBundle.getString("FollowCursor"));
         followCursorItem.addActionListener(event -> manager.setBehaviorAll(Main.getInstance().getConfiguration(imageSet), UserBehavior.BEHAVIORNAME_CHASEMOUSE, imageSet));
 
+        final JMenuItem chaseAndHugItem = new JMenuItem("Chase and Hug");
+        chaseAndHugItem.addActionListener(event -> {
+            setCuddleNext();
+            queueMenuBehavior("CatchMouse");
+        });
+
+        final JMenuItem chaseAndEatItem = new JMenuItem("Chase and Eat");
+        chaseAndEatItem.addActionListener(event -> {
+            setDevourNext();
+            queueMenuBehavior("CatchMouse");
+        });
+
         final JMenuItem restoreWindowsItem = new JMenuItem(languageBundle.getString("RestoreWindows"));
         restoreWindowsItem.addActionListener(event -> environment.restoreIE());
 
@@ -613,6 +625,15 @@ public class Mascot {
                         @Override
                         public void actionPerformed(final ActionEvent e) {
                             try {
+                                // Menu-ordered ambushes queue first: Nigel keeps
+                                // doing whatever he was doing, then starts fresh
+                                // so backing off actually works.
+                                if (behaviorName.equals("CatchMouse") || behaviorName.equals("Telekinesis")
+                                        || behaviorName.equals("TelekinesisWindow")
+                                        || behaviorName.equals("TelekinesisMouse")) {
+                                    queueMenuBehavior(behaviorName);
+                                    return;
+                                }
                                 setBehavior(config.buildBehavior(behaviorName));
                             } catch (BehaviorInstantiationException | BehaviorExecutionException ex) {
                                 log.error("Failed to set behavior to \"{}\" for mascot \"{}\"", behaviorName, this, ex);
@@ -652,6 +673,8 @@ public class Mascot {
         popup.add(callAnotherItem);
         popup.addSeparator();
         popup.add(followCursorItem);
+        popup.add(chaseAndHugItem);
+        popup.add(chaseAndEatItem);
         popup.add(restoreWindowsItem);
         popup.add(debugMenuItem);
         popup.addSeparator();
@@ -700,6 +723,17 @@ public class Mascot {
                 }
 
                 time++;
+            }
+
+            final String queued = pendingBehaviorName;
+            if (queued != null && --pendingBehaviorTicks <= 0) {
+                pendingBehaviorName = null;
+                try {
+                    final Configuration configuration = Main.getInstance().getConfiguration(imageSet);
+                    setBehavior(configuration.buildBehavior(queued));
+                } catch (final BehaviorInstantiationException | BehaviorExecutionException e) {
+                    log.error("Failed to start queued behavior \"{}\" for mascot \"{}\"", queued, this, e);
+                }
             }
 
             SwingUtilities.invokeLater(() -> {
@@ -791,6 +825,7 @@ public class Mascot {
     public synchronized void dispose() {
         releaseMouse(this);
         com.group_finity.mascot.action.Telekinesis.cancelFor(this);
+        pendingBehaviorName = null;
         log.info("Destroying mascot \"{}\"", this);
 
         SwingUtilities.invokeLater(() -> {
@@ -1428,17 +1463,50 @@ public class Mascot {
     }
 
     /**
-     * Whether the next grasp should skip straight to swallow mode
-     * (a max-strength telekinesis devour).
+     * A behavior ordered from the context menu that hasn't started yet.
+     * Ambushes (CatchMouse, Telekinesis) wait here a beat so the user can
+     * back off; the behavior then starts fresh against the live cursor.
+     * Latest click wins.
      */
-    private volatile boolean devourNext = false;
+    private static final int MENU_DELAY_TICKS = 40;
 
-    public boolean isDevourNext() {
-        return devourNext;
+    private volatile String pendingBehaviorName = null;
+
+    private volatile int pendingBehaviorTicks = 0;
+
+    private void queueMenuBehavior(final String behaviorName) {
+        pendingBehaviorName = behaviorName;
+        pendingBehaviorTicks = MENU_DELAY_TICKS;
+        log.info("Menu behavior queued: {} ({} ticks)", behaviorName, MENU_DELAY_TICKS);
     }
 
-    public void setDevourNext(final boolean devourNext) {
-        this.devourNext = devourNext;
+    /**
+     * When the next grasp should skip straight to swallow or cuddle mode.
+     * Single-use with a 10s expiry so an interrupted menu order can't arm a
+     * much later auto catch.
+     */
+    private volatile long devourAt = 0;
+
+    private volatile long cuddleAt = 0;
+
+    public void setDevourNext() {
+        devourAt = System.nanoTime();
+    }
+
+    public boolean consumeDevourNext() {
+        final boolean armed = System.nanoTime() - devourAt < 10_000_000_000L;
+        devourAt = 0;
+        return armed;
+    }
+
+    public void setCuddleNext() {
+        cuddleAt = System.nanoTime();
+    }
+
+    public boolean consumeCuddleNext() {
+        final boolean armed = System.nanoTime() - cuddleAt < 10_000_000_000L;
+        cuddleAt = 0;
+        return armed;
     }
 
     /**

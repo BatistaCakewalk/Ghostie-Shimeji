@@ -633,6 +633,14 @@
                 </documentation>
             </annotation>
         </attribute>
+        <attribute name="TeleMode" type="tns:ScriptableString">
+            <annotation>
+                <documentation>
+                    Forces the telekinesis mode: "window" always lifts a window, "mouse" always reels the cursor.
+                    Absent or anything else rolls 50/50.
+                </documentation>
+            </annotation>
+        </attribute>
         <attribute name="X" type="tns:ScriptableInt" default="0">
             <annotation>
                 <documentation>
