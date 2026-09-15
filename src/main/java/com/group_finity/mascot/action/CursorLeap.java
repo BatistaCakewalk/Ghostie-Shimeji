@@ -43,10 +43,6 @@ public class CursorLeap extends ActionBase {
 
     private int frozenTargetY;
 
-    private static final int TELEGRAPH_TICKS = 40;
-
-    private int telegraphRemaining;
-
     /**
      * Cursor and mascot positions sampled once per tick during the flight,
      * kept to the most recent {@value #MAX_SAMPLES} samples so the closing
@@ -93,11 +89,6 @@ public class CursorLeap extends ActionBase {
         // Freeze the aim point on the launch frame.
         frozenTargetX = getTargetX();
         frozenTargetY = getTargetY();
-        // Menu-ordered leaps crouch first so the user can back off.
-        telegraphRemaining = mascot.consumeTelegraphNext() ? TELEGRAPH_TICKS : 0;
-        if (telegraphRemaining > 0) {
-            log.info("CursorLeap telegraphed: holding {} ticks before launch", telegraphRemaining);
-        }
         samples.clear();
         // Stale approach readings must not leak from a previous leap.
         mascot.setApproachClosingSpeed(0.0);
@@ -121,12 +112,6 @@ public class CursorLeap extends ActionBase {
     protected void tick() throws LostGroundException, VariableException {
         log.info("CursorLeap tick: anchor={}, target=({},{}), distance={}", getMascot().getAnchor(), frozenTargetX, frozenTargetY,
                 getMascot().getAnchor().distance(frozenTargetX, frozenTargetY));
-
-        if (telegraphRemaining > 0) {
-            telegraphRemaining--;
-            getAnimation().apply(getMascot(), getTime());
-            return;
-        }
 
         sampleFlight();
 

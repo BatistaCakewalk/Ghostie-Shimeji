@@ -613,10 +613,12 @@ public class Mascot {
                         @Override
                         public void actionPerformed(final ActionEvent e) {
                             try {
-                                // Menu-ordered ambushes telegraph first so the
-                                // user gets a beat to back off.
+                                // Menu-ordered ambushes queue first: Nigel keeps
+                                // doing whatever he was doing, then starts fresh
+                                // so backing off actually works.
                                 if (behaviorName.equals("CatchMouse") || behaviorName.equals("Telekinesis")) {
-                                    setTelegraphNext();
+                                    queueMenuBehavior(behaviorName);
+                                    return;
                                 }
                                 setBehavior(config.buildBehavior(behaviorName));
                             } catch (BehaviorInstantiationException | BehaviorExecutionException ex) {
@@ -705,6 +707,17 @@ public class Mascot {
                 }
 
                 time++;
+            }
+
+            final String queued = pendingBehaviorName;
+            if (queued != null && --pendingBehaviorTicks <= 0) {
+                pendingBehaviorName = null;
+                try {
+                    final Configuration configuration = Main.getInstance().getConfiguration(imageSet);
+                    setBehavior(configuration.buildBehavior(queued));
+                } catch (final BehaviorInstantiationException | BehaviorExecutionException e) {
+                    log.error("Failed to start queued behavior \"{}\" for mascot \"{}\"", queued, this, e);
+                }
             }
 
             SwingUtilities.invokeLater(() -> {
@@ -796,6 +809,7 @@ public class Mascot {
     public synchronized void dispose() {
         releaseMouse(this);
         com.group_finity.mascot.action.Telekinesis.cancelFor(this);
+        pendingBehaviorName = null;
         log.info("Destroying mascot \"{}\"", this);
 
         SwingUtilities.invokeLater(() -> {
@@ -1433,19 +1447,21 @@ public class Mascot {
     }
 
     /**
-     * When the next catch starts from the context menu, so ambush actions can
-     * telegraph first. Single-use with a 5s expiry.
+     * A behavior ordered from the context menu that hasn't started yet.
+     * Ambushes (CatchMouse, Telekinesis) wait here a beat so the user can
+     * back off; the behavior then starts fresh against the live cursor.
+     * Latest click wins.
      */
-    private volatile long telegraphAt = 0;
+    private static final int MENU_DELAY_TICKS = 40;
 
-    public void setTelegraphNext() {
-        telegraphAt = System.nanoTime();
-    }
+    private volatile String pendingBehaviorName = null;
 
-    public boolean consumeTelegraphNext() {
-        final boolean armed = System.nanoTime() - telegraphAt < 5_000_000_000L;
-        telegraphAt = 0;
-        return armed;
+    private volatile int pendingBehaviorTicks = 0;
+
+    private void queueMenuBehavior(final String behaviorName) {
+        pendingBehaviorName = behaviorName;
+        pendingBehaviorTicks = MENU_DELAY_TICKS;
+        log.info("Menu behavior queued: {} ({} ticks)", behaviorName, MENU_DELAY_TICKS);
     }
 
     /**
