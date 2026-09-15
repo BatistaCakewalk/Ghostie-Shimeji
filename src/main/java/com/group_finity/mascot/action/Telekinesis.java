@@ -233,7 +233,7 @@ public class Telekinesis extends ActionBase {
      * anchor can never wander off.
      */
     private void shakeBody() {
-        if (pullTicks <= 30) {
+        if (pullTicks <= 90) {
             return;
         }
         final double progress = Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS);

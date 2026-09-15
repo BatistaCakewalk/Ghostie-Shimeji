@@ -479,6 +479,8 @@ public class GraspMouse extends ActionBase {
         if (devourQueued) {
             devourQueued = false;
             log.info("Devoured straight into swallow mode");
+            // The contact window (which normally hides the cursor) was skipped.
+            hideCursor();
             swallowMode = true;
             swallowTicks = 0;
             swallowClicks = 0;
