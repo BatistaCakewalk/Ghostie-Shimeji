@@ -69,10 +69,9 @@ public class Telekinesis extends ActionBase {
     private boolean targetOccluded;
 
     private static final double PULL_STEP = 28.0;
-    private static final double PULL_ARRIVE = 30.0;
+    private static final double PULL_ARRIVE = 40.0;
     private static final int PULL_RAMP_TICKS = 300;
     private static final int PULL_RED_TICKS = 150;
-    private static final int PULL_MIN_TICKS = 180;
 
     /**
      * Hands height above the anchor, mirroring GraspMouse's GraspOffsetY, so
@@ -85,8 +84,9 @@ public class Telekinesis extends ActionBase {
     private GlowOverlay cursorGlow;
     private int pullTicks;
     private boolean warnedForcing;
-    private int shakeAppliedX;
-    private int shakeAppliedY;
+    private int shakeBaseX;
+    private int shakeBaseY;
+    private boolean shaking;
     private String teleFullKey;
     private boolean teleFullLoaded;
 
@@ -156,8 +156,9 @@ public class Telekinesis extends ActionBase {
             cursorGlow = new GlowOverlay(true);
             pullTicks = 0;
             warnedForcing = false;
-            shakeAppliedX = 0;
-            shakeAppliedY = 0;
+            shakeBaseX = mascot.getAnchor().x;
+            shakeBaseY = mascot.getAnchor().y;
+            shaking = false;
             live = true;
             synchronized (HOLDS) {
                 HOLDS.put(mascot, this);
@@ -218,35 +219,33 @@ public class Telekinesis extends ActionBase {
         synchronized (HOLDS) {
             HOLDS.remove(getMascot());
         }
-        // Revert any shake offset so the anchor doesn't rest displaced.
-        if (shakeAppliedX != 0 || shakeAppliedY != 0) {
-            getMascot().getAnchor().translate(-shakeAppliedX, -shakeAppliedY);
-            shakeAppliedX = 0;
-            shakeAppliedY = 0;
+        // Restore the exact pre-shake anchor so the pull never ends airborne.
+        if (shaking) {
+            shaking = false;
+            getMascot().getAnchor().setLocation(shakeBaseX, shakeBaseY);
         }
         disposeGlows();
     }
 
     /**
      * Rattles Nigel's body in place while reeling: a slow tremble after a
-     * bit, violent shaking at full strength. Absolute sine offsets, so the
-     * anchor can never wander off.
+     * bit, violent shaking at full strength. Absolute positioning around the
+     * recorded base, so screen clamping can never desync into drift.
      */
     private void shakeBody() {
         if (pullTicks <= 90) {
             return;
         }
+        shaking = true;
         final double progress = Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS);
         final double amplitude = 1.0 + 5.0 * progress;
-        final int nextX = (int) Math.round(Math.sin(pullTicks * 0.6) * amplitude);
-        final int nextY = (int) Math.round(Math.cos(pullTicks * 0.8) * amplitude * 0.7);
-        getMascot().getAnchor().translate(nextX - shakeAppliedX, nextY - shakeAppliedY);
-        shakeAppliedX = nextX;
-        shakeAppliedY = nextY;
+        final int nextX = shakeBaseX + (int) Math.round(Math.sin(pullTicks * 0.6) * amplitude);
+        final int nextY = shakeBaseY + (int) Math.round(Math.cos(pullTicks * 0.8) * amplitude * 0.7);
         final Area screen = getEnvironment().getScreen();
         final Point anchor = getMascot().getAnchor();
-        anchor.x = Math.max(screen.getLeft(), Math.min(screen.getRight(), anchor.x));
-        anchor.y = Math.max(screen.getTop(), Math.min(screen.getBottom(), anchor.y));
+        anchor.setLocation(
+                Math.max(screen.getLeft(), Math.min(screen.getRight(), nextX)),
+                Math.max(screen.getTop(), Math.min(screen.getBottom(), nextY)));
     }
 
     /**
@@ -446,7 +445,11 @@ public class Telekinesis extends ActionBase {
         final Point anchor = getMascot().getAnchor();
         final double handsX = anchor.x;
         final double handsY = anchor.y + PULL_OFFSET_Y;
-        getMascot().setLookRight(anchor.x < raw.x);
+        // Deadband: flipping facing every tick when the cursor sits on top of
+        // him thrashes the image pipeline and stalls the grab handoff.
+        if (Math.abs(anchor.x - raw.x) > 4) {
+            getMascot().setLookRight(anchor.x < raw.x);
+        }
         final double dx = handsX - raw.x;
         final double dy = handsY - raw.y;
         final double distance = Math.sqrt(dx * dx + dy * dy);
@@ -460,11 +463,16 @@ public class Telekinesis extends ActionBase {
         if (cursorGlow != null) {
             cursorGlow.showAt(new Rectangle(raw.x - 24, raw.y - 24, 48, 48), getTime(), 0, (float) heat);
         }
-        // Minimum show length: hold the caught cursor in the reddening glow
-        // a beat before the struggle takes over.
-        if (distance <= PULL_ARRIVE && pullTicks >= PULL_MIN_TICKS) {
+        // Arrival: the cursor overlaps Nigel's 192x192 sprite canvas
+        // (anchor 96,200 sits 8px below it for the hover gap) or is at hands.
+        final int relX = raw.x - anchor.x;
+        final int relY = raw.y - anchor.y;
+        final boolean onSprite = Math.abs(relX) <= 96 && relY <= 0 && relY >= -200;
+        // Immediate handoff on contact: no minimum-show wait.
+        if (onSprite || distance <= PULL_ARRIVE) {
             final boolean devour = pullTicks >= PULL_RAMP_TICKS;
-            log.info("Telekinesis mouse pull arrived, {}",
+            log.info("Telekinesis mouse pull arrived: raw=({}, {}), anchor=({}, {}), dist={}, ticks={}, {}",
+                    raw.x, raw.y, anchor.x, anchor.y, distance, pullTicks,
                     devour ? "devouring straight into swallow" : "starting struggle");
             getMascot().setDevourNext(devour);
             endHold();

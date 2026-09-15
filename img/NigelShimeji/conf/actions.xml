@@ -233,7 +233,7 @@
         </Action>
 
         <Action Name="Telekinesis" Type="Embedded" Class="com.group_finity.mascot.action.Telekinesis"
-                Duration="400" TeleRadiusX="60" TeleRadiusY="40" TeleLift="30" TeleReturnTicks="60">
+                Duration="400" Draggable="false" TeleRadiusX="60" TeleRadiusY="40" TeleLift="30" TeleReturnTicks="60">
             <Animation>
                 <Pose Image="/tele.png" ImageAnchor="96,200" Velocity="0,0" Duration="4"/>
                 <Pose Image="/tele.png" ImageAnchor="96,200" Velocity="0,0" Duration="4"/>
@@ -706,16 +706,16 @@
                              Gap="${mascot.anchor.x &lt; mascot.environment.cursor.x ?
                     -Math.min( mascot.environment.cursor.x-mascot.anchor.x, Math.random()*200) :
                     Math.min( mascot.anchor.x-mascot.environment.cursor.x, Math.random()*200 )}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
         </Action>
 
         <!-- Leap targets are offset by -GraspOffsetY (+96) so Nigel's HANDS arrive at the
              cursor, not his feet. Keep in sync with GraspOffsetY on the Grasp action below. -->
         <Action Name="CatchMouse" Type="Sequence" Loop="false">
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
             <ActionReference Name="LeapForMouse" TargetX="${mascot.environment.cursor.x}"
                              TargetY="${mascot.environment.cursor.y+96}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
             <ActionReference Name="Grasp" Duration="20000"/>
             <Action Type="Select">
                 <ActionReference Name="LeapForMouse"
@@ -730,25 +730,25 @@
 
         <Action Name="SitAndFaceMouse" Type="Sequence" Loop="false">
             <ActionReference Name="SitAndLookAtMouse" Duration="${10+Math.random()*10}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
             <ActionReference Name="SitAndLookAtMouse" Duration="${10+Math.random()*10}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
             <ActionReference Name="SitAndLookAtMouse" Duration="${10+Math.random()*10}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
             <ActionReference Name="SitAndLookAtMouse" Duration="${10+Math.random()*10}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
             <ActionReference Name="SitAndLookAtMouse" Duration="${10+Math.random()*10}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
             <ActionReference Name="SitAndLookAtMouse" Duration="${10+Math.random()*10}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
             <ActionReference Name="SitAndLookAtMouse" Duration="${10+Math.random()*10}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
             <ActionReference Name="SitAndLookAtMouse" Duration="${10+Math.random()*10}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
             <ActionReference Name="SitAndLookAtMouse" Duration="${10+Math.random()*10}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
             <ActionReference Name="SitAndLookAtMouse" Duration="${10+Math.random()*10}"/>
-            <ActionReference Name="Look" LookRight="${mascot.anchor.x &lt; mascot.environment.cursor.x}"/>
+            <ActionReference Name="Look" LookRight="${Math.abs(mascot.anchor.x-mascot.environment.cursor.x) &lt; 4 ? mascot.lookRight : (mascot.anchor.x &lt; mascot.environment.cursor.x)}"/>
         </Action>
         <Action Name="SitAndSpinHead" Type="Sequence" Loop="false">
             <ActionReference Name="SitAndSpinHeadAction"/>

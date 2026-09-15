@@ -140,6 +140,12 @@ public class GraspMouse extends ActionBase {
      */
     private static final double STRUGGLE_THRESHOLD = 3.0;
 
+    /**
+     * Maximum HP drained in a single tick, no matter how far the cursor was
+     * flung. Keeps full-screen whips survivable while normal fights feel the same.
+     */
+    private static final double MAX_DRAIN_PER_TICK = 30.0;
+
     private Robot robot;
 
     private double maxHp;
@@ -680,10 +686,11 @@ public class GraspMouse extends ActionBase {
             hp = Math.min(maxHp, hp + getRegen());
         } else {
             // Fighting: frantic shaking is dulled by the curve, and sustained
-            // mashing tires itself out through fatigue.
+            // mashing tires itself out through fatigue. Per-tick drain is
+            // capped so full-screen whips can't nuke the meter in one frame.
             fatigue++;
             final double fatigueMultiplier = Math.max(0.2, 1.0 - fatigue / 100.0);
-            hp -= applyStruggleCurve(struggle) * fatigueMultiplier;
+            hp -= Math.min(applyStruggleCurve(struggle) * fatigueMultiplier, MAX_DRAIN_PER_TICK);
         }
 
         // Wrestle: drift or thrash Nigel around, bounded so the anchor can
@@ -703,7 +710,13 @@ public class GraspMouse extends ActionBase {
         // re-assert the hide every tick or it flickers back.
         reassertCursorHidden();
 
+        if (getTime() % 25 == 0) {
+            log.info("Grasp status: tick={}, hp={}/{}, struggle={}, fatigue={}",
+                    getTime(), hp, maxHp, struggle, fatigue);
+        }
+
         if (hp <= 0) {
+            log.info("Grasp broken: ticksHeld={}, finalStruggle={}, fatigue={}", getTime(), struggle, fatigue);
             throw new LostGroundException("The mouse broke free of Nigel's grasp");
         }
     }
