@@ -492,7 +492,7 @@ public class Telekinesis extends ActionBase {
             log.info("Telekinesis mouse pull arrived: raw=({}, {}), anchor=({}, {}), dist={}, ticks={}, {}",
                     raw.x, raw.y, anchor.x, anchor.y, distance, pullTicks,
                     devour ? "devouring straight into swallow" : "starting struggle");
-            getMascot().setDevourNext(devour);
+            if (devour) getMascot().setDevourNext();
             endHold();
             try {
                 final com.group_finity.mascot.behavior.Behavior catchMouse =

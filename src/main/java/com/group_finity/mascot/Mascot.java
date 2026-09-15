@@ -581,6 +581,18 @@ public class Mascot {
         final JMenuItem followCursorItem = new JMenuItem(languageBundle.getString("FollowCursor"));
         followCursorItem.addActionListener(event -> manager.setBehaviorAll(Main.getInstance().getConfiguration(imageSet), UserBehavior.BEHAVIORNAME_CHASEMOUSE, imageSet));
 
+        final JMenuItem chaseAndHugItem = new JMenuItem("Chase and Hug");
+        chaseAndHugItem.addActionListener(event -> {
+            setCuddleNext();
+            queueMenuBehavior("CatchMouse");
+        });
+
+        final JMenuItem chaseAndEatItem = new JMenuItem("Chase and Eat");
+        chaseAndEatItem.addActionListener(event -> {
+            setDevourNext();
+            queueMenuBehavior("CatchMouse");
+        });
+
         final JMenuItem restoreWindowsItem = new JMenuItem(languageBundle.getString("RestoreWindows"));
         restoreWindowsItem.addActionListener(event -> environment.restoreIE());
 
@@ -661,6 +673,8 @@ public class Mascot {
         popup.add(callAnotherItem);
         popup.addSeparator();
         popup.add(followCursorItem);
+        popup.add(chaseAndHugItem);
+        popup.add(chaseAndEatItem);
         popup.add(restoreWindowsItem);
         popup.add(debugMenuItem);
         popup.addSeparator();
@@ -1467,17 +1481,32 @@ public class Mascot {
     }
 
     /**
-     * Whether the next grasp should skip straight to swallow mode
-     * (a max-strength telekinesis devour).
+     * When the next grasp should skip straight to swallow or cuddle mode.
+     * Single-use with a 10s expiry so an interrupted menu order can't arm a
+     * much later auto catch.
      */
-    private volatile boolean devourNext = false;
+    private volatile long devourAt = 0;
 
-    public boolean isDevourNext() {
-        return devourNext;
+    private volatile long cuddleAt = 0;
+
+    public void setDevourNext() {
+        devourAt = System.nanoTime();
     }
 
-    public void setDevourNext(final boolean devourNext) {
-        this.devourNext = devourNext;
+    public boolean consumeDevourNext() {
+        final boolean armed = System.nanoTime() - devourAt < 10_000_000_000L;
+        devourAt = 0;
+        return armed;
+    }
+
+    public void setCuddleNext() {
+        cuddleAt = System.nanoTime();
+    }
+
+    public boolean consumeCuddleNext() {
+        final boolean armed = System.nanoTime() - cuddleAt < 10_000_000_000L;
+        cuddleAt = 0;
+        return armed;
     }
 
     /**
