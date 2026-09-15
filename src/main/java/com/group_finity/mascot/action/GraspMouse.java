@@ -92,6 +92,27 @@ public class GraspMouse extends ActionBase {
     private static final String PARAMETER_SWALLOW_CLICK_WINDOW = "SwallowClickWindow";
     private static final int DEFAULT_SWALLOW_CLICK_WINDOW = 90;
 
+    private static final String PARAMETER_SICK_PHASE1_TICKS = "SickPhase1Ticks";
+    private static final int DEFAULT_SICK_PHASE1_TICKS = 75;
+
+    private static final String PARAMETER_SICK_PHASE2_TICKS = "SickPhase2Ticks";
+    private static final int DEFAULT_SICK_PHASE2_TICKS = 50;
+
+    private static final String PARAMETER_SPIT_SPEED_X = "SpitSpeedX";
+    private static final double DEFAULT_SPIT_SPEED_X = 12.0;
+
+    private static final String PARAMETER_SPIT_SPEED_Y = "SpitSpeedY";
+    private static final double DEFAULT_SPIT_SPEED_Y = 22.0;
+
+    private static final String PARAMETER_SPIT_GRAVITY = "SpitGravity";
+    private static final double DEFAULT_SPIT_GRAVITY = 2.0;
+
+    private static final String PARAMETER_SPIT_BOUNCE = "SpitBounce";
+    private static final double DEFAULT_SPIT_BOUNCE = 0.6;
+
+    private static final String PARAMETER_SICK_CLICK_POWER = "SickClickPower";
+    private static final double DEFAULT_SICK_CLICK_POWER = 0.05;
+
     private static final int CUDDLE_SHAKE_WINDOW = 30;
     private static final int CUDDLE_ANIM_INTERVAL = 30;
     private static final int SWALLOW_GULP_TICKS = 40;
@@ -175,6 +196,31 @@ public class GraspMouse extends ActionBase {
     private String bloatWalkKey1;
     private String bloatWalkKey2;
     private boolean swallowImagesLoaded;
+
+    // Sick + spit-fling state after a swallow is shaken loose
+    private int sickPhase;
+    private int sickTicks;
+    private int sickClicks;
+    private boolean flingActive;
+    private double flingX;
+    private double flingY;
+    private double flingVX;
+    private double flingVY;
+    private int flingTicks;
+    private String sickKey1;
+    private String sickKey2;
+    private boolean sickImagesLoaded;
+
+    // Burp + recover state after the fling lands
+    private boolean recoverActive;
+    private int recoverTicks;
+    private double recoilVX;
+    private double recoilVY;
+    private String burpKey;
+    private String burpAftermathKey;
+    private boolean burpImageLoaded;
+
+    private static final int RECOVER_MIN_TICKS = 75;
     private String cuddleImageKey1;
     private String cuddleImageKey2;
     private boolean cuddleImagesLoaded;
@@ -239,7 +285,16 @@ public class GraspMouse extends ActionBase {
         swallowWindowRemaining = 0;
         swallowDir = 0;
         swallowWander = 0;
-        // cuddle/swallow image keys persist across grasps to avoid reloading
+        sickPhase = 0;
+        sickTicks = 0;
+        sickClicks = 0;
+        flingActive = false;
+        flingTicks = 0;
+        recoverActive = false;
+        recoverTicks = 0;
+        recoilVX = 0.0;
+        recoilVY = 0.0;
+        // cuddle/swallow/sick/burp image keys persist across grasps to avoid reloading
 
         // Heal any leak from a previous grasp that was interrupted from the
         // outside (e.g. the user grabbed Nigel mid-grasp and swapped behaviors).
@@ -367,6 +422,15 @@ public class GraspMouse extends ActionBase {
             swallowWindowRemaining = 0;
             swallowDir = 0;
             swallowWander = 0;
+            sickPhase = 0;
+            sickTicks = 0;
+            sickClicks = 0;
+            flingActive = false;
+            flingTicks = 0;
+            recoverActive = false;
+            recoverTicks = 0;
+            recoilVX = 0.0;
+            recoilVY = 0.0;
             return;
         }
         log.info("Entering cuddle mode after idle (quick re-enter: {})", quickReenter);
@@ -401,6 +465,16 @@ public class GraspMouse extends ActionBase {
 
         // --- Swallow mode handling ---
         if (swallowMode) {
+            // Burp recover first: once landed it owns the ticks until handoff.
+            if (recoverActive) {
+                tickRecover();
+                return;
+            }
+            // Sick + fling run their own sub-state; cursor stays covered (hidden) throughout.
+            if (sickPhase > 0 || flingActive) {
+                tickSickFling(clicks);
+                return;
+            }
             swallowTicks++;
 
             if (swallowWindowRemaining > 0) {
@@ -422,8 +496,10 @@ public class GraspMouse extends ActionBase {
                 swallowClicks--;
             }
             if (swallowClicks >= getSwallowClickCount()) {
-                log.info("Nigel spat the cursor back out after {} clicks", swallowClicks);
-                throw new LostGroundException("Nigel spat the cursor back out");
+                log.info("Swallow shaken loose after {} clicks, Nigel feels sick", swallowClicks);
+                sickPhase = 1;
+                sickTicks = 0;
+                sickClicks = 0;
             }
 
             // Fully trapped: HP frozen, cursor pinned hard.
@@ -952,6 +1028,194 @@ public class GraspMouse extends ActionBase {
         }
     }
 
+    /**
+     * Sick window after a swallow is shaken loose, then the spit-fling.
+     * The cursor stays hidden (covered) until it lands.
+     */
+    private void tickSickFling(final int clicks) throws LostGroundException, VariableException {
+        if (!flingActive) {
+            sickTicks++;
+            sickClicks += clicks;
+            final int phase1 = getSickPhase1Ticks();
+            final int phase2 = getSickPhase2Ticks();
+            ensureSickImagesLoaded();
+            if (sickTicks <= phase1) {
+                sickPhase = 1;
+                // Slight queasy tremble.
+                driftTo(Math.random() * 2.0 - 1.0, Math.random() * 2.0 - 1.0);
+                setSickImage(sickKey1);
+            } else if (sickTicks <= phase1 + phase2) {
+                sickPhase = 2;
+                // Faster, harder shakes.
+                driftTo(Math.random() * 6.0 - 3.0, Math.random() * 4.0 - 2.0);
+                setSickImage(sickKey2);
+            } else {
+                launchFling();
+                return;
+            }
+            clampAnchorToScreen();
+            // Still pinned while sick.
+            final Point hands = getGraspPoint();
+            robot.mouseMove(hands.x, hands.y);
+            reassertCursorHidden();
+            return;
+        }
+
+        flingTicks++;
+        // Nigel rides out his recoil while the cursor flies.
+        if (Math.abs(recoilVX) > 0.5 || Math.abs(recoilVY) > 0.5) {
+            getMascot().getAnchor().translate((int) Math.round(recoilVX), (int) Math.round(recoilVY));
+            recoilVX *= 0.75;
+            recoilVY *= 0.75;
+            clampAnchorToScreen();
+        }
+        flingVY += getSpitGravity();
+        flingX += flingVX;
+        flingY += flingVY;
+        final double bounce = getSpitBounce();
+        final Area screen = getEnvironment().getScreen();
+        if (flingX < screen.getLeft()) {
+            flingX = screen.getLeft();
+            flingVX = -flingVX * bounce;
+        } else if (flingX > screen.getRight()) {
+            flingX = screen.getRight();
+            flingVX = -flingVX * bounce;
+        }
+        if (flingY < screen.getTop()) {
+            flingY = screen.getTop();
+            flingVY = -flingVY * bounce;
+        }
+        robot.mouseMove((int) Math.round(flingX), (int) Math.round(flingY));
+        reassertCursorHidden();
+        // Burp frame from the launch stays put; don't paint Sicken2 back over it.
+
+        final Area workArea = getEnvironment().getWorkArea();
+        final double speed = Math.sqrt(flingVX * flingVX + flingVY * flingVY);
+        if (flingY >= workArea.getBottom() - 2 || speed < 2.0 || flingTicks > 300) {
+            log.info("Cursor landed after fling at ({}, {}), starting burp recover", (int) flingX, (int) flingY);
+            // Hand the cursor back now; Nigel floats down gently instead of falling.
+            restoreCursor();
+            flingActive = false;
+            // Clear the sick state or the router keeps sending ticks to tickSickFling,
+            // which instantly relaunches (sickTicks already past both phases) and
+            // tickRecover never runs — the endless burp loop.
+            sickPhase = 0;
+            sickTicks = 0;
+            sickClicks = 0;
+            recoverActive = true;
+            recoverTicks = 0;
+            // Stay untouchable through the recover: no pickup, no menu.
+            getMascot().setGrasping(true);
+        }
+    }
+
+    private void launchFling() throws VariableException {
+        // Clicks during the sick window power the fling, capped at double.
+        final double power = 1.0 + Math.min(1.0, sickClicks * getSickClickPower());
+        final double dir = getMascot().isLookRight() ? 1.0 : -1.0;
+        final Point hands = getGraspPoint();
+        flingX = hands.x;
+        flingY = hands.y;
+        flingVX = dir * getSpitSpeedX() * power + (Math.random() * 4.0 - 2.0);
+        flingVY = -getSpitSpeedY() * power;
+        flingTicks = 0;
+        flingActive = true;
+        // Recoil: a visible shove opposite the launch, decaying over the flight
+        // (an instant teleport reads as a glitch, not a kick).
+        recoilVX = -dir * 6.0;
+        recoilVY = 2.0;
+        ensureBurpImageLoaded();
+        if (burpKey != null && ImagePairs.contains(burpKey)) {
+            getMascot().setImage(ImagePairs.get(burpKey).getImage(getMascot().isLookRight()));
+        }
+        log.info("Spit fling launched: power={}, v=({},{})", power, flingVX, flingVY);
+    }
+
+    /**
+     * Burp recover after the flung cursor lands: the cursor is already free
+     * and visible again, Nigel floats back down with a sway (same gentle
+     * descent as the swallow sink) showing the burp sprite, then hands off
+     * to StandUp so the Fall animation never plays.
+     */
+    private void tickRecover() throws LostGroundException, VariableException {
+        recoverTicks++;
+        ensureBurpImageLoaded();
+        final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
+        if (!grounded) {
+            final int sway = (int) Math.round(Math.sin(getTime() * 0.15) * 2.0);
+            getMascot().getAnchor().translate(sway, 3);
+            clampAnchorToScreen();
+            if (burpAftermathKey != null && ImagePairs.contains(burpAftermathKey)) {
+                getMascot().setImage(ImagePairs.get(burpAftermathKey).getImage(getMascot().isLookRight()));
+            }
+            return;
+        }
+        // Landed fast: hold the aftermath frame a beat longer so it reads.
+        if (recoverTicks < RECOVER_MIN_TICKS) {
+            if (burpAftermathKey != null && ImagePairs.contains(burpAftermathKey)) {
+                getMascot().setImage(ImagePairs.get(burpAftermathKey).getImage(getMascot().isLookRight()));
+            }
+            return;
+        }
+        log.info("Burp recover complete, handing off to StandUp");
+        try {
+            final com.group_finity.mascot.behavior.Behavior standUp = Main.getInstance()
+                    .getConfiguration(getMascot().getImageSet()).buildBehavior("StandUp", getMascot());
+            getMascot().setBehavior(standUp);
+        } catch (final com.group_finity.mascot.config.BehaviorInstantiationException
+                | com.group_finity.mascot.behavior.BehaviorExecutionException e) {
+            log.warn("StandUp handoff failed after burp recover, falling back to Fall", e);
+            getMascot().setGrasping(false);
+            throw new LostGroundException("Recovered from the spit");
+        }
+    }
+
+    private void ensureBurpImageLoaded() {
+        if (burpImageLoaded) {
+            return;
+        }
+        try {
+            final double scaling = Main.getInstance().getSettings().scaling;
+            final Filter filter = Main.getInstance().getSettings().filter;
+            final double opacity = Main.getInstance().getSettings().opacity;
+            final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                    ? getMascot().getImageSet() : "NigelShimeji";
+            burpKey = ImagePairs.load(Path.of(imageSet, "burpcursor.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(burpKey, imageSet);
+            burpAftermathKey = ImagePairs.load(Path.of(imageSet, "burpcursoraftermath.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(burpAftermathKey, imageSet);
+            burpImageLoaded = true;
+        } catch (final IOException | RuntimeException e) {
+            log.warn("Failed to load burp image for GraspMouse", e);
+        }
+    }
+
+    private void ensureSickImagesLoaded() {
+        if (sickImagesLoaded) {
+            return;
+        }
+        try {
+            final double scaling = Main.getInstance().getSettings().scaling;
+            final Filter filter = Main.getInstance().getSettings().filter;
+            final double opacity = Main.getInstance().getSettings().opacity;
+            final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                    ? getMascot().getImageSet() : "NigelShimeji";
+            sickKey1 = ImagePairs.load(Path.of(imageSet, "Sicken1.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(sickKey1, imageSet);
+            sickKey2 = ImagePairs.load(Path.of(imageSet, "Sicken2.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(sickKey2, imageSet);
+            sickImagesLoaded = true;
+        } catch (final IOException | RuntimeException e) {
+            log.warn("Failed to load sick images for GraspMouse", e);
+        }
+    }
+
+    private void setSickImage(final String key) {
+        if (key != null && ImagePairs.contains(key)) {
+            getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
+        }
+    }
+
     private double getMaxStruggle() throws VariableException {
         return eval(getSchema().getString(PARAMETER_MAX_STRUGGLE), Number.class, DEFAULT_MAX_STRUGGLE).doubleValue();
     }
@@ -1032,5 +1296,33 @@ public class GraspMouse extends ActionBase {
 
     private int getSwallowClickWindow() throws VariableException {
         return eval(getSchema().getString(PARAMETER_SWALLOW_CLICK_WINDOW), Number.class, DEFAULT_SWALLOW_CLICK_WINDOW).intValue();
+    }
+
+    private int getSickPhase1Ticks() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SICK_PHASE1_TICKS), Number.class, DEFAULT_SICK_PHASE1_TICKS).intValue();
+    }
+
+    private int getSickPhase2Ticks() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SICK_PHASE2_TICKS), Number.class, DEFAULT_SICK_PHASE2_TICKS).intValue();
+    }
+
+    private double getSpitSpeedX() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SPIT_SPEED_X), Number.class, DEFAULT_SPIT_SPEED_X).doubleValue();
+    }
+
+    private double getSpitSpeedY() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SPIT_SPEED_Y), Number.class, DEFAULT_SPIT_SPEED_Y).doubleValue();
+    }
+
+    private double getSpitGravity() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SPIT_GRAVITY), Number.class, DEFAULT_SPIT_GRAVITY).doubleValue();
+    }
+
+    private double getSpitBounce() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SPIT_BOUNCE), Number.class, DEFAULT_SPIT_BOUNCE).doubleValue();
+    }
+
+    private double getSickClickPower() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SICK_CLICK_POWER), Number.class, DEFAULT_SICK_CLICK_POWER).doubleValue();
     }
 }

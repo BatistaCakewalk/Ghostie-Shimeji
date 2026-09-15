@@ -556,6 +556,55 @@
                 </documentation>
             </annotation>
         </attribute>
+        <attribute name="SickPhase1Ticks" type="tns:ScriptableDouble" default="75">
+            <annotation>
+                <documentation>
+                    Ticks of mild queasiness (Sicken1) after a swallow is shaken loose, before the harder shakes. Defaults to 75 (~3s).
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="SickPhase2Ticks" type="tns:ScriptableDouble" default="50">
+            <annotation>
+                <documentation>
+                    Ticks of hard shakes (Sicken2) before Nigel launches the spit-fling. Defaults to 50 (~2s).
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="SpitSpeedX" type="tns:ScriptableDouble" default="12">
+            <annotation>
+                <documentation>
+                    Horizontal launch speed of the spit-flung cursor, aimed away from Nigel's facing. Defaults to 12.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="SpitSpeedY" type="tns:ScriptableDouble" default="22">
+            <annotation>
+                <documentation>
+                    Upward launch speed of the spit-flung cursor. Defaults to 22.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="SpitGravity" type="tns:ScriptableDouble" default="2">
+            <annotation>
+                <documentation>
+                    Downward acceleration per tick applied to the spit-flung cursor. Defaults to 2.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="SpitBounce" type="tns:ScriptableDouble" default="0.6">
+            <annotation>
+                <documentation>
+                    Velocity retained when the spit-flung cursor bounces off screen edges. Defaults to 0.6.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="SickClickPower" type="tns:ScriptableDouble" default="0.05">
+            <annotation>
+                <documentation>
+                    Extra fling power per click during the sick window, capped at double speed. Defaults to 0.05.
+                </documentation>
+            </annotation>
+        </attribute>
         <attribute name="X" type="tns:ScriptableInt" default="0">
             <annotation>
                 <documentation>
