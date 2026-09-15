@@ -605,6 +605,34 @@
                 </documentation>
             </annotation>
         </attribute>
+        <attribute name="TeleRadiusX" type="tns:ScriptableDouble" default="60">
+            <annotation>
+                <documentation>
+                    Horizontal drift radius of a telekinesis-held window. Defaults to 60.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="TeleRadiusY" type="tns:ScriptableDouble" default="40">
+            <annotation>
+                <documentation>
+                    Vertical drift radius of a telekinesis-held window. Defaults to 40.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="TeleLift" type="tns:ScriptableDouble" default="30">
+            <annotation>
+                <documentation>
+                    How far above its resting spot a telekinesis-held window floats. Defaults to 30.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="TeleReturnTicks" type="tns:ScriptableDouble" default="60">
+            <annotation>
+                <documentation>
+                    Final ticks spent easing a telekinesis-held window back to its spot. Defaults to 60.
+                </documentation>
+            </annotation>
+        </attribute>
         <attribute name="X" type="tns:ScriptableInt" default="0">
             <annotation>
                 <documentation>

@@ -24,6 +24,7 @@
             <Behavior Name="Walk" Frequency="7" Hidden="true"/>
             <Behavior Name="ChaseMouse" Frequency="7" Hidden="true" Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
             <Behavior Name="CatchMouse" Frequency="2" Hidden="true" Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
+            <Behavior Name="Telekinesis" Frequency="3" Hidden="true" Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.isGrasping() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
         </Condition>
 
     </BehaviorList>

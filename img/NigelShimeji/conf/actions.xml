@@ -232,6 +232,14 @@
             </Animation>
         </Action>
 
+        <Action Name="Telekinesis" Type="Embedded" Class="com.group_finity.mascot.action.Telekinesis"
+                Duration="400" TeleRadiusX="60" TeleRadiusY="40" TeleLift="30" TeleReturnTicks="60">
+            <Animation>
+                <Pose Image="/tele.png" ImageAnchor="96,200" Velocity="0,0" Duration="4"/>
+                <Pose Image="/tele.png" ImageAnchor="96,200" Velocity="0,0" Duration="4"/>
+            </Animation>
+        </Action>
+
         <Action Name="Grasp" Type="Embedded" Class="com.group_finity.mascot.action.GraspMouse"
                 MaxStruggle="1200" Regen="5" MissThreshold="150" GraspOffsetY="-96">
             <Animation>

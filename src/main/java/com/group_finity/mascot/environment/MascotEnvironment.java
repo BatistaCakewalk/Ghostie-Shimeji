@@ -354,6 +354,93 @@ public class MascotEnvironment {
     }
 
     /**
+     * Gets windows that may be grabbed and moved (e.g. by telekinesis).
+     *
+     * @return candidate window areas, possibly empty
+     * @see Environment#getGrabbableWindows()
+     */
+    public java.util.List<Area> getGrabbableWindows() {
+        return impl.getGrabbableWindows();
+    }
+
+    /**
+     * Moves the specified window so its top-left corner is at {@code (x, y)}.
+     *
+     * @param area the window to move, as returned by {@link #getGrabbableWindows()}
+     * @param x the x-coordinate of the window's left side after the move
+     * @param y the y-coordinate of the window's top side after the move
+     * @see Environment#moveWindow(Area, int, int)
+     */
+    public void moveWindow(final Area area, final int x, final int y) {
+        impl.moveWindow(area, x, y);
+    }
+
+    /**
+     * Checks whether the specified window still exists.
+     *
+     * @param area the window to check
+     * @return {@code true} if the window is still open
+     * @see Environment#isWindowOpen(Area)
+     */
+    public boolean isWindowOpen(final Area area) {
+        return impl.isWindowOpen(area);
+    }
+
+    /**
+     * Gets the native handle value of the specified window.
+     *
+     * @param area the window to check
+     * @return the native window handle value, or {@code 0}
+     * @see Environment#getNativeWindowHandle(Area)
+     */
+    public long getNativeWindowHandle(final Area area) {
+        return impl.getNativeWindowHandle(area);
+    }
+
+    /**
+     * Checks whether the specified window is currently minimized.
+     *
+     * @param area the window to check
+     * @return {@code true} if the window is minimized
+     * @see Environment#isWindowMinimized(Area)
+     */
+    public boolean isWindowMinimized(final Area area) {
+        return impl.isWindowMinimized(area);
+    }
+
+    /**
+     * Records that the specified window was just grabbed.
+     *
+     * @param area the window that was grabbed
+     * @see Environment#markWindowGrabbed(Area)
+     */
+    public void markWindowGrabbed(final Area area) {
+        impl.markWindowGrabbed(area);
+    }
+
+    /**
+     * Checks whether the specified window is substantially covered by higher windows.
+     *
+     * @param area the window to check
+     * @return {@code true} if the window is covered
+     * @see Environment#isWindowOccluded(Area)
+     */
+    public boolean isWindowOccluded(final Area area) {
+        return impl.isWindowOccluded(area);
+    }
+
+    /**
+     * Checks whether the specified window is currently the foreground window.
+     *
+     * @param area the window to check
+     * @return {@code true} if the window is in the foreground
+     * @see Environment#isWindowForeground(Area)
+     */
+    public boolean isWindowForeground(final Area area) {
+        return impl.isWindowForeground(area);
+    }
+
+    /**
      * Checks whether a fullscreen application is currently active.
      *
      * @return {@code true} if fullscreen is detected
