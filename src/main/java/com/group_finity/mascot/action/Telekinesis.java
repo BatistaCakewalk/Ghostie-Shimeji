@@ -430,7 +430,10 @@ public class Telekinesis extends ActionBase {
         // Minimum show length: hold the caught cursor in the reddening glow
         // a beat before the struggle takes over.
         if (distance <= PULL_ARRIVE && pullTicks >= PULL_MIN_TICKS) {
-            log.info("Telekinesis mouse pull arrived, starting struggle");
+            final boolean devour = pullTicks >= PULL_RAMP_TICKS;
+            log.info("Telekinesis mouse pull arrived, {}",
+                    devour ? "devouring straight into swallow" : "starting struggle");
+            getMascot().setDevourNext(devour);
             endHold();
             try {
                 final com.group_finity.mascot.behavior.Behavior catchMouse =

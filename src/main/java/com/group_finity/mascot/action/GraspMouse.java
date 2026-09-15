@@ -183,6 +183,7 @@ public class GraspMouse extends ActionBase {
     private int postCuddleGrace;
 
     // Swallow mode state: cursor fully trapped, only rapid clicking frees it
+    private boolean devourQueued;
     private boolean swallowMode;
     private int swallowTicks;
     private int swallowClicks;
@@ -279,6 +280,7 @@ public class GraspMouse extends ActionBase {
         shakeCount = 0;
         shakeWindowRemaining = 0;
         postCuddleGrace = 0;
+        devourQueued = false;
         swallowMode = false;
         swallowTicks = 0;
         swallowClicks = 0;
@@ -362,6 +364,7 @@ public class GraspMouse extends ActionBase {
 
                 if (landingDistance > effectiveThreshold) {
                     Mascot.releaseMouse(getMascot());
+                    getMascot().setDevourNext(false);
                     throw new LostGroundException("Missed the cursor");
                 }
 
@@ -369,7 +372,16 @@ public class GraspMouse extends ActionBase {
                 if (!Mascot.tryAcquireMouse(getMascot())) {
                     final Mascot owner = Mascot.getMouseOwner();
                     log.info("Grasp blocked: mouse already owned by {}", owner);
+                    getMascot().setDevourNext(false);
                     throw new LostGroundException("Mouse already grabbed by " + owner);
+                }
+
+                // Max-strength telekinesis devour: skip the contact window,
+                // the hold starts already eaten.
+                if (getMascot().isDevourNext()) {
+                    getMascot().setDevourNext(false);
+                    devourQueued = true;
+                    contactRemaining = 0;
                 }
 
                 // From here Nigel is untouchable, even mid-stagger, but the cursor stays
@@ -462,6 +474,27 @@ public class GraspMouse extends ActionBase {
 
         // Drain presses every tick so the counter never goes stale in normal/cuddle mode.
         final int clicks = getMascot().getAndResetGraspClicks();
+
+        // Devoured straight out of a max-strength pull: no idle wait, no cuddle roll.
+        if (devourQueued) {
+            devourQueued = false;
+            log.info("Devoured straight into swallow mode");
+            swallowMode = true;
+            swallowTicks = 0;
+            swallowClicks = 0;
+            swallowWindowRemaining = 0;
+            swallowDir = 0;
+            swallowWander = 0;
+            sickPhase = 0;
+            sickTicks = 0;
+            sickClicks = 0;
+            flingActive = false;
+            flingTicks = 0;
+            recoverActive = false;
+            recoverTicks = 0;
+            recoilVX = 0.0;
+            recoilVY = 0.0;
+        }
 
         // --- Swallow mode handling ---
         if (swallowMode) {

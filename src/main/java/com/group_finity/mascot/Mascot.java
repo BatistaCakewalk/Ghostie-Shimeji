@@ -1428,6 +1428,20 @@ public class Mascot {
     }
 
     /**
+     * Whether the next grasp should skip straight to swallow mode
+     * (a max-strength telekinesis devour).
+     */
+    private volatile boolean devourNext = false;
+
+    public boolean isDevourNext() {
+        return devourNext;
+    }
+
+    public void setDevourNext(final boolean devourNext) {
+        this.devourNext = devourNext;
+    }
+
+    /**
      * Gets and clears the grasp click counter.
      *
      * @return presses since the last drain
