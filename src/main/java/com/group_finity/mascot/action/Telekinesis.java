@@ -84,6 +84,9 @@ public class Telekinesis extends ActionBase {
     private GlowOverlay cursorGlow;
     private int pullTicks;
     private boolean warnedForcing;
+
+    private static final int TELEGRAPH_TICKS = 40;
+    private int pullWindup;
     private int shakeBaseX;
     private int shakeBaseY;
     private boolean shaking;
@@ -159,6 +162,11 @@ public class Telekinesis extends ActionBase {
             shakeBaseX = mascot.getAnchor().x;
             shakeBaseY = mascot.getAnchor().y;
             shaking = false;
+            // Menu-ordered reels charge up first: glow shows, cursor stays free.
+            pullWindup = mascot.consumeTelegraphNext() ? TELEGRAPH_TICKS : 0;
+            if (pullWindup > 0) {
+                log.info("Telekinesis pull telegraphed: holding {} ticks before the reel", pullWindup);
+            }
             live = true;
             synchronized (HOLDS) {
                 HOLDS.put(mascot, this);
@@ -166,6 +174,8 @@ public class Telekinesis extends ActionBase {
             log.info("Telekinesis init: reeling the cursor in");
             return;
         }
+        // Window lifts never wind up: discard a stale menu flag.
+        mascot.consumeTelegraphNext();
 
         // Yoink any grabbable window (fullscreen/maximized excluded by the
         // environment), not just the active one.
@@ -299,6 +309,16 @@ public class Telekinesis extends ActionBase {
             }
             // Mouse-reel mode: no window involved at all.
             if (pullMouse) {
+                if (pullWindup > 0) {
+                    pullWindup--;
+                    final Point windupRaw = currentCursorPoint();
+                    if (cursorGlow != null && windupRaw != null) {
+                        cursorGlow.showAt(new Rectangle(windupRaw.x - 24, windupRaw.y - 24, 48, 48),
+                                getTime(), 0, 0f);
+                    }
+                    getAnimation().apply(getMascot(), getTime());
+                    return;
+                }
                 pullCursorTowardsMascot();
                 shakeBody();
                 getAnimation().apply(getMascot(), getTime());
@@ -421,6 +441,15 @@ public class Telekinesis extends ActionBase {
         }
         final int centerX = target.getLeft() + target.getWidth() / 2;
         getMascot().setLookRight(getMascot().getAnchor().x < centerX);
+    }
+
+    private Point currentCursorPoint() {
+        try {
+            final PointerInfo info = MouseInfo.getPointerInfo();
+            return info == null ? null : info.getLocation();
+        } catch (final SecurityException e) {
+            return null;
+        }
     }
 
     /**

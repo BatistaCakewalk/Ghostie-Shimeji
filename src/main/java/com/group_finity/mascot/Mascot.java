@@ -613,6 +613,11 @@ public class Mascot {
                         @Override
                         public void actionPerformed(final ActionEvent e) {
                             try {
+                                // Menu-ordered ambushes telegraph first so the
+                                // user gets a beat to back off.
+                                if (behaviorName.equals("CatchMouse") || behaviorName.equals("Telekinesis")) {
+                                    setTelegraphNext();
+                                }
                                 setBehavior(config.buildBehavior(behaviorName));
                             } catch (BehaviorInstantiationException | BehaviorExecutionException ex) {
                                 log.error("Failed to set behavior to \"{}\" for mascot \"{}\"", behaviorName, this, ex);
@@ -1425,6 +1430,22 @@ public class Mascot {
      */
     public void registerGraspClick() {
         graspClicks++;
+    }
+
+    /**
+     * When the next catch starts from the context menu, so ambush actions can
+     * telegraph first. Single-use with a 5s expiry.
+     */
+    private volatile long telegraphAt = 0;
+
+    public void setTelegraphNext() {
+        telegraphAt = System.nanoTime();
+    }
+
+    public boolean consumeTelegraphNext() {
+        final boolean armed = System.nanoTime() - telegraphAt < 5_000_000_000L;
+        telegraphAt = 0;
+        return armed;
     }
 
     /**
