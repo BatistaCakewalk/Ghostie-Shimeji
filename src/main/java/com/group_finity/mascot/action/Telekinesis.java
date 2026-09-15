@@ -69,7 +69,7 @@ public class Telekinesis extends ActionBase {
     private boolean targetOccluded;
 
     private static final double PULL_STEP = 28.0;
-    private static final double PULL_ARRIVE = 250.0;
+    private static final double PULL_ARRIVE = 40.0;
     private static final int PULL_RAMP_TICKS = 300;
     private static final int PULL_RED_TICKS = 150;
     private static final int PULL_MIN_TICKS = 180;
@@ -468,7 +468,8 @@ public class Telekinesis extends ActionBase {
         // a beat before the struggle takes over.
         if (distance <= PULL_ARRIVE && pullTicks >= PULL_MIN_TICKS) {
             final boolean devour = pullTicks >= PULL_RAMP_TICKS;
-            log.info("Telekinesis mouse pull arrived, {}",
+            log.info("Telekinesis mouse pull arrived: raw=({}, {}), anchor=({}, {}), dist={}, ticks={}, {}",
+                    raw.x, raw.y, anchor.x, anchor.y, distance, pullTicks,
                     devour ? "devouring straight into swallow" : "starting struggle");
             getMascot().setDevourNext(devour);
             endHold();
