@@ -12,12 +12,17 @@ import javax.swing.JPanel;
 import javax.swing.JWindow;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import java.awt.AWTException;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.MouseInfo;
+import java.awt.Point;
+import java.awt.PointerInfo;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Robot;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -63,6 +68,26 @@ public class Telekinesis extends ActionBase {
     private int occlusionCooldown;
     private boolean targetOccluded;
 
+    private static final double PULL_STEP = 28.0;
+    private static final double PULL_ARRIVE = 30.0;
+    private static final int PULL_RAMP_TICKS = 300;
+    private static final int PULL_RED_TICKS = 150;
+    private static final int PULL_MIN_TICKS = 180;
+
+    /**
+     * Hands height above the anchor, mirroring GraspMouse's GraspOffsetY, so
+     * the reeled cursor arrives at his hands instead of his ghost tail.
+     */
+    private static final double PULL_OFFSET_Y = -96.0;
+
+    private boolean pullMouse;
+    private Robot robot;
+    private GlowOverlay cursorGlow;
+    private int pullTicks;
+    private boolean warnedForcing;
+    private String teleFullKey;
+    private boolean teleFullLoaded;
+
     private Area target;
 
     private GlowOverlay glow;
@@ -95,10 +120,13 @@ public class Telekinesis extends ActionBase {
         synchronized (HOLDS) {
             action = HOLDS.remove(mascot);
         }
-        if (action != null && action.live) {
+        if (action == null) {
+            return;
+        }
+        if (action.live && action.target != null) {
             action.beginFall();
-        } else if (action != null) {
-            action.disposeGlow();
+        } else {
+            action.disposeGlows();
         }
     }
 
@@ -108,6 +136,31 @@ public class Telekinesis extends ActionBase {
 
         // Clear any stale hold (no fall: it never really started).
         cancelFor(mascot);
+
+        // Either a window lift or a mouse reel, never both.
+        pullMouse = Math.random() < 0.5;
+        robot = null;
+        cursorGlow = null;
+        if (pullMouse) {
+            try {
+                robot = new Robot();
+            } catch (final AWTException | SecurityException e) {
+                log.warn("Could not create Robot for telekinesis mouse pull", e);
+                pullMouse = false;
+            }
+        }
+        if (pullMouse) {
+            target = null;
+            cursorGlow = new GlowOverlay(true);
+            pullTicks = 0;
+            warnedForcing = false;
+            live = true;
+            synchronized (HOLDS) {
+                HOLDS.put(mascot, this);
+            }
+            log.info("Telekinesis init: reeling the cursor in");
+            return;
+        }
 
         // Yoink any grabbable window (fullscreen/maximized excluded by the
         // environment), not just the active one.
@@ -134,7 +187,7 @@ public class Telekinesis extends ActionBase {
         lastSentY = Integer.MIN_VALUE;
         occlusionCooldown = 0;
         targetOccluded = false;
-        glow = new GlowOverlay(getEnvironment().getNativeWindowHandle(target));
+        glow = new GlowOverlay(false);
         live = true;
         synchronized (HOLDS) {
             HOLDS.put(mascot, this);
@@ -146,7 +199,7 @@ public class Telekinesis extends ActionBase {
 
     @Override
     public boolean hasNext() throws VariableException {
-        if (target == null) {
+        if (target == null && !pullMouse) {
             return false;
         }
         final boolean more = super.hasNext();
@@ -161,7 +214,7 @@ public class Telekinesis extends ActionBase {
         synchronized (HOLDS) {
             HOLDS.remove(getMascot());
         }
-        disposeGlow();
+        disposeGlows();
     }
 
     /**
@@ -172,7 +225,7 @@ public class Telekinesis extends ActionBase {
         live = false;
         fallVY = 0.0;
         // The drop is unmarked: glow goes away the moment the hold breaks.
-        disposeGlow();
+        disposeGlows();
         log.info("Telekinesis cancelled: dropping window at ({}, {})", (int) curX, (int) curY);
         final Timer timer = new Timer(40, null);
         timer.addActionListener(event -> {
@@ -204,12 +257,30 @@ public class Telekinesis extends ActionBase {
             timer.stop();
         } catch (final RuntimeException ignored) {
         }
-        disposeGlow();
+        disposeGlows();
     }
 
     @Override
     protected void tick() throws LostGroundException, VariableException {
         try {
+            if (getEnvironment().isFullscreen() || getEnvironment().isMouseLocked()) {
+                throw new LostGroundException("Fullscreen/mouse-lock active");
+            }
+            // Mouse-reel mode: no window involved at all.
+            if (pullMouse) {
+                pullCursorTowardsMascot();
+                getAnimation().apply(getMascot(), getTime());
+                // Full strength pose once the ramp completes.
+                if (pullTicks >= PULL_RAMP_TICKS) {
+                    ensureTeleFullImageLoaded();
+                    if (teleFullKey != null
+                            && com.group_finity.mascot.image.ImagePairs.contains(teleFullKey)) {
+                        getMascot().setImage(com.group_finity.mascot.image.ImagePairs.get(teleFullKey)
+                                .getImage(getMascot().isLookRight()));
+                    }
+                }
+                return;
+            }
             if (target == null) {
                 throw new LostGroundException("No window to lift");
             }
@@ -220,9 +291,6 @@ public class Telekinesis extends ActionBase {
             if (getEnvironment().isWindowMinimized(target)) {
                 log.info("Telekinesis cancelled: window minimized mid-lift");
                 throw new LostGroundException("Window minimized");
-            }
-            if (getEnvironment().isFullscreen() || getEnvironment().isMouseLocked()) {
-                throw new LostGroundException("Fullscreen/mouse-lock active");
             }
             faceWindow();
 
@@ -264,13 +332,19 @@ public class Telekinesis extends ActionBase {
                 // Occlusion is a z-order walk, so check it a few times a
                 // second instead of every tick.
                 if (--occlusionCooldown <= 0) {
-                    occlusionCooldown = 8;
-                    targetOccluded = getEnvironment().isWindowOccluded(target);
+                    occlusionCooldown = 4;
+                    final boolean occluded = getEnvironment().isWindowOccluded(target);
+                    if (occluded != targetOccluded) {
+                        log.info("Telekinesis glow occluded={} for target at ({}, {})",
+                                occluded, target.getLeft(), target.getTop());
+                    }
+                    targetOccluded = occluded;
                 }
                 if (targetOccluded) {
                     glow.hide();
                 } else {
-                    glow.showAt(new Rectangle(sendX - 10, sendY - 10, winW + 20, winH + 20), getTime());
+                    glow.showAt(new Rectangle(sendX - 10, sendY - 10, winW + 20, winH + 20), getTime(),
+                            getEnvironment().getNativeWindowHandle(target));
                 }
             }
             getAnimation().apply(getMascot(), getTime());
@@ -288,6 +362,27 @@ public class Telekinesis extends ActionBase {
         return Math.max(fallbackMin, Math.min(Math.max(fallbackMin, fallbackMax), value));
     }
 
+    private void ensureTeleFullImageLoaded() {
+        if (teleFullLoaded) {
+            return;
+        }
+        try {
+            final double scaling = com.group_finity.mascot.Main.getInstance().getSettings().scaling;
+            final com.group_finity.mascot.image.Filter filter =
+                    com.group_finity.mascot.Main.getInstance().getSettings().filter;
+            final double opacity = com.group_finity.mascot.Main.getInstance().getSettings().opacity;
+            final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                    ? getMascot().getImageSet() : "NigelShimeji";
+            teleFullKey = com.group_finity.mascot.image.ImagePairs.load(
+                    java.nio.file.Path.of(imageSet, "telefullstrength.png"), null, 96, 200,
+                    scaling, filter, opacity);
+            com.group_finity.mascot.image.ImagePairs.addUsage(teleFullKey, imageSet);
+            teleFullLoaded = true;
+        } catch (final java.io.IOException | RuntimeException e) {
+            log.warn("Failed to load telefullstrength image for Telekinesis", e);
+        }
+    }
+
     private void faceWindow() {
         if (target == null) {
             return;
@@ -296,7 +391,66 @@ public class Telekinesis extends ActionBase {
         getMascot().setLookRight(getMascot().getAnchor().x < centerX);
     }
 
-    private void disposeGlow() {
+    /**
+     * Reels the OS cursor toward Nigel's hands a step per tick, wrapped in
+     * the tele glow. On arrival the reel ends and the normal catch sequence
+     * (leap lands on the spot, grasp locks) takes over into the struggle.
+     */
+    private void pullCursorTowardsMascot() throws VariableException {
+        if (!pullMouse || robot == null) {
+            return;
+        }
+        final Point raw;
+        try {
+            final PointerInfo info = MouseInfo.getPointerInfo();
+            raw = info == null ? null : info.getLocation();
+        } catch (final SecurityException e) {
+            return;
+        }
+        if (raw == null) {
+            return;
+        }
+        final Point anchor = getMascot().getAnchor();
+        final double handsX = anchor.x;
+        final double handsY = anchor.y + PULL_OFFSET_Y;
+        getMascot().setLookRight(anchor.x < raw.x);
+        final double dx = handsX - raw.x;
+        final double dy = handsY - raw.y;
+        final double distance = Math.sqrt(dx * dx + dy * dy);
+        // Redness runs on the clock: fully red ~6s into the pull.
+        pullTicks++;
+        final double heat = Math.min(1.0, pullTicks / (double) PULL_RED_TICKS);
+        if (!warnedForcing && heat >= 0.5) {
+            warnedForcing = true;
+            log.info("Nigel forcing the pull harder, heat={}", heat);
+        }
+        if (cursorGlow != null) {
+            cursorGlow.showAt(new Rectangle(raw.x - 24, raw.y - 24, 48, 48), getTime(), 0, (float) heat);
+        }
+        // Minimum show length: hold the caught cursor in the reddening glow
+        // a beat before the struggle takes over.
+        if (distance <= PULL_ARRIVE && pullTicks >= PULL_MIN_TICKS) {
+            log.info("Telekinesis mouse pull arrived, starting struggle");
+            endHold();
+            try {
+                final com.group_finity.mascot.behavior.Behavior catchMouse =
+                        com.group_finity.mascot.Main.getInstance()
+                                .getConfiguration(getMascot().getImageSet())
+                                .buildBehavior("CatchMouse", getMascot());
+                getMascot().setBehavior(catchMouse);
+            } catch (final com.group_finity.mascot.config.BehaviorInstantiationException
+                    | com.group_finity.mascot.behavior.BehaviorExecutionException e) {
+                log.warn("CatchMouse handoff failed after telekinesis mouse pull", e);
+            }
+            return;
+        }
+        // Strength ramps with time held: starts buffed and triples over ~300 ticks.
+        final double step = PULL_STEP * (1.0 + 2.0 * Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS));
+        robot.mouseMove((int) Math.round(raw.x + dx / distance * step),
+                (int) Math.round(raw.y + dy / distance * step));
+    }
+
+    private void disposeGlows() {
         if (glow != null) {
             try {
                 glow.dispose();
@@ -304,6 +458,14 @@ public class Telekinesis extends ActionBase {
                 log.warn("Could not dispose telekinesis glow", e);
             }
             glow = null;
+        }
+        if (cursorGlow != null) {
+            try {
+                cursorGlow.dispose();
+            } catch (final RuntimeException e) {
+                log.warn("Could not dispose telekinesis cursor glow", e);
+            }
+            cursorGlow = null;
         }
     }
 
@@ -331,16 +493,16 @@ public class Telekinesis extends ActionBase {
     private static final class GlowOverlay {
         private JWindow window;
         private volatile int phase;
-        private volatile long targetHandle;
+        private volatile float heat;
         private volatile boolean clickThrough;
 
-        GlowOverlay(final long targetHandle) {
-            this.targetHandle = targetHandle;
+        GlowOverlay(final boolean topmost) {
             try {
                 SwingUtilities.invokeLater(() -> {
                     try {
                         window = new JWindow();
                         window.setBackground(new Color(0, 0, 0, 0));
+                        window.setAlwaysOnTop(topmost);
                         window.setFocusableWindowState(false);
                         final JPanel panel = new JPanel() {
                             @Override
@@ -352,12 +514,20 @@ public class Telekinesis extends ActionBase {
                                 final int w = getWidth();
                                 final int h = getHeight();
                                 final double pulse = 0.5 + 0.5 * Math.sin(phase * 0.25);
-                                g2.setColor(new Color(168, 85, 247, 45));
+                                final float heat = Math.max(0f, Math.min(1f, GlowOverlay.this.heat));
+                                final int glowR = (int) (168 + (239 - 168) * heat);
+                                final int glowG = (int) (85 + (68 - 85) * heat);
+                                final int glowB = (int) (247 + (68 - 247) * heat);
+                                g2.setColor(new Color(glowR, glowG, glowB, 45));
                                 g2.fillRoundRect(10, 10, w - 20, h - 20, 14, 14);
-                                g2.setColor(new Color(168, 85, 247, 110 + (int) (pulse * 70)));
+                                g2.setColor(new Color(glowR, glowG, glowB, 110 + (int) (pulse * 70)));
                                 g2.setStroke(new BasicStroke(12));
                                 g2.drawRoundRect(7, 7, w - 14, h - 14, 20, 20);
-                                g2.setColor(new Color(216, 180, 254, 150 + (int) (pulse * 80)));
+                                g2.setColor(new Color(
+                                        (int) (216 + (252 - 216) * heat),
+                                        (int) (180 + (165 - 180) * heat),
+                                        (int) (254 + (165 - 254) * heat),
+                                        150 + (int) (pulse * 80)));
                                 g2.setStroke(new BasicStroke(7));
                                 g2.drawRoundRect(7, 7, w - 14, h - 14, 20, 20);
                                 g2.setColor(new Color(249, 168, 212, 90));
@@ -380,8 +550,13 @@ public class Telekinesis extends ActionBase {
             }
         }
 
-        void showAt(final Rectangle bounds, final int animationPhase) {
+        void showAt(final Rectangle bounds, final int animationPhase, final long targetHandle) {
+            showAt(bounds, animationPhase, targetHandle, 0f);
+        }
+
+        void showAt(final Rectangle bounds, final int animationPhase, final long targetHandle, final float heat) {
             phase = animationPhase;
+            this.heat = heat;
             try {
                 SwingUtilities.invokeLater(() -> {
                     try {
