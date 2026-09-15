@@ -4,6 +4,7 @@ import com.group_finity.mascot.Manager;
 
 import java.awt.*;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Interacts with, and provides information about, the desktop environment.
@@ -126,6 +127,51 @@ public interface Environment {
      * @return a {@link Location} containing the cursor position and velocity
      */
     Location getCursor();
+
+    /**
+     * Gets windows that may be grabbed and moved (e.g. by telekinesis).
+     * Fullscreen, maximized, minimized and hidden windows are excluded.
+     *
+     * @return candidate window areas, possibly empty
+     */
+    default List<Area> getGrabbableWindows() {
+        final Area active = getActiveWindow();
+        if (active.isVisible()) {
+            return List.of(active);
+        }
+        return List.of();
+    }
+
+    /**
+     * Moves the specified window so its top-left corner is at {@code (x, y)}.
+     *
+     * @param area the window to move, as returned by {@link #getGrabbableWindows()}
+     * @param x the x-coordinate of the window's left side after the move
+     * @param y the y-coordinate of the window's top side after the move
+     */
+    default void moveWindow(final Area area, final int x, final int y) {
+        moveActiveWindow(x, y);
+    }
+
+    /**
+     * Checks whether the specified window still exists.
+     *
+     * @param area the window to check, as returned by {@link #getGrabbableWindows()}
+     * @return {@code true} if the window is still open
+     */
+    default boolean isWindowOpen(final Area area) {
+        return true;
+    }
+
+    /**
+     * Checks whether the specified window is currently the foreground window.
+     *
+     * @param area the window to check, as returned by {@link #getGrabbableWindows()}
+     * @return {@code true} if the window is in the foreground
+     */
+    default boolean isWindowForeground(final Area area) {
+        return true;
+    }
 
     /**
      * Clears the cached data for which windows are allowed to be interactable.

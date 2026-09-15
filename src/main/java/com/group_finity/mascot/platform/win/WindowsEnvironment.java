@@ -7,6 +7,7 @@ import com.group_finity.mascot.platform.win.jna.Dwmapi;
 import com.group_finity.mascot.platform.win.jna.User32Extra;
 import com.sun.jna.Pointer;
 import com.sun.jna.platform.WindowUtils;
+import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.VersionHelpers;
 import com.sun.jna.platform.win32.Win32Exception;
@@ -17,11 +18,18 @@ import com.sun.jna.platform.win32.WinNT.HRESULT;
 import com.sun.jna.platform.win32.WinUser.HMONITOR;
 import com.sun.jna.platform.win32.WinUser.MONITORINFO;
 import com.sun.jna.platform.win32.WinUser.WNDENUMPROC;
+import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.LongByReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Uses JNI to obtain environment information that is difficult to obtain with Java.
@@ -30,6 +38,8 @@ import java.util.LinkedHashMap;
  * @author Shimeji-ee Group
  */
 class WindowsEnvironment extends AbstractEnvironment {
+    private static final Logger log = LoggerFactory.getLogger(WindowsEnvironment.class);
+
     private final HashMap<HWND, Boolean> interactiveCache = new LinkedHashMap<>();
 
     private final Area activeWindow = new Area();
@@ -270,6 +280,206 @@ class WindowsEnvironment extends AbstractEnvironment {
         } catch (final Exception ignored) {
         }
         return super.isMouseLocked();
+    }
+
+    /**
+     * Window handles backing the areas returned by {@link #getGrabbableWindows()},
+     * so {@link #moveWindow(Area, int, int)} can move the exact window picked.
+     * Dead handles are pruned on each enumeration.
+     */
+    private final Map<Area, HWND> grabbableWindowHandles = new IdentityHashMap<>();
+
+    @Override
+    public List<Area> getGrabbableWindows() {
+        final List<Area> result = new ArrayList<>();
+        final int ownPid;
+        try {
+            ownPid = Kernel32.INSTANCE.GetCurrentProcessId();
+        } catch (final Exception e) {
+            return result;
+        }
+
+        User32.INSTANCE.EnumWindows((hWnd, data) -> {
+            try {
+                if (!User32.INSTANCE.IsWindowVisible(hWnd)) {
+                    return true;
+                }
+                // Minimized and maximized windows are out.
+                if (User32Extra.INSTANCE.IsIconic(hWnd) || User32Extra.INSTANCE.IsZoomed(hWnd)) {
+                    return true;
+                }
+                // Cloaked metro/UWP leftovers are out.
+                if (VersionHelpers.IsWindows8OrGreater()) {
+                    final LongByReference flagsRef = new LongByReference();
+                    final HRESULT result2 = Dwmapi.INSTANCE.DwmGetWindowAttribute(hWnd, Dwmapi.DWMWA_CLOAKED, flagsRef.getPointer(), 8);
+                    if (result2.equals(WinError.S_OK) && flagsRef.getValue() != 0) {
+                        return true;
+                    }
+                }
+                // Our own windows (mascots, glow, dialogs) are out.
+                final IntByReference pidRef = new IntByReference();
+                User32.INSTANCE.GetWindowThreadProcessId(hWnd, pidRef);
+                if (pidRef.getValue() == ownPid) {
+                    return true;
+                }
+                // Shell chrome is out: taskbar, multi-monitor taskbars,
+                // desktop/wallpaper hosts. (Open-Shell hooks into these.)
+                final char[] className = new char[256];
+                final int classLen;
+                try {
+                    classLen = User32.INSTANCE.GetClassName(hWnd, className, className.length);
+                } catch (final RuntimeException e) {
+                    return true;
+                }
+                if (classLen > 0) {
+                    final String cls = new String(className, 0, classLen);
+                    if (cls.equals("Shell_TrayWnd") || cls.equals("Shell_SecondaryTrayWnd")
+                            || cls.equals("Progman") || cls.equals("WorkerW")) {
+                        return true;
+                    }
+                }
+                // NOTE: deliberately no isInteractive() title-list check here:
+                // telekinesis yoinks any window, it is not bound by the
+                // stand-on-window whitelist/blacklist settings.
+                final Rectangle rect = getWindowRect(hWnd, true);
+                if (rect == null || rect.width <= 0 || rect.height <= 0) {
+                    return true;
+                }
+                if (!getScreen().intersects(rect)) {
+                    return true;
+                }
+                // Fullscreen and borderless-fullscreen games cover a monitor;
+                // small borderless widgets (Rainmeter etc.) still pass.
+                if (coversMonitor(rect)) {
+                    return true;
+                }
+                final Area area = new Area();
+                area.set(rect);
+                area.setVisible(true);
+                result.add(area);
+                grabbableWindowHandles.put(area, hWnd);
+            } catch (final RuntimeException e) {
+                // Skip misbehaving windows.
+            }
+            return true;
+        }, null);
+
+        // Prune dead handles so the map can't grow with stale entries.
+        grabbableWindowHandles.entrySet().removeIf(entry -> {
+            try {
+                return !User32.INSTANCE.IsWindow(entry.getValue());
+            } catch (final RuntimeException e) {
+                return true;
+            }
+        });
+
+        // Blacklisted by process (recording overlays, widgets and managers
+        // alike); only the surviving candidates pay for the handle lookup.
+        result.removeIf(area -> {
+            final HWND handle = grabbableWindowHandles.get(area);
+            if (handle == null) {
+                return false;
+            }
+            final String image = getProcessImageName(handle);
+            final boolean blacklisted = image != null
+                    && (image.contains("rainmeter") || image.contains("sharex"));
+            if (blacklisted) {
+                grabbableWindowHandles.remove(area);
+            }
+            return blacklisted;
+        });
+
+        return result;
+    }
+
+    private static String getProcessImageName(final HWND hWnd) {
+        final IntByReference pidRef = new IntByReference();
+        try {
+            User32.INSTANCE.GetWindowThreadProcessId(hWnd, pidRef);
+            final com.sun.jna.platform.win32.WinNT.HANDLE process =
+                    Kernel32.INSTANCE.OpenProcess(0x1000, false, pidRef.getValue());
+            if (process == null) {
+                return null;
+            }
+            try {
+                final char[] buffer = new char[1024];
+                final IntByReference sizeRef = new IntByReference(buffer.length);
+                if (Kernel32.INSTANCE.QueryFullProcessImageName(process, 0, buffer, sizeRef)) {
+                    return new String(buffer, 0, sizeRef.getValue()).toLowerCase(java.util.Locale.ROOT);
+                }
+            } finally {
+                Kernel32.INSTANCE.CloseHandle(process);
+            }
+        } catch (final Exception e) {
+            // Fail open: an unreadable process is not blacklisted.
+        }
+        return null;
+    }
+
+    @Override
+    public boolean isWindowOpen(final Area area) {
+        final HWND hWnd = grabbableWindowHandles.get(area);
+        if (hWnd == null) {
+            return false;
+        }
+        try {
+            return User32.INSTANCE.IsWindow(hWnd);
+        } catch (final RuntimeException e) {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean isWindowForeground(final Area area) {
+        final HWND hWnd = grabbableWindowHandles.get(area);
+        if (hWnd == null) {
+            return false;
+        }
+        try {
+            return hWnd.equals(User32.INSTANCE.GetForegroundWindow());
+        } catch (final RuntimeException e) {
+            return false;
+        }
+    }
+
+    private boolean coversMonitor(final Rectangle rect) {
+        final long windowArea = (long) rect.width * rect.height;
+        for (final Area screen : getScreens()) {
+            final long screenArea = (long) Math.max(1, screen.getWidth()) * Math.max(1, screen.getHeight());
+            if (windowArea >= screenArea * 85 / 100) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public void moveWindow(final Area area, final int x, final int y) {
+        // Entries are only pruned when their window dies, so a live pick stays mapped.
+        final HWND hWnd = grabbableWindowHandles.get(area);
+        try {
+            if (hWnd == null || !User32.INSTANCE.IsWindow(hWnd)) {
+                return;
+            }
+        } catch (final RuntimeException e) {
+            return;
+        }
+
+        double dpiScale = Toolkit.getDefaultToolkit().getScreenResolution() / 96.0;
+        int moveX = x;
+        int moveY = y;
+        if (dpiScale != 1) {
+            moveX = (int) Math.round(x * dpiScale);
+            moveY = (int) Math.round(y * dpiScale);
+        }
+
+        try {
+            // NOZORDER + NOACTIVATE: move background windows without stealing focus.
+            User32.INSTANCE.SetWindowPos(hWnd, null, moveX, moveY,
+                    0, 0, User32.SWP_NOSIZE | User32.SWP_NOZORDER | User32.SWP_NOACTIVATE);
+        } catch (final RuntimeException e) {
+            // Window died mid-flight; the tick aborts harmlessly next frame.
+        }
     }
 
     @Override

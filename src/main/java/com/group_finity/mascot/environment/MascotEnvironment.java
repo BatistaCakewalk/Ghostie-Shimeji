@@ -354,6 +354,50 @@ public class MascotEnvironment {
     }
 
     /**
+     * Gets windows that may be grabbed and moved (e.g. by telekinesis).
+     *
+     * @return candidate window areas, possibly empty
+     * @see Environment#getGrabbableWindows()
+     */
+    public java.util.List<Area> getGrabbableWindows() {
+        return impl.getGrabbableWindows();
+    }
+
+    /**
+     * Moves the specified window so its top-left corner is at {@code (x, y)}.
+     *
+     * @param area the window to move, as returned by {@link #getGrabbableWindows()}
+     * @param x the x-coordinate of the window's left side after the move
+     * @param y the y-coordinate of the window's top side after the move
+     * @see Environment#moveWindow(Area, int, int)
+     */
+    public void moveWindow(final Area area, final int x, final int y) {
+        impl.moveWindow(area, x, y);
+    }
+
+    /**
+     * Checks whether the specified window still exists.
+     *
+     * @param area the window to check
+     * @return {@code true} if the window is still open
+     * @see Environment#isWindowOpen(Area)
+     */
+    public boolean isWindowOpen(final Area area) {
+        return impl.isWindowOpen(area);
+    }
+
+    /**
+     * Checks whether the specified window is currently the foreground window.
+     *
+     * @param area the window to check
+     * @return {@code true} if the window is in the foreground
+     * @see Environment#isWindowForeground(Area)
+     */
+    public boolean isWindowForeground(final Area area) {
+        return impl.isWindowForeground(area);
+    }
+
+    /**
      * Checks whether a fullscreen application is currently active.
      *
      * @return {@code true} if fullscreen is detected

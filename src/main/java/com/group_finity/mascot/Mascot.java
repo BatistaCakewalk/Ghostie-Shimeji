@@ -790,6 +790,7 @@ public class Mascot {
      */
     public synchronized void dispose() {
         releaseMouse(this);
+        com.group_finity.mascot.action.Telekinesis.cancelFor(this);
         log.info("Destroying mascot \"{}\"", this);
 
         SwingUtilities.invokeLater(() -> {
@@ -1053,6 +1054,9 @@ public class Mascot {
      * @see #getBehavior()
      */
     public void setBehavior(final Behavior behavior) throws BehaviorExecutionException {
+        // Swapping behaviors is an exit from whatever was running: a lift in
+        // progress drops its window with physics instead of freezing it.
+        com.group_finity.mascot.action.Telekinesis.cancelFor(this);
         // Swapping behaviors is an exit from whatever was running: if a grasp
         // is being abandoned from the outside, restore interactivity and the
         // cursor so neither can leak.
