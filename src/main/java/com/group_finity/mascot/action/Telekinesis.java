@@ -929,8 +929,11 @@ public class Telekinesis extends ActionBase {
                                         // lands just above the target, below its coverers.
                                         insertAfter = above;
                                     } else {
-                                        // Target is already topmost; insert after the target.
-                                        insertAfter = targetHwnd;
+                                        // Target is already topmost in its band; use
+                                        // HWND_TOP (0) to place glow at the very top of
+                                        // the non-topmost band without going topmost.
+                                        insertAfter = new com.sun.jna.platform.win32.WinDef.HWND(
+                                                new com.sun.jna.Pointer(0));
                                     }
                                 } else {
                                     // Cursor glow — topmost band.
