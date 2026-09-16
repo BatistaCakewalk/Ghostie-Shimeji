@@ -461,9 +461,7 @@ public class Telekinesis extends ActionBase {
                             .getImage(victim.isLookRight()));
                 }
                 if (glow != null) {
-                    final Rectangle bounds = victim.getBounds();
-                    bounds.grow(10, 10);
-                    glow.showAt(bounds, getTime(), 0);
+                    glow.showAt(tightFrame(victim), getTime(), 0);
                 }
                 getAnimation().apply(getMascot(), getTime());
                 return;
@@ -553,6 +551,57 @@ public class Telekinesis extends ActionBase {
         } catch (final java.io.IOException | RuntimeException e) {
             log.warn("Failed to load telefullstrength image for Telekinesis", e);
         }
+    }
+
+    /**
+     * Tight opaque-pixel bounds per mascot image, so victim frames hug the
+     * body instead of the whole 192x192 canvas.
+     */
+    private static final java.util.Map<com.group_finity.mascot.image.MascotImage, Rectangle>
+            TIGHT_BOUNDS_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static Rectangle tightBounds(final com.group_finity.mascot.image.MascotImage image) {
+        if (image == null || image.getImage() == null) {
+            return null;
+        }
+        return TIGHT_BOUNDS_CACHE.computeIfAbsent(image, img -> {
+            final java.awt.image.BufferedImage bitmap = img.getImage();
+            int minX = bitmap.getWidth();
+            int minY = bitmap.getHeight();
+            int maxX = -1;
+            int maxY = -1;
+            for (int y = 0; y < bitmap.getHeight(); y++) {
+                for (int x = 0; x < bitmap.getWidth(); x++) {
+                    if ((((bitmap.getRGB(x, y) >>> 24) & 0xff) > 16)) {
+                        if (x < minX) minX = x;
+                        if (y < minY) minY = y;
+                        if (x > maxX) maxX = x;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            if (maxX < 0) {
+                return new Rectangle(0, 0, bitmap.getWidth(), bitmap.getHeight());
+            }
+            return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+        });
+    }
+
+    /**
+     * Frames the victim's actual body: the tight opaque box of its current
+     * image, translated into screen coordinates.
+     */
+    private static Rectangle tightFrame(final Mascot victim) {
+        final Rectangle bounds = victim.getBounds();
+        final Rectangle tight = tightBounds(victim.getImage());
+        final Rectangle frame;
+        if (tight != null) {
+            frame = new Rectangle(bounds.x + tight.x, bounds.y + tight.y, tight.width, tight.height);
+        } else {
+            frame = new Rectangle(bounds);
+        }
+        frame.grow(10, 10);
+        return frame;
     }
 
     private void faceWindow() {
