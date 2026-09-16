@@ -192,7 +192,7 @@ public class Telekinesis extends ActionBase {
         }
         if (pullMouse) {
             target = null;
-            cursorGlow = new GlowOverlay();
+            cursorGlow = new GlowOverlay(true);
             pullTicks = 0;
             warnedForcing = false;
             shakeBaseX = mascot.getAnchor().x;
@@ -236,7 +236,7 @@ public class Telekinesis extends ActionBase {
         lastSentY = Integer.MIN_VALUE;
         occlusionCooldown = 0;
         targetOccluded = false;
-        glow = new GlowOverlay();
+        glow = new GlowOverlay(false);
         live = true;
         synchronized (HOLDS) {
             HOLDS.put(mascot, this);
@@ -275,7 +275,7 @@ public class Telekinesis extends ActionBase {
         startY = victim.getAnchor().y;
         curX = startX;
         curY = startY;
-        glow = new GlowOverlay();
+        glow = new GlowOverlay(false);
         live = true;
         synchronized (HOLDS) {
             HOLDS.put(mascot, this);
@@ -808,15 +808,16 @@ public class Telekinesis extends ActionBase {
             return path;
         }
 
-        GlowOverlay() {
+        GlowOverlay(final boolean topmost) {
             try {
                 SwingUtilities.invokeLater(() -> {
                     try {
                         window = new JWindow();
                         window.setBackground(new Color(0, 0, 0, 0));
-                        // Topmost plus the occlusion gate: always above the
-                        // target, hidden whenever it is buried.
-                        window.setAlwaysOnTop(true);
+                        // Window frames live in the normal band restacked above
+                        // their target, so neighbors cover spillover naturally.
+                        // The cursor ring is topmost: cursors live above all.
+                        window.setAlwaysOnTop(topmost);
                         window.setFocusableWindowState(false);
                         final JPanel panel = new JPanel() {
                             @Override
