@@ -291,9 +291,11 @@ class WindowsEnvironment extends AbstractEnvironment {
 
     /**
      * When each window handle was last grabbed, to stop repeat yoinks of the
-     * same window back to back.
+     * same window back to back. A plain HashMap (not identity): JNA mints a
+     * fresh wrapper per enumeration, so identity keys would never match and
+     * the cooldown would silently never fire. Value equality holds by peer.
      */
-    private final Map<HWND, Long> lastGrabbedAt = new IdentityHashMap<>();
+    private final Map<HWND, Long> lastGrabbedAt = new HashMap<>();
 
     private static final long GRAB_COOLDOWN_MILLIS = 60_000;
 
