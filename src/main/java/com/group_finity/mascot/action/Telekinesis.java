@@ -192,7 +192,7 @@ public class Telekinesis extends ActionBase {
         }
         if (pullMouse) {
             target = null;
-            cursorGlow = new GlowOverlay(true);
+            cursorGlow = new GlowOverlay();
             pullTicks = 0;
             warnedForcing = false;
             shakeBaseX = mascot.getAnchor().x;
@@ -236,7 +236,7 @@ public class Telekinesis extends ActionBase {
         lastSentY = Integer.MIN_VALUE;
         occlusionCooldown = 0;
         targetOccluded = false;
-        glow = new GlowOverlay(false);
+        glow = new GlowOverlay();
         live = true;
         synchronized (HOLDS) {
             HOLDS.put(mascot, this);
@@ -275,7 +275,7 @@ public class Telekinesis extends ActionBase {
         startY = victim.getAnchor().y;
         curX = startX;
         curY = startY;
-        glow = new GlowOverlay(false);
+        glow = new GlowOverlay();
         live = true;
         synchronized (HOLDS) {
             HOLDS.put(mascot, this);
@@ -702,6 +702,10 @@ public class Telekinesis extends ActionBase {
         private volatile int phase;
         private volatile float heat;
         private volatile boolean clickThrough;
+        private volatile Rectangle latestBounds;
+        private volatile long latestHandle;
+        private final java.util.concurrent.atomic.AtomicBoolean updateQueued =
+                new java.util.concurrent.atomic.AtomicBoolean();
 
         /**
          * Builds a closed, organically wobbling border around a {@code w} by
@@ -804,13 +808,15 @@ public class Telekinesis extends ActionBase {
             return path;
         }
 
-        GlowOverlay(final boolean topmost) {
+        GlowOverlay() {
             try {
                 SwingUtilities.invokeLater(() -> {
                     try {
                         window = new JWindow();
                         window.setBackground(new Color(0, 0, 0, 0));
-                        window.setAlwaysOnTop(topmost);
+                        // Topmost plus the occlusion gate: always above the
+                        // target, hidden whenever it is buried.
+                        window.setAlwaysOnTop(true);
                         window.setFocusableWindowState(false);
                         final JPanel panel = new JPanel() {
                             @Override
@@ -872,10 +878,19 @@ public class Telekinesis extends ActionBase {
         void showAt(final Rectangle bounds, final int animationPhase, final long targetHandle, final float heat) {
             phase = animationPhase;
             this.heat = heat;
+            latestBounds = bounds;
+            latestHandle = targetHandle;
+            // Coalesce: at most one queued update, always carrying the latest
+            // rect, so a backed-up event queue can't lag the frame behind.
+            if (!updateQueued.compareAndSet(false, true)) {
+                return;
+            }
             try {
                 SwingUtilities.invokeLater(() -> {
+                    updateQueued.set(false);
                     try {
-                        if (window != null) {
+                        final Rectangle current = latestBounds;
+                        if (window != null && current != null) {
                             // Visible first: the window must be displayable
                             // before getWindowPointer works.
                             if (!window.isVisible()) {
@@ -903,20 +918,22 @@ public class Telekinesis extends ActionBase {
                                     log.warn("Could not make telekinesis glow click-through", e);
                                 }
                             }
-                            if (targetHandle != 0) {
-                                // Restack directly above the target instead of
-                                // topmost, so covering windows cover the glow too.
-                                final com.sun.jna.platform.win32.WinDef.HWND insertAfter =
-                                        new com.sun.jna.platform.win32.WinDef.HWND(
-                                                new com.sun.jna.Pointer(targetHandle));
+                            // Topmost positioning only: passing the target window
+                            // here would demote us out of the topmost band.
+                            if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT)
+                                    .contains("win")) {
                                 final com.sun.jna.platform.win32.WinDef.HWND own =
                                         new com.sun.jna.platform.win32.WinDef.HWND(
                                                 com.sun.jna.Native.getWindowPointer(window));
-                                com.sun.jna.platform.win32.User32.INSTANCE.SetWindowPos(own, insertAfter,
-                                        bounds.x, bounds.y, bounds.width, bounds.height,
-                                        com.sun.jna.platform.win32.User32.SWP_NOACTIVATE);
+                                final com.sun.jna.platform.win32.WinDef.HWND topmost =
+                                        new com.sun.jna.platform.win32.WinDef.HWND(
+                                                new com.sun.jna.Pointer(-1));
+                                com.sun.jna.platform.win32.User32.INSTANCE.SetWindowPos(own, topmost,
+                                        current.x, current.y, current.width, current.height,
+                                        com.sun.jna.platform.win32.User32.SWP_NOACTIVATE
+                                                | com.sun.jna.platform.win32.User32.SWP_SHOWWINDOW);
                             } else {
-                                window.setBounds(bounds);
+                                window.setBounds(current);
                             }
                             window.repaint();
                         }
@@ -925,6 +942,7 @@ public class Telekinesis extends ActionBase {
                     }
                 });
             } catch (final RuntimeException e) {
+                updateQueued.set(false);
                 log.warn("Could not schedule telekinesis glow update", e);
             }
         }
