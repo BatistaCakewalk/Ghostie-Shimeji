@@ -100,6 +100,8 @@ public class Telekinesis extends ActionBase {
 
     private Mascot victim;
 
+    private boolean victimWasPaused;
+
     private String victimFallKey;
     private String victimFallSet;
 
@@ -112,6 +114,13 @@ public class Telekinesis extends ActionBase {
      */
     private static final Map<Mascot, Telekinesis> HOLDS =
             Collections.synchronizedMap(new IdentityHashMap<>());
+
+    /**
+     * Victims currently held, so a second attacker can never take a paused
+     * or already-lifted Nigel and freeze it permanently on interleaved release.
+     */
+    private static final java.util.Set<Mascot> HELD_VICTIMS =
+            Collections.synchronizedSet(java.util.Collections.newSetFromMap(new IdentityHashMap<>()));
 
     private volatile boolean live;
 
@@ -136,11 +145,29 @@ public class Telekinesis extends ActionBase {
         if (action == null) {
             return;
         }
+        action.releaseVictim();
         if (action.live && action.target != null) {
             action.beginFall();
         } else {
             action.disposeGlows();
         }
+    }
+
+    /**
+     * Hands the victim back to its own engine: unpauses (restoring prior
+     * paused state) so it drops and recovers by itself. Safe to call with no
+     * victim.
+     */
+    private void releaseVictim() {
+        if (victim == null) {
+            return;
+        }
+        try {
+            victim.setPaused(victimWasPaused);
+        } catch (final RuntimeException ignored) {
+        }
+        HELD_VICTIMS.remove(victim);
+        victim = null;
     }
 
     @Override
@@ -267,6 +294,11 @@ public class Telekinesis extends ActionBase {
      */
     private void initVictimMode(final Mascot mascot) {
         target = null;
+        HELD_VICTIMS.add(victim);
+        // Freeze the victim's own ticking: we become the sole writer of its
+        // anchor and image, so placement and aura stay deterministic.
+        victimWasPaused = victim.isPaused();
+        victim.setPaused(true);
         startX = victim.getAnchor().x;
         startY = victim.getAnchor().y;
         curX = startX;
@@ -286,7 +318,8 @@ public class Telekinesis extends ActionBase {
             }
             final List<Mascot> candidates = new java.util.ArrayList<>();
             for (final Mascot other : mascot.getManager().getMascots()) {
-                if (other != mascot && !other.isGrasping() && Mascot.getMouseOwner() != other) {
+                if (other != mascot && !other.isGrasping() && Mascot.getMouseOwner() != other
+                        && !other.isPaused() && !HELD_VICTIMS.contains(other)) {
                     candidates.add(other);
                 }
             }
@@ -331,6 +364,7 @@ public class Telekinesis extends ActionBase {
             shaking = false;
             getMascot().getAnchor().setLocation(shakeBaseX, shakeBaseY);
         }
+        releaseVictim();
         disposeGlows();
     }
 
@@ -454,6 +488,21 @@ public class Telekinesis extends ActionBase {
                 curY = targetY;
 
                 victim.getAnchor().setLocation((int) Math.round(targetX), (int) Math.round(targetY));
+                // Paused victims never reposition their own window, so drive
+                // it here or the body floats free of the aura.
+                try {
+                    final java.awt.Component victimWindow = victim.getWindowComponent();
+                    if (victimWindow != null) {
+                        final Rectangle windowBounds = victim.getBounds();
+                        if (victimWindow.getX() != windowBounds.x || victimWindow.getY() != windowBounds.y
+                                || victimWindow.getWidth() != windowBounds.width
+                                || victimWindow.getHeight() != windowBounds.height) {
+                            final Rectangle frozen = new Rectangle(windowBounds);
+                            javax.swing.SwingUtilities.invokeLater(() -> victimWindow.setBounds(frozen));
+                        }
+                    }
+                } catch (final RuntimeException ignored) {
+                }
                 ensureVictimFallImageLoaded(victim);
                 if (victimFallKey != null
                         && com.group_finity.mascot.image.ImagePairs.contains(victimFallKey)) {
@@ -596,14 +645,23 @@ public class Telekinesis extends ActionBase {
 
     /**
      * Frames the victim's actual body: the tight opaque box of its current
-     * image, translated into screen coordinates.
+     * image, scaled proportionally onto {@link Mascot#getBounds()} (the
+     * engine's own screen truth, valid under any DPI scaling or anchor).
      */
     private static Rectangle tightFrame(final Mascot victim) {
         final Rectangle bounds = victim.getBounds();
-        final Rectangle tight = tightBounds(victim.getImage());
+        final com.group_finity.mascot.image.MascotImage image = victim.getImage();
+        final Rectangle tight = tightBounds(image);
         final Rectangle frame;
-        if (tight != null) {
-            frame = new Rectangle(bounds.x + tight.x, bounds.y + tight.y, tight.width, tight.height);
+        if (tight != null && image != null && image.getImage() != null
+                && image.getImage().getWidth() > 0 && image.getImage().getHeight() > 0) {
+            final double scaleX = (double) bounds.width / image.getImage().getWidth();
+            final double scaleY = (double) bounds.height / image.getImage().getHeight();
+            frame = new Rectangle(
+                    bounds.x + (int) Math.round(tight.x * scaleX),
+                    bounds.y + (int) Math.round(tight.y * scaleY),
+                    (int) Math.round(tight.width * scaleX),
+                    (int) Math.round(tight.height * scaleY));
         } else {
             frame = new Rectangle(bounds);
         }
