@@ -677,6 +677,10 @@ public class Telekinesis extends ActionBase {
      * Borderless always-on-top outline around the held window: pulsing purple
      * glow strokes, a faint purple wash over the window, and a light pink
      * outline. Never focusable so it can't steal the window it is framing.
+     *
+     * Z-order is maintained by a 16 ms Swing timer that continuously restacks
+     * the glow directly above the target window, so focus changes and taskbar
+     * clicks can never bury it.
      */
     private static final class GlowOverlay {
         private JWindow window;
@@ -685,8 +689,8 @@ public class Telekinesis extends ActionBase {
         private volatile boolean clickThrough;
         private volatile Rectangle latestBounds;
         private volatile long latestHandle;
-        private final java.util.concurrent.atomic.AtomicBoolean updateQueued =
-                new java.util.concurrent.atomic.AtomicBoolean();
+        private Timer restackTimer;
+        private volatile boolean visible;
 
         /**
          * Builds a closed, organically wobbling border around a {@code w} by
@@ -795,9 +799,6 @@ public class Telekinesis extends ActionBase {
                     try {
                         window = new JWindow();
                         window.setBackground(new Color(0, 0, 0, 0));
-                        // Window frames live in the normal band restacked above
-                        // their target, so neighbors cover spillover naturally.
-                        // The cursor ring is topmost: cursors live above all.
                         window.setAlwaysOnTop(topmost);
                         window.setFocusableWindowState(false);
                         final JPanel panel = new JPanel() {
@@ -817,7 +818,6 @@ public class Telekinesis extends ActionBase {
                                 final java.awt.Shape aura = wavyBorder(w - 20, h - 20,
                                         phase * 0.35, Math.min(w, h));
                                 g2.translate(10, 10);
-                                // Full interior wash first, like the reference bath.
                                 g2.setColor(new Color(glowR, glowG, glowB, 40));
                                 g2.fillRoundRect(0, 0, w - 20, h - 20, 14, 14);
                                 g2.setColor(new Color(glowR, glowG, glowB, 45));
@@ -844,12 +844,112 @@ public class Telekinesis extends ActionBase {
                         };
                         panel.setOpaque(false);
                         window.setContentPane(panel);
+
+                        // Restack timer: runs every 16 ms on the EDT, independently
+                        // of the action tick. This keeps the glow above the target
+                        // even after focus changes and taskbar clicks.
+                        restackTimer = new Timer(16, e -> restack());
+                        restackTimer.setRepeats(true);
+                        restackTimer.start();
                     } catch (final RuntimeException e) {
                         log.warn("Could not create telekinesis glow window", e);
                     }
                 });
             } catch (final RuntimeException e) {
                 log.warn("Could not schedule telekinesis glow creation", e);
+            }
+        }
+
+        /**
+         * Re-positions the glow window directly above the target in z-order.
+         * Called every 16 ms by the restack timer so focus changes can't bury it.
+         */
+        private void restack() {
+            if (window == null || !visible) return;
+            // setVisible creates the native peer synchronously, so the
+            // displayable guard below passes from the very first tick.
+            // Without this the window starts invisible, isDisplayable stays
+            // false forever, and the effect never appears.
+            if (!window.isVisible()) {
+                window.setVisible(true);
+            }
+            if (!window.isDisplayable()) return; // peer not yet created, skip
+            final Rectangle current = latestBounds;
+            final long handle = latestHandle;
+            if (current == null) return;
+            try {
+                ensureClickThrough();
+                if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+                    final com.sun.jna.platform.win32.WinDef.HWND own =
+                            new com.sun.jna.platform.win32.WinDef.HWND(
+                                    com.sun.jna.Native.getWindowPointer(window));
+                    final com.sun.jna.platform.win32.WinDef.HWND insertAfter;
+                    if (handle != 0) {
+                        final com.sun.jna.platform.win32.WinDef.HWND targetHwnd =
+                                new com.sun.jna.platform.win32.WinDef.HWND(new com.sun.jna.Pointer(handle));
+                        // Walk z-order above the target, skipping our own glow window,
+                        // to find the first real window above it.
+                        com.sun.jna.platform.win32.WinDef.HWND aboveTarget =
+                                com.sun.jna.platform.win32.User32.INSTANCE.GetWindow(
+                                        targetHwnd,
+                                        new com.sun.jna.platform.win32.WinDef.DWORD(
+                                                com.sun.jna.platform.win32.User32.GW_HWNDPREV));
+                        if (aboveTarget != null && aboveTarget.equals(own)) {
+                            aboveTarget = com.sun.jna.platform.win32.User32.INSTANCE.GetWindow(
+                                    aboveTarget,
+                                    new com.sun.jna.platform.win32.WinDef.DWORD(
+                                            com.sun.jna.platform.win32.User32.GW_HWNDPREV));
+                        }
+                        // If a maximized window is above the target, it fully covers
+                        // the grabbed window — hide the glow entirely.
+                        if (aboveTarget != null) {
+                            final com.sun.jna.platform.win32.WinUser.WINDOWPLACEMENT wp =
+                                    new com.sun.jna.platform.win32.WinUser.WINDOWPLACEMENT();
+                            com.sun.jna.platform.win32.User32.INSTANCE.GetWindowPlacement(aboveTarget, wp);
+                            if (wp.showCmd == com.sun.jna.platform.win32.WinUser.SW_SHOWMAXIMIZED) {
+                                if (window.isVisible()) window.setVisible(false);
+                                return;
+                            }
+                        }
+                        if (!window.isVisible()) window.setVisible(true);
+                        insertAfter = (aboveTarget != null)
+                                ? aboveTarget
+                                : new com.sun.jna.platform.win32.WinDef.HWND(new com.sun.jna.Pointer(0)); // HWND_TOP
+                    } else {
+                        if (!window.isVisible()) window.setVisible(true);
+                        insertAfter = new com.sun.jna.platform.win32.WinDef.HWND(
+                                new com.sun.jna.Pointer(-1)); // HWND_TOPMOST for cursor glow
+                    }
+                    com.sun.jna.platform.win32.User32.INSTANCE.SetWindowPos(own, insertAfter,
+                            current.x, current.y, current.width, current.height,
+                            com.sun.jna.platform.win32.User32.SWP_NOACTIVATE
+                                    | com.sun.jna.platform.win32.User32.SWP_SHOWWINDOW);
+                } else {
+                    window.setBounds(current);
+                }
+                window.repaint();
+            } catch (final RuntimeException | UnsatisfiedLinkError e) {
+                log.warn("Could not restack telekinesis glow window", e);
+            }
+        }
+
+        private void ensureClickThrough() {
+            if (clickThrough) return;
+            clickThrough = true;
+            try {
+                if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+                    final com.sun.jna.platform.win32.WinDef.HWND own =
+                            new com.sun.jna.platform.win32.WinDef.HWND(
+                                    com.sun.jna.Native.getWindowPointer(window));
+                    final int ex = com.sun.jna.platform.win32.User32.INSTANCE
+                            .GetWindowLong(own, com.sun.jna.platform.win32.User32.GWL_EXSTYLE);
+                    com.sun.jna.platform.win32.User32.INSTANCE.SetWindowLong(own,
+                            com.sun.jna.platform.win32.User32.GWL_EXSTYLE,
+                            ex | com.sun.jna.platform.win32.User32.WS_EX_TRANSPARENT
+                                    | com.sun.jna.platform.win32.User32.WS_EX_LAYERED);
+                }
+            } catch (final RuntimeException | UnsatisfiedLinkError | NoClassDefFoundError e) {
+                log.warn("Could not make telekinesis glow click-through", e);
             }
         }
 
@@ -862,104 +962,12 @@ public class Telekinesis extends ActionBase {
             this.heat = heat;
             latestBounds = bounds;
             latestHandle = targetHandle;
-            // Coalesce: at most one queued update, always carrying the latest
-            // rect, so a backed-up event queue can't lag the frame behind.
-            if (!updateQueued.compareAndSet(false, true)) {
-                return;
-            }
-            try {
-                SwingUtilities.invokeLater(() -> {
-                    updateQueued.set(false);
-                    try {
-                        final Rectangle current = latestBounds;
-                        if (window != null && current != null) {
-                            // Visible first: the window must be displayable
-                            // before getWindowPointer works.
-                            if (!window.isVisible()) {
-                                window.setVisible(true);
-                            }
-                            // Click-through so the glow never eats clicks meant
-                            // for the held app (Windows only, once, best effort).
-                            if (!clickThrough) {
-                                clickThrough = true;
-                                try {
-                                    if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT)
-                                            .contains("win")) {
-                                        final com.sun.jna.platform.win32.WinDef.HWND own =
-                                                new com.sun.jna.platform.win32.WinDef.HWND(
-                                                        com.sun.jna.Native.getWindowPointer(window));
-                                        final int ex = com.sun.jna.platform.win32.User32.INSTANCE
-                                                .GetWindowLong(own,
-                                                        com.sun.jna.platform.win32.User32.GWL_EXSTYLE);
-                                        com.sun.jna.platform.win32.User32.INSTANCE.SetWindowLong(own,
-                                                com.sun.jna.platform.win32.User32.GWL_EXSTYLE,
-                                                ex | com.sun.jna.platform.win32.User32.WS_EX_TRANSPARENT
-                                                        | com.sun.jna.platform.win32.User32.WS_EX_LAYERED);
-                                    }
-                                } catch (final RuntimeException | UnsatisfiedLinkError | NoClassDefFoundError e) {
-                                    log.warn("Could not make telekinesis glow click-through", e);
-                                }
-                            }
-                            // Stack the glow directly above the target window so it
-                            // stays glued to it in z-order but still goes behind
-                            // anything covering the target. For cursor glows (no
-                            // target handle) keep HWND_TOPMOST since cursors live
-                            // above everything.
-                            if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT)
-                                    .contains("win")) {
-                                final com.sun.jna.platform.win32.WinDef.HWND own =
-                                        new com.sun.jna.platform.win32.WinDef.HWND(
-                                                com.sun.jna.Native.getWindowPointer(window));
-                                final long handle = latestHandle;
-                                final com.sun.jna.platform.win32.WinDef.HWND insertAfter;
-                                if (handle != 0) {
-                                    // Find the window immediately above the target in z-order.
-                                    // Inserting after that window places the glow just above
-                                    // the target but below anything already covering it.
-                                    final com.sun.jna.platform.win32.WinDef.HWND targetHwnd =
-                                            new com.sun.jna.platform.win32.WinDef.HWND(
-                                                    new com.sun.jna.Pointer(handle));
-                                    final com.sun.jna.platform.win32.WinDef.HWND above =
-                                            com.sun.jna.platform.win32.User32.INSTANCE.GetWindow(
-                                                    targetHwnd,
-                                                    new com.sun.jna.platform.win32.WinDef.DWORD(
-                                                            com.sun.jna.platform.win32.User32.GW_HWNDPREV));
-                                    if (above != null) {
-                                        // Insert after the window above the target — glow
-                                        // lands just above the target, below its coverers.
-                                        insertAfter = above;
-                                    } else {
-                                        // Target is already topmost in its band; use
-                                        // HWND_TOP (0) to place glow at the very top of
-                                        // the non-topmost band without going topmost.
-                                        insertAfter = new com.sun.jna.platform.win32.WinDef.HWND(
-                                                new com.sun.jna.Pointer(0));
-                                    }
-                                } else {
-                                    // Cursor glow — topmost band.
-                                    insertAfter = new com.sun.jna.platform.win32.WinDef.HWND(
-                                            new com.sun.jna.Pointer(-1));
-                                }
-                                com.sun.jna.platform.win32.User32.INSTANCE.SetWindowPos(own, insertAfter,
-                                        current.x, current.y, current.width, current.height,
-                                        com.sun.jna.platform.win32.User32.SWP_NOACTIVATE
-                                                | com.sun.jna.platform.win32.User32.SWP_SHOWWINDOW);
-                            } else {
-                                window.setBounds(current);
-                            }
-                            window.repaint();
-                        }
-                    } catch (final RuntimeException | UnsatisfiedLinkError e) {
-                        log.warn("Could not move telekinesis glow window", e);
-                    }
-                });
-            } catch (final RuntimeException e) {
-                updateQueued.set(false);
-                log.warn("Could not schedule telekinesis glow update", e);
-            }
+            visible = true;
+            // Restack timer handles the actual SetWindowPos — nothing else needed here.
         }
 
         void hide() {
+            visible = false;
             try {
                 SwingUtilities.invokeLater(() -> {
                     try {
@@ -976,9 +984,14 @@ public class Telekinesis extends ActionBase {
         }
 
         void dispose() {
+            visible = false;
             try {
                 SwingUtilities.invokeLater(() -> {
                     try {
+                        if (restackTimer != null) {
+                            restackTimer.stop();
+                            restackTimer = null;
+                        }
                         if (window != null) {
                             window.setVisible(false);
                             window.dispose();
