@@ -90,6 +90,29 @@ public final class ImagePairs {
     }
 
     /**
+     * Registers an already-rendered image pair (e.g. a rotated sprite variant).
+     *
+     * @param key a unique key to access the loaded image pair
+     * @param leftImage the left-facing image
+     * @param rightImage the right-facing image
+     * @param anchorX the x-coordinate of the point on the image that aligns with the mascot's anchor
+     * @param anchorY the y-coordinate of the point on the image that aligns with the mascot's anchor
+     * @return the key to access the loaded image pair
+     */
+    public static String loadRendered(final String key, final BufferedImage leftImage,
+            final BufferedImage rightImage, final int anchorX, final int anchorY) {
+        if (imagePairs.containsKey(key)) {
+            return key;
+        }
+        final ImagePair ip = new ImagePair(
+                new MascotImage(leftImage, new Point(anchorX, anchorY)),
+                new MascotImage(rightImage, new Point(rightImage.getWidth() - anchorX, anchorY)));
+        imagePairs.put(key, ip);
+
+        return key;
+    }
+
+    /**
      * Checks whether there is an image pair associated with the given key.
      *
      * @param key the key whose presence is to be checked

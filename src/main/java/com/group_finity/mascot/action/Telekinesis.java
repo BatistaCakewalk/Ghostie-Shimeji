@@ -366,16 +366,92 @@ public class Telekinesis extends ActionBase {
 
     private void applyVictimGrabImage(final Mascot target, final int liftTicks) {
         ensureVictimGrabImagesLoaded(target);
-        final String key;
+        final String baseKey;
         if (liftTicks < 30) {
-            key = victimFallKey;
+            baseKey = victimFallKey;
         } else {
-            key = ((liftTicks - 30) / 30) % 2 == 0 ? victimGrabKey1 : victimGrabKey2;
+            baseKey = ((liftTicks - 30) / 30) % 2 == 0 ? victimGrabKey1 : victimGrabKey2;
         }
+        if (baseKey == null || !com.group_finity.mascot.image.ImagePairs.contains(baseKey)) {
+            return;
+        }
+        // Rock left and right while lifted: quantized tilt around the anchor.
+        final int tiltStep = (int) Math.round(Math.sin(liftTicks * 0.12));
+        final String key = tiltStep == 0 ? baseKey : tiltedKey(baseKey, tiltStep, target);
         if (key != null && com.group_finity.mascot.image.ImagePairs.contains(key)) {
             target.setImage(com.group_finity.mascot.image.ImagePairs.get(key)
                     .getImage(target.isLookRight()));
         }
+    }
+
+    private final java.util.Map<String, String> tiltKeys = new java.util.HashMap<>();
+
+    private static final int TILT_PAD = 24;
+
+    /**
+     * Gets (building once) a tilted variant of a loaded frame, rotated about
+     * its center on a padded canvas so corners never clip. The pair anchor
+     * follows the padding so the sprite stays planted.
+     */
+    private String tiltedKey(final String baseKey, final int tiltStep, final Mascot target) {
+        final boolean lookRight = target.isLookRight();
+        final String imageSet = target.getImageSet() != null ? target.getImageSet() : "NigelShimeji";
+        final String cacheKey = baseKey + "|tilt" + tiltStep + (lookRight ? "|R" : "|L") + "|" + imageSet;
+        final String cached = tiltKeys.get(cacheKey);
+        if (cached != null && com.group_finity.mascot.image.ImagePairs.contains(cached)) {
+            return cached;
+        }
+        try {
+            final com.group_finity.mascot.image.ImagePair pair =
+                    com.group_finity.mascot.image.ImagePairs.get(baseKey);
+            if (pair == null) {
+                return baseKey;
+            }
+            if (com.group_finity.mascot.image.ImagePairs.contains(cacheKey)) {
+                tiltKeys.put(cacheKey, cacheKey);
+                return cacheKey;
+            }
+            final com.group_finity.mascot.image.MascotImage leftSrc = pair.getImage(false);
+            final com.group_finity.mascot.image.MascotImage rightSrc = pair.getImage(true);
+            final java.awt.image.BufferedImage leftTilted =
+                    tiltBitmap(leftSrc == null ? null : leftSrc.getImage(), tiltStep);
+            final java.awt.image.BufferedImage rightTilted =
+                    tiltBitmap(rightSrc == null ? null : rightSrc.getImage(), tiltStep);
+            if (leftTilted == null || rightTilted == null || leftSrc == null) {
+                return baseKey;
+            }
+            final java.awt.Point center = leftSrc.getCenter();
+            com.group_finity.mascot.image.ImagePairs.loadRendered(cacheKey, leftTilted, rightTilted,
+                    center.x + TILT_PAD, center.y + TILT_PAD);
+            com.group_finity.mascot.image.ImagePairs.addUsage(cacheKey, imageSet);
+            tiltKeys.put(cacheKey, cacheKey);
+            return cacheKey;
+        } catch (final RuntimeException e) {
+            log.warn("Could not build tilted frame for Telekinesis victim", e);
+            return baseKey;
+        }
+    }
+
+    private static java.awt.image.BufferedImage tiltBitmap(final java.awt.image.BufferedImage src,
+            final int tiltStep) {
+        if (src == null) {
+            return null;
+        }
+        final int size = Math.max(src.getWidth(), src.getHeight()) + TILT_PAD * 2;
+        final java.awt.image.BufferedImage canvas = new java.awt.image.BufferedImage(
+                size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        final java.awt.Graphics2D g = canvas.createGraphics();
+        try {
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                    java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.translate(size / 2.0, size / 2.0);
+            g.rotate(Math.toRadians(tiltStep * 8.0));
+            g.translate(-src.getWidth() / 2.0, -src.getHeight() / 2.0);
+            g.drawImage(src, 0, 0, null);
+        } finally {
+            g.dispose();
+        }
+        return canvas;
     }
 
     private void endHold() {
