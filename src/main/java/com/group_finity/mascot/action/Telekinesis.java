@@ -564,6 +564,7 @@ public class Telekinesis extends ActionBase {
         if (image == null || image.getImage() == null) {
             return null;
         }
+        final boolean miss = !TIGHT_BOUNDS_CACHE.containsKey(image);
         final Rectangle box = TIGHT_BOUNDS_CACHE.computeIfAbsent(image, img -> {
             final java.awt.image.BufferedImage bitmap = img.getImage();
             int minX = bitmap.getWidth();
@@ -585,9 +586,11 @@ public class Telekinesis extends ActionBase {
             }
             return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
         });
-        final java.awt.image.BufferedImage bitmap = image.getImage();
-        log.info("Telekinesis tight frame: {}x{} -> box ({}, {}) {}x{}",
-                bitmap.getWidth(), bitmap.getHeight(), box.x, box.y, box.width, box.height);
+        if (miss) {
+            final java.awt.image.BufferedImage bitmap = image.getImage();
+            log.info("Telekinesis tight frame: {}x{} -> box ({}, {}) {}x{}",
+                    bitmap.getWidth(), bitmap.getHeight(), box.x, box.y, box.width, box.height);
+        }
         return box;
     }
 
