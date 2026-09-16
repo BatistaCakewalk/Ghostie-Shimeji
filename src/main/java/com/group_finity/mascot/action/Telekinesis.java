@@ -67,8 +67,6 @@ public class Telekinesis extends ActionBase {
     private int winH;
     private int lastSentX;
     private int lastSentY;
-    private int occlusionCooldown;
-    private boolean targetOccluded;
 
     private static final double PULL_STEP = 28.0;
     private static final double PULL_ARRIVE = 40.0;
@@ -234,8 +232,6 @@ public class Telekinesis extends ActionBase {
         winH = Math.max(1, target.getHeight());
         lastSentX = Integer.MIN_VALUE;
         lastSentY = Integer.MIN_VALUE;
-        occlusionCooldown = 0;
-        targetOccluded = false;
         glow = new GlowOverlay(false);
         live = true;
         synchronized (HOLDS) {
@@ -520,23 +516,8 @@ public class Telekinesis extends ActionBase {
                 lastSentY = sendY;
             }
             if (glow != null) {
-                // Occlusion is a z-order walk, so check it a few times a
-                // second instead of every tick.
-                if (--occlusionCooldown <= 0) {
-                    occlusionCooldown = 4;
-                    final boolean occluded = getEnvironment().isWindowOccluded(target);
-                    if (occluded != targetOccluded) {
-                        log.info("Telekinesis glow occluded={} for target at ({}, {})",
-                                occluded, target.getLeft(), target.getTop());
-                    }
-                    targetOccluded = occluded;
-                }
-                if (targetOccluded) {
-                    glow.hide();
-                } else {
-                    glow.showAt(new Rectangle(sendX - 10, sendY - 10, winW + 20, winH + 20), getTime(),
-                            getEnvironment().getNativeWindowHandle(target));
-                }
+                glow.showAt(new Rectangle(sendX - 10, sendY - 10, winW + 20, winH + 20), getTime(),
+                        getEnvironment().getNativeWindowHandle(target));
             }
             getAnimation().apply(getMascot(), getTime());
         } catch (final LostGroundException | VariableException | RuntimeException e) {
@@ -919,17 +900,28 @@ public class Telekinesis extends ActionBase {
                                     log.warn("Could not make telekinesis glow click-through", e);
                                 }
                             }
-                            // Topmost positioning only: passing the target window
-                            // here would demote us out of the topmost band.
+                            // Stack the glow directly above the target window so it
+                            // stays glued to it in z-order but still goes behind
+                            // anything covering the target. For cursor glows (no
+                            // target handle) keep HWND_TOPMOST since cursors live
+                            // above everything.
                             if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT)
                                     .contains("win")) {
                                 final com.sun.jna.platform.win32.WinDef.HWND own =
                                         new com.sun.jna.platform.win32.WinDef.HWND(
                                                 com.sun.jna.Native.getWindowPointer(window));
-                                final com.sun.jna.platform.win32.WinDef.HWND topmost =
-                                        new com.sun.jna.platform.win32.WinDef.HWND(
-                                                new com.sun.jna.Pointer(-1));
-                                com.sun.jna.platform.win32.User32.INSTANCE.SetWindowPos(own, topmost,
+                                final long handle = latestHandle;
+                                final com.sun.jna.platform.win32.WinDef.HWND insertAfter;
+                                if (handle != 0) {
+                                    // Place glow immediately above the target window.
+                                    insertAfter = new com.sun.jna.platform.win32.WinDef.HWND(
+                                            new com.sun.jna.Pointer(handle));
+                                } else {
+                                    // Cursor glow — topmost band.
+                                    insertAfter = new com.sun.jna.platform.win32.WinDef.HWND(
+                                            new com.sun.jna.Pointer(-1));
+                                }
+                                com.sun.jna.platform.win32.User32.INSTANCE.SetWindowPos(own, insertAfter,
                                         current.x, current.y, current.width, current.height,
                                         com.sun.jna.platform.win32.User32.SWP_NOACTIVATE
                                                 | com.sun.jna.platform.win32.User32.SWP_SHOWWINDOW);
