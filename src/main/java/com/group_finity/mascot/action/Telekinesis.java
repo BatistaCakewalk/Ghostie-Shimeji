@@ -92,7 +92,18 @@ public class Telekinesis extends ActionBase {
     private String teleFullKey;
     private boolean teleFullLoaded;
 
+    /**
+     * Chance to lift a fellow Nigel instead of a window or the cursor.
+     * Victims show Fall.png until a real sprite exists.
+     */
+    private static final double NIGEL_CHANCE = 0.3;
+
     private Area target;
+
+    private Mascot victim;
+
+    private String victimFallKey;
+    private String victimFallSet;
 
     private GlowOverlay glow;
 
@@ -141,15 +152,33 @@ public class Telekinesis extends ActionBase {
         // Clear any stale hold (no fall: it never really started).
         cancelFor(mascot);
 
-        // Either a window lift or a mouse reel, never both. A TeleMode
-        // reference parameter forces one side; otherwise roll 50/50.
+        // Either a fellow Nigel, a window lift or a mouse reel, never more
+        // than one. A TeleMode reference parameter forces one side;
+        // otherwise roll it all.
+        victim = null;
         final String mode = getTeleMode();
         if ("mouse".equalsIgnoreCase(mode)) {
             pullMouse = true;
         } else if ("window".equalsIgnoreCase(mode)) {
             pullMouse = false;
+        } else if ("nigel".equalsIgnoreCase(mode)) {
+            pullMouse = false;
+            victim = pickVictim(mascot);
+            if (victim != null) {
+                initVictimMode(mascot);
+                return;
+            }
+            log.info("Telekinesis init: forced Nigel mode but no victim, skipping");
+            return;
         } else {
-            pullMouse = Math.random() < 0.5;
+            pullMouse = false;
+            final double roll = Math.random();
+            if (roll < NIGEL_CHANCE) {
+                victim = pickVictim(mascot);
+            }
+            if (victim == null) {
+                pullMouse = Math.random() < 0.5;
+            }
         }
         robot = null;
         cursorGlow = null;
@@ -174,6 +203,10 @@ public class Telekinesis extends ActionBase {
                 HOLDS.put(mascot, this);
             }
             log.info("Telekinesis init: reeling the cursor in");
+            return;
+        }
+        if (victim != null) {
+            initVictimMode(mascot);
             return;
         }
 
@@ -222,7 +255,7 @@ public class Telekinesis extends ActionBase {
 
     @Override
     public boolean hasNext() throws VariableException {
-        if (target == null && !pullMouse) {
+        if (target == null && !pullMouse && victim == null) {
             return false;
         }
         final boolean more = super.hasNext();
@@ -230,6 +263,66 @@ public class Telekinesis extends ActionBase {
             endHold();
         }
         return more;
+    }
+
+    /**
+     * Picks another mascot to lift. Skips self, anyone holding the mouse,
+     * and the mouse owner, so ongoing grasps are never disturbed.
+     */
+    private void initVictimMode(final Mascot mascot) {
+        target = null;
+        startX = victim.getAnchor().x;
+        startY = victim.getAnchor().y;
+        curX = startX;
+        curY = startY;
+        glow = new GlowOverlay(false);
+        live = true;
+        synchronized (HOLDS) {
+            HOLDS.put(mascot, this);
+        }
+        log.info("Telekinesis init: lifting fellow mascot {}", victim);
+    }
+
+    private Mascot pickVictim(final Mascot mascot) {
+        try {
+            if (mascot.getManager() == null) {
+                return null;
+            }
+            final List<Mascot> candidates = new java.util.ArrayList<>();
+            for (final Mascot other : mascot.getManager().getMascots()) {
+                if (other != mascot && !other.isGrasping() && Mascot.getMouseOwner() != other) {
+                    candidates.add(other);
+                }
+            }
+            if (candidates.isEmpty()) {
+                return null;
+            }
+            return candidates.get((int) (Math.random() * candidates.size()));
+        } catch (final RuntimeException e) {
+            log.warn("Could not pick a victim mascot", e);
+            return null;
+        }
+    }
+
+    private void ensureVictimFallImageLoaded(final Mascot target) {
+        final String imageSet = target.getImageSet() != null ? target.getImageSet() : "NigelShimeji";
+        if (victimFallKey != null && imageSet.equals(victimFallSet)
+                && com.group_finity.mascot.image.ImagePairs.contains(victimFallKey)) {
+            return;
+        }
+        try {
+            final double scaling = com.group_finity.mascot.Main.getInstance().getSettings().scaling;
+            final com.group_finity.mascot.image.Filter filter =
+                    com.group_finity.mascot.Main.getInstance().getSettings().filter;
+            final double opacity = com.group_finity.mascot.Main.getInstance().getSettings().opacity;
+            victimFallKey = com.group_finity.mascot.image.ImagePairs.load(
+                    java.nio.file.Path.of(imageSet, "fall.png"), null, 96, 200,
+                    scaling, filter, opacity);
+            victimFallSet = imageSet;
+            com.group_finity.mascot.image.ImagePairs.addUsage(victimFallKey, imageSet);
+        } catch (final java.io.IOException | RuntimeException e) {
+            log.warn("Failed to load victim fall image for Telekinesis", e);
+        }
     }
 
     private void endHold() {
@@ -329,6 +422,54 @@ public class Telekinesis extends ActionBase {
                                 .getImage(getMascot().isLookRight()));
                     }
                 }
+                return;
+            }
+            // Fellow-Nigel mode: snap the victim's anchor along the same
+            // drift the windows ride. It keeps ticking underneath, so its
+            // own engine drops and recovers it the moment we let go.
+            if (victim != null) {
+                if (victim.isDragging()) {
+                    log.info("Telekinesis victim grabbed by user, letting go");
+                    throw new LostGroundException("Victim grabbed");
+                }
+                getMascot().setLookRight(getMascot().getAnchor().x < victim.getAnchor().x);
+
+                final int elapsed = getTime();
+                final int total = eval(getSchema().getString(PARAMETER_DURATION),
+                        Number.class, Integer.MAX_VALUE).intValue();
+                final int returnTicks = Math.max(1, getReturnTicks());
+                double targetX;
+                double targetY;
+                if (elapsed < total - returnTicks) {
+                    targetX = startX + Math.sin(elapsed * 0.05) * getRadiusX();
+                    targetY = startY - getLift() + Math.sin(elapsed * 0.07) * getRadiusY();
+                } else {
+                    final int remaining = Math.max(1, total - elapsed);
+                    targetX = curX + (startX - curX) / remaining;
+                    targetY = curY + (startY - curY) / remaining;
+                }
+
+                final Area screen = getEnvironment().getScreen();
+                targetX = clampInside(targetX, screen.getLeft() + EDGE_MARGIN, screen.getRight() - 192 - EDGE_MARGIN,
+                        screen.getLeft(), screen.getRight() - 192);
+                targetY = clampInside(targetY, screen.getTop() + EDGE_MARGIN, screen.getBottom() - 200 - EDGE_MARGIN,
+                        screen.getTop(), screen.getBottom() - 200);
+                curX = targetX;
+                curY = targetY;
+
+                victim.getAnchor().setLocation((int) Math.round(targetX), (int) Math.round(targetY));
+                ensureVictimFallImageLoaded(victim);
+                if (victimFallKey != null
+                        && com.group_finity.mascot.image.ImagePairs.contains(victimFallKey)) {
+                    victim.setImage(com.group_finity.mascot.image.ImagePairs.get(victimFallKey)
+                            .getImage(victim.isLookRight()));
+                }
+                if (glow != null) {
+                    final Rectangle bounds = victim.getBounds();
+                    bounds.grow(10, 10);
+                    glow.showAt(bounds, getTime(), 0);
+                }
+                getAnimation().apply(getMascot(), getTime());
                 return;
             }
             if (target == null) {

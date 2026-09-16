@@ -630,7 +630,8 @@ public class Mascot {
                                 // so backing off actually works.
                                 if (behaviorName.equals("CatchMouse") || behaviorName.equals("Telekinesis")
                                         || behaviorName.equals("TelekinesisWindow")
-                                        || behaviorName.equals("TelekinesisMouse")) {
+                                        || behaviorName.equals("TelekinesisMouse")
+                                        || behaviorName.equals("TelekinesisNigel")) {
                                     queueMenuBehavior(behaviorName);
                                     return;
                                 }
