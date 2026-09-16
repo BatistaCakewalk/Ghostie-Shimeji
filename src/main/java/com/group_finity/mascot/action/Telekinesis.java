@@ -905,8 +905,17 @@ public class Telekinesis extends ActionBase {
                         if (aboveTarget != null) {
                             final com.sun.jna.platform.win32.WinUser.WINDOWPLACEMENT wp =
                                     new com.sun.jna.platform.win32.WinUser.WINDOWPLACEMENT();
-                            com.sun.jna.platform.win32.User32.INSTANCE.GetWindowPlacement(aboveTarget, wp);
-                            if (wp.showCmd == com.sun.jna.platform.win32.WinUser.SW_SHOWMAXIMIZED) {
+                            // GetWindowPlacement fails unless length is set.
+                            wp.length = wp.size();
+                            boolean placementOk = false;
+                            try {
+                                placementOk = com.sun.jna.platform.win32.User32.INSTANCE
+                                        .GetWindowPlacement(aboveTarget, wp).booleanValue();
+                            } catch (final RuntimeException e) {
+                                placementOk = false;
+                            }
+                            if (placementOk
+                                    && wp.showCmd == com.sun.jna.platform.win32.WinUser.SW_SHOWMAXIMIZED) {
                                 if (window.isVisible()) window.setVisible(false);
                                 return;
                             }
