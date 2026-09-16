@@ -913,9 +913,25 @@ public class Telekinesis extends ActionBase {
                                 final long handle = latestHandle;
                                 final com.sun.jna.platform.win32.WinDef.HWND insertAfter;
                                 if (handle != 0) {
-                                    // Place glow immediately above the target window.
-                                    insertAfter = new com.sun.jna.platform.win32.WinDef.HWND(
-                                            new com.sun.jna.Pointer(handle));
+                                    // Find the window immediately above the target in z-order.
+                                    // Inserting after that window places the glow just above
+                                    // the target but below anything already covering it.
+                                    final com.sun.jna.platform.win32.WinDef.HWND targetHwnd =
+                                            new com.sun.jna.platform.win32.WinDef.HWND(
+                                                    new com.sun.jna.Pointer(handle));
+                                    final com.sun.jna.platform.win32.WinDef.HWND above =
+                                            com.sun.jna.platform.win32.User32.INSTANCE.GetWindow(
+                                                    targetHwnd,
+                                                    new com.sun.jna.platform.win32.WinDef.DWORD(
+                                                            com.sun.jna.platform.win32.User32.GW_HWNDPREV));
+                                    if (above != null) {
+                                        // Insert after the window above the target — glow
+                                        // lands just above the target, below its coverers.
+                                        insertAfter = above;
+                                    } else {
+                                        // Target is already topmost; insert after the target.
+                                        insertAfter = targetHwnd;
+                                    }
                                 } else {
                                     // Cursor glow — topmost band.
                                     insertAfter = new com.sun.jna.platform.win32.WinDef.HWND(
