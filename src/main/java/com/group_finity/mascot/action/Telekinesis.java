@@ -375,8 +375,8 @@ public class Telekinesis extends ActionBase {
         if (baseKey == null || !com.group_finity.mascot.image.ImagePairs.contains(baseKey)) {
             return;
         }
-        // Rock left and right while lifted: quantized tilt around the anchor.
-        final int tiltStep = (int) Math.round(Math.sin(liftTicks * 0.12));
+        // Rock left and right while lifted: fine tilt steps around the anchor.
+        final int tiltStep = (int) Math.round(Math.sin(liftTicks * 0.12) * 2.0);
         final String key = tiltStep == 0 ? baseKey : tiltedKey(baseKey, tiltStep, target);
         if (key != null && com.group_finity.mascot.image.ImagePairs.contains(key)) {
             target.setImage(com.group_finity.mascot.image.ImagePairs.get(key)
@@ -445,7 +445,7 @@ public class Telekinesis extends ActionBase {
             g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
                     java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             g.translate(size / 2.0, size / 2.0);
-            g.rotate(Math.toRadians(tiltStep * 8.0));
+            g.rotate(Math.toRadians(tiltStep * 4.0));
             g.translate(-src.getWidth() / 2.0, -src.getHeight() / 2.0);
             g.drawImage(src, 0, 0, null);
         } finally {
