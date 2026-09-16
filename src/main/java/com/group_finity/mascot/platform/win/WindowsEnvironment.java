@@ -501,7 +501,9 @@ class WindowsEnvironment extends AbstractEnvironment {
             return false;
         }
         try {
-            return isCovered(target, 10);
+            // Only truly buried windows hide the effect; normal cascade
+            // overlap keeps it since layering now handles the rest.
+            return isCovered(target, 80);
         } catch (final RuntimeException e) {
             return false;
         }

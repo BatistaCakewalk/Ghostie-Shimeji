@@ -67,8 +67,6 @@ public class Telekinesis extends ActionBase {
     private int winH;
     private int lastSentX;
     private int lastSentY;
-    private int occlusionCooldown;
-    private boolean targetOccluded;
 
     private static final double PULL_STEP = 28.0;
     private static final double PULL_ARRIVE = 40.0;
@@ -92,7 +90,22 @@ public class Telekinesis extends ActionBase {
     private String teleFullKey;
     private boolean teleFullLoaded;
 
+    /**
+     * Chance to lift a fellow Nigel instead of a window or the cursor.
+     * Victims show Fall.png until a real sprite exists.
+     */
+    private static final double NIGEL_CHANCE = 0.1;
+
     private Area target;
+
+    private Mascot victim;
+
+    private boolean victimWasPaused;
+
+    private String victimFallKey;
+    private String victimGrabKey1;
+    private String victimGrabKey2;
+    private String victimFallSet;
 
     private GlowOverlay glow;
 
@@ -103,6 +116,13 @@ public class Telekinesis extends ActionBase {
      */
     private static final Map<Mascot, Telekinesis> HOLDS =
             Collections.synchronizedMap(new IdentityHashMap<>());
+
+    /**
+     * Victims currently held, so a second attacker can never take a paused
+     * or already-lifted Nigel and freeze it permanently on interleaved release.
+     */
+    private static final java.util.Set<Mascot> HELD_VICTIMS =
+            Collections.synchronizedSet(java.util.Collections.newSetFromMap(new IdentityHashMap<>()));
 
     private volatile boolean live;
 
@@ -127,11 +147,29 @@ public class Telekinesis extends ActionBase {
         if (action == null) {
             return;
         }
+        action.releaseVictim();
         if (action.live && action.target != null) {
             action.beginFall();
         } else {
             action.disposeGlows();
         }
+    }
+
+    /**
+     * Hands the victim back to its own engine: unpauses (restoring prior
+     * paused state) so it drops and recovers by itself. Safe to call with no
+     * victim.
+     */
+    private void releaseVictim() {
+        if (victim == null) {
+            return;
+        }
+        try {
+            victim.setPaused(victimWasPaused);
+        } catch (final RuntimeException ignored) {
+        }
+        HELD_VICTIMS.remove(victim);
+        victim = null;
     }
 
     @Override
@@ -141,15 +179,33 @@ public class Telekinesis extends ActionBase {
         // Clear any stale hold (no fall: it never really started).
         cancelFor(mascot);
 
-        // Either a window lift or a mouse reel, never both. A TeleMode
-        // reference parameter forces one side; otherwise roll 50/50.
+        // Either a fellow Nigel, a window lift or a mouse reel, never more
+        // than one. A TeleMode reference parameter forces one side;
+        // otherwise roll it all.
+        victim = null;
         final String mode = getTeleMode();
         if ("mouse".equalsIgnoreCase(mode)) {
             pullMouse = true;
         } else if ("window".equalsIgnoreCase(mode)) {
             pullMouse = false;
+        } else if ("nigel".equalsIgnoreCase(mode)) {
+            pullMouse = false;
+            victim = pickVictim(mascot);
+            if (victim != null) {
+                initVictimMode(mascot);
+                return;
+            }
+            log.info("Telekinesis init: forced Nigel mode but no victim, skipping");
+            return;
         } else {
-            pullMouse = Math.random() < 0.5;
+            pullMouse = false;
+            final double roll = Math.random();
+            if (roll < NIGEL_CHANCE) {
+                victim = pickVictim(mascot);
+            }
+            if (victim == null) {
+                pullMouse = Math.random() < 0.5;
+            }
         }
         robot = null;
         cursorGlow = null;
@@ -174,6 +230,10 @@ public class Telekinesis extends ActionBase {
                 HOLDS.put(mascot, this);
             }
             log.info("Telekinesis init: reeling the cursor in");
+            return;
+        }
+        if (victim != null) {
+            initVictimMode(mascot);
             return;
         }
 
@@ -201,8 +261,6 @@ public class Telekinesis extends ActionBase {
         winH = Math.max(1, target.getHeight());
         lastSentX = Integer.MIN_VALUE;
         lastSentY = Integer.MIN_VALUE;
-        occlusionCooldown = 0;
-        targetOccluded = false;
         glow = new GlowOverlay(false);
         live = true;
         synchronized (HOLDS) {
@@ -222,7 +280,7 @@ public class Telekinesis extends ActionBase {
 
     @Override
     public boolean hasNext() throws VariableException {
-        if (target == null && !pullMouse) {
+        if (target == null && !pullMouse && victim == null) {
             return false;
         }
         final boolean more = super.hasNext();
@@ -230,6 +288,173 @@ public class Telekinesis extends ActionBase {
             endHold();
         }
         return more;
+    }
+
+    /**
+     * Picks another mascot to lift. Skips self, anyone holding the mouse,
+     * and the mouse owner, so ongoing grasps are never disturbed.
+     */
+    private void initVictimMode(final Mascot mascot) {
+        target = null;
+        HELD_VICTIMS.add(victim);
+        // Freeze the victim's own ticking: we become the sole writer of its
+        // anchor and image, so placement and aura stay deterministic.
+        victimWasPaused = victim.isPaused();
+        victim.setPaused(true);
+        startX = victim.getAnchor().x;
+        startY = victim.getAnchor().y;
+        curX = startX;
+        curY = startY;
+        glow = new GlowOverlay(false);
+        live = true;
+        synchronized (HOLDS) {
+            HOLDS.put(mascot, this);
+        }
+        log.info("Telekinesis init: lifting fellow mascot {}", victim);
+    }
+
+    private Mascot pickVictim(final Mascot mascot) {
+        try {
+            if (mascot.getManager() == null) {
+                return null;
+            }
+            final List<Mascot> candidates = new java.util.ArrayList<>();
+            for (final Mascot other : mascot.getManager().getMascots()) {
+                if (other != mascot && !other.isGrasping() && Mascot.getMouseOwner() != other
+                        && !other.isPaused() && !HELD_VICTIMS.contains(other)) {
+                    candidates.add(other);
+                }
+            }
+            if (candidates.isEmpty()) {
+                return null;
+            }
+            return candidates.get((int) (Math.random() * candidates.size()));
+        } catch (final RuntimeException e) {
+            log.warn("Could not pick a victim mascot", e);
+            return null;
+        }
+    }
+
+    private void ensureVictimGrabImagesLoaded(final Mascot target) {
+        final String imageSet = target.getImageSet() != null ? target.getImageSet() : "NigelShimeji";
+        if (victimFallKey != null && imageSet.equals(victimFallSet)
+                && com.group_finity.mascot.image.ImagePairs.contains(victimFallKey)) {
+            return;
+        }
+        try {
+            final double scaling = com.group_finity.mascot.Main.getInstance().getSettings().scaling;
+            final com.group_finity.mascot.image.Filter filter =
+                    com.group_finity.mascot.Main.getInstance().getSettings().filter;
+            final double opacity = com.group_finity.mascot.Main.getInstance().getSettings().opacity;
+            victimFallKey = com.group_finity.mascot.image.ImagePairs.load(
+                    java.nio.file.Path.of(imageSet, "telegrabbedstart.png"), null, 96, 200,
+                    scaling, filter, opacity);
+            com.group_finity.mascot.image.ImagePairs.addUsage(victimFallKey, imageSet);
+            victimGrabKey1 = com.group_finity.mascot.image.ImagePairs.load(
+                    java.nio.file.Path.of(imageSet, "telegrabbed1.png"), null, 96, 200,
+                    scaling, filter, opacity);
+            com.group_finity.mascot.image.ImagePairs.addUsage(victimGrabKey1, imageSet);
+            victimGrabKey2 = com.group_finity.mascot.image.ImagePairs.load(
+                    java.nio.file.Path.of(imageSet, "telegrabbed2.png"), null, 96, 200,
+                    scaling, filter, opacity);
+            com.group_finity.mascot.image.ImagePairs.addUsage(victimGrabKey2, imageSet);
+            victimFallSet = imageSet;
+        } catch (final java.io.IOException | RuntimeException e) {
+            log.warn("Failed to load victim grab images for Telekinesis", e);
+        }
+    }
+
+    private static final int VICTIM_ASCENT_TICKS = 90;
+    private static final double VICTIM_ASCENT_SPEED = 3.0;
+
+    private void applyVictimGrabImage(final Mascot target, final int liftTicks) {
+        ensureVictimGrabImagesLoaded(target);
+        final String baseKey;
+        if (liftTicks < VICTIM_ASCENT_TICKS) {
+            baseKey = victimFallKey;
+        } else {
+            baseKey = ((liftTicks - VICTIM_ASCENT_TICKS) / 30) % 2 == 0 ? victimGrabKey1 : victimGrabKey2;
+        }
+        if (baseKey == null || !com.group_finity.mascot.image.ImagePairs.contains(baseKey)) {
+            return;
+        }
+        // Rock left and right while lifted: fine tilt steps around the anchor.
+        final int tiltStep = (int) Math.round(Math.sin(liftTicks * 0.12) * 2.0);
+        final String key = tiltStep == 0 ? baseKey : tiltedKey(baseKey, tiltStep, target);
+        if (key != null && com.group_finity.mascot.image.ImagePairs.contains(key)) {
+            target.setImage(com.group_finity.mascot.image.ImagePairs.get(key)
+                    .getImage(target.isLookRight()));
+        }
+    }
+
+    private final java.util.Map<String, String> tiltKeys = new java.util.HashMap<>();
+
+    private static final int TILT_PAD = 24;
+
+    /**
+     * Gets (building once) a tilted variant of a loaded frame, rotated about
+     * its center on a padded canvas so corners never clip. The pair anchor
+     * follows the padding so the sprite stays planted.
+     */
+    private String tiltedKey(final String baseKey, final int tiltStep, final Mascot target) {
+        final boolean lookRight = target.isLookRight();
+        final String imageSet = target.getImageSet() != null ? target.getImageSet() : "NigelShimeji";
+        final String cacheKey = baseKey + "|tilt" + tiltStep + (lookRight ? "|R" : "|L") + "|" + imageSet;
+        final String cached = tiltKeys.get(cacheKey);
+        if (cached != null && com.group_finity.mascot.image.ImagePairs.contains(cached)) {
+            return cached;
+        }
+        try {
+            final com.group_finity.mascot.image.ImagePair pair =
+                    com.group_finity.mascot.image.ImagePairs.get(baseKey);
+            if (pair == null) {
+                return baseKey;
+            }
+            if (com.group_finity.mascot.image.ImagePairs.contains(cacheKey)) {
+                tiltKeys.put(cacheKey, cacheKey);
+                return cacheKey;
+            }
+            final com.group_finity.mascot.image.MascotImage leftSrc = pair.getImage(false);
+            final com.group_finity.mascot.image.MascotImage rightSrc = pair.getImage(true);
+            final java.awt.image.BufferedImage leftTilted =
+                    tiltBitmap(leftSrc == null ? null : leftSrc.getImage(), tiltStep);
+            final java.awt.image.BufferedImage rightTilted =
+                    tiltBitmap(rightSrc == null ? null : rightSrc.getImage(), tiltStep);
+            if (leftTilted == null || rightTilted == null || leftSrc == null) {
+                return baseKey;
+            }
+            final java.awt.Point center = leftSrc.getCenter();
+            com.group_finity.mascot.image.ImagePairs.loadRendered(cacheKey, leftTilted, rightTilted,
+                    center.x + TILT_PAD, center.y + TILT_PAD);
+            com.group_finity.mascot.image.ImagePairs.addUsage(cacheKey, imageSet);
+            tiltKeys.put(cacheKey, cacheKey);
+            return cacheKey;
+        } catch (final RuntimeException e) {
+            log.warn("Could not build tilted frame for Telekinesis victim", e);
+            return baseKey;
+        }
+    }
+
+    private static java.awt.image.BufferedImage tiltBitmap(final java.awt.image.BufferedImage src,
+            final int tiltStep) {
+        if (src == null) {
+            return null;
+        }
+        final int size = Math.max(src.getWidth(), src.getHeight()) + TILT_PAD * 2;
+        final java.awt.image.BufferedImage canvas = new java.awt.image.BufferedImage(
+                size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        final java.awt.Graphics2D g = canvas.createGraphics();
+        try {
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                    java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.translate(size / 2.0, size / 2.0);
+            g.rotate(Math.toRadians(tiltStep * 4.0));
+            g.translate(-src.getWidth() / 2.0, -src.getHeight() / 2.0);
+            g.drawImage(src, 0, 0, null);
+        } finally {
+            g.dispose();
+        }
+        return canvas;
     }
 
     private void endHold() {
@@ -242,6 +467,7 @@ public class Telekinesis extends ActionBase {
             shaking = false;
             getMascot().getAnchor().setLocation(shakeBaseX, shakeBaseY);
         }
+        releaseVictim();
         disposeGlows();
     }
 
@@ -331,6 +557,74 @@ public class Telekinesis extends ActionBase {
                 }
                 return;
             }
+            // Fellow-Nigel mode: snap the victim's anchor along the same
+            // drift the windows ride. It keeps ticking underneath, so its
+            // own engine drops and recovers it the moment we let go.
+            if (victim != null) {
+                if (victim.isDragging()) {
+                    log.info("Telekinesis victim grabbed by user, letting go");
+                    throw new LostGroundException("Victim grabbed");
+                }
+                getMascot().setLookRight(getMascot().getAnchor().x < victim.getAnchor().x);
+
+                final int elapsed = getTime();
+                final int total = eval(getSchema().getString(PARAMETER_DURATION),
+                        Number.class, Integer.MAX_VALUE).intValue();
+                final int returnTicks = Math.max(1, getReturnTicks());
+                double targetX;
+                double targetY;
+                if (elapsed < total - returnTicks) {
+                    if (elapsed < VICTIM_ASCENT_TICKS) {
+                        // Phase 1: steady eased rise straight up.
+                        final double ease = Math.min(1.0, elapsed / 30.0);
+                        targetX = startX;
+                        targetY = startY - VICTIM_ASCENT_SPEED * elapsed * ease;
+                    } else {
+                        // Phase 2: hover-drift around the reached altitude.
+                        final double hoverY = startY - VICTIM_ASCENT_SPEED * VICTIM_ASCENT_TICKS;
+                        targetX = startX + Math.sin(elapsed * 0.05) * getRadiusX();
+                        targetY = hoverY + Math.sin(elapsed * 0.07) * getRadiusY();
+                    }
+                } else {
+                    // No ease-back: drop him and let gravity do the rest.
+                    log.info("Telekinesis dropping victim mid-air");
+                    throw new LostGroundException("Dropped the victim");
+                }
+
+                // Mascot anchors are feet (sprite center-bottom), not top-left
+                // corners like windows: keep the whole 192x192 sprite on screen
+                // instead of pinning the feet 200px above the floor.
+                final Area screen = getEnvironment().getScreen();
+                targetX = clampInside(targetX, screen.getLeft() + 96 + EDGE_MARGIN,
+                        screen.getRight() - 96 - EDGE_MARGIN, screen.getLeft(), screen.getRight());
+                targetY = clampInside(targetY, screen.getTop() + 200 + EDGE_MARGIN,
+                        screen.getBottom() - EDGE_MARGIN, screen.getTop(), screen.getBottom());
+                curX = targetX;
+                curY = targetY;
+
+                victim.getAnchor().setLocation((int) Math.round(targetX), (int) Math.round(targetY));
+                // Paused victims never reposition their own window, so drive
+                // it here or the body floats free of the aura.
+                try {
+                    final java.awt.Component victimWindow = victim.getWindowComponent();
+                    if (victimWindow != null) {
+                        final Rectangle windowBounds = victim.getBounds();
+                        if (victimWindow.getX() != windowBounds.x || victimWindow.getY() != windowBounds.y
+                                || victimWindow.getWidth() != windowBounds.width
+                                || victimWindow.getHeight() != windowBounds.height) {
+                            final Rectangle frozen = new Rectangle(windowBounds);
+                            javax.swing.SwingUtilities.invokeLater(() -> victimWindow.setBounds(frozen));
+                        }
+                    }
+                } catch (final RuntimeException ignored) {
+                }
+                applyVictimGrabImage(victim, elapsed);
+                if (glow != null) {
+                    glow.showAt(tightFrame(victim), getTime(), 0);
+                }
+                getAnimation().apply(getMascot(), getTime());
+                return;
+            }
             if (target == null) {
                 throw new LostGroundException("No window to lift");
             }
@@ -352,8 +646,9 @@ public class Telekinesis extends ActionBase {
             double targetX;
             double targetY;
             if (elapsed < total - returnTicks) {
-                targetX = startX + Math.sin(elapsed * 0.05) * getRadiusX();
-                targetY = startY - getLift() + Math.sin(elapsed * 0.07) * getRadiusY();
+                final double ramp = Math.min(1.0, elapsed / 45.0);
+                targetX = startX + Math.sin(elapsed * 0.05) * getRadiusX() * ramp;
+                targetY = startY - getLift() * ramp + Math.sin(elapsed * 0.07) * getRadiusY() * ramp;
             } else {
                 // Ease it back where he found it.
                 final int remaining = Math.max(1, total - elapsed);
@@ -379,23 +674,8 @@ public class Telekinesis extends ActionBase {
                 lastSentY = sendY;
             }
             if (glow != null) {
-                // Occlusion is a z-order walk, so check it a few times a
-                // second instead of every tick.
-                if (--occlusionCooldown <= 0) {
-                    occlusionCooldown = 4;
-                    final boolean occluded = getEnvironment().isWindowOccluded(target);
-                    if (occluded != targetOccluded) {
-                        log.info("Telekinesis glow occluded={} for target at ({}, {})",
-                                occluded, target.getLeft(), target.getTop());
-                    }
-                    targetOccluded = occluded;
-                }
-                if (targetOccluded) {
-                    glow.hide();
-                } else {
-                    glow.showAt(new Rectangle(sendX - 10, sendY - 10, winW + 20, winH + 20), getTime(),
-                            getEnvironment().getNativeWindowHandle(target));
-                }
+                glow.showAt(new Rectangle(sendX - 10, sendY - 10, winW + 20, winH + 20), getTime(),
+                        getEnvironment().getNativeWindowHandle(target));
             }
             getAnimation().apply(getMascot(), getTime());
         } catch (final LostGroundException | VariableException | RuntimeException e) {
@@ -431,6 +711,73 @@ public class Telekinesis extends ActionBase {
         } catch (final java.io.IOException | RuntimeException e) {
             log.warn("Failed to load telefullstrength image for Telekinesis", e);
         }
+    }
+
+    /**
+     * Tight opaque-pixel bounds per mascot image, so victim frames hug the
+     * body instead of the whole 192x192 canvas.
+     */
+    private static final java.util.Map<com.group_finity.mascot.image.MascotImage, Rectangle>
+            TIGHT_BOUNDS_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static Rectangle tightBounds(final com.group_finity.mascot.image.MascotImage image) {
+        if (image == null || image.getImage() == null) {
+            return null;
+        }
+        final boolean miss = !TIGHT_BOUNDS_CACHE.containsKey(image);
+        final Rectangle box = TIGHT_BOUNDS_CACHE.computeIfAbsent(image, img -> {
+            final java.awt.image.BufferedImage bitmap = img.getImage();
+            int minX = bitmap.getWidth();
+            int minY = bitmap.getHeight();
+            int maxX = -1;
+            int maxY = -1;
+            for (int y = 0; y < bitmap.getHeight(); y++) {
+                for (int x = 0; x < bitmap.getWidth(); x++) {
+                    if ((((bitmap.getRGB(x, y) >>> 24) & 0xff) > 16)) {
+                        if (x < minX) minX = x;
+                        if (y < minY) minY = y;
+                        if (x > maxX) maxX = x;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            if (maxX < 0) {
+                return new Rectangle(0, 0, bitmap.getWidth(), bitmap.getHeight());
+            }
+            return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+        });
+        if (miss) {
+            final java.awt.image.BufferedImage bitmap = image.getImage();
+            log.info("Telekinesis tight frame: {}x{} -> box ({}, {}) {}x{}",
+                    bitmap.getWidth(), bitmap.getHeight(), box.x, box.y, box.width, box.height);
+        }
+        return box;
+    }
+
+    /**
+     * Frames the victim's actual body: the tight opaque box of its current
+     * image, scaled proportionally onto {@link Mascot#getBounds()} (the
+     * engine's own screen truth, valid under any DPI scaling or anchor).
+     */
+    private static Rectangle tightFrame(final Mascot victim) {
+        final Rectangle bounds = victim.getBounds();
+        final com.group_finity.mascot.image.MascotImage image = victim.getImage();
+        final Rectangle tight = tightBounds(image);
+        final Rectangle frame;
+        if (tight != null && image != null && image.getImage() != null
+                && image.getImage().getWidth() > 0 && image.getImage().getHeight() > 0) {
+            final double scaleX = (double) bounds.width / image.getImage().getWidth();
+            final double scaleY = (double) bounds.height / image.getImage().getHeight();
+            frame = new Rectangle(
+                    bounds.x + (int) Math.round(tight.x * scaleX),
+                    bounds.y + (int) Math.round(tight.y * scaleY),
+                    (int) Math.round(tight.width * scaleX),
+                    (int) Math.round(tight.height * scaleY));
+        } else {
+            frame = new Rectangle(bounds);
+        }
+        frame.grow(10, 10);
+        return frame;
     }
 
     private void faceWindow() {
@@ -555,12 +902,123 @@ public class Telekinesis extends ActionBase {
      * Borderless always-on-top outline around the held window: pulsing purple
      * glow strokes, a faint purple wash over the window, and a light pink
      * outline. Never focusable so it can't steal the window it is framing.
+     *
+     * Z-order is maintained by a 16 ms Swing timer that continuously restacks
+     * the glow directly above the target window, so focus changes and taskbar
+     * clicks can never bury it.
      */
     private static final class GlowOverlay {
         private JWindow window;
         private volatile int phase;
         private volatile float heat;
         private volatile boolean clickThrough;
+        private volatile Rectangle latestBounds;
+        private volatile long latestHandle;
+        private Timer restackTimer;
+        private volatile boolean visible;
+        private volatile long lastRepaintNanos;
+        private static final long REPAINT_MIN_NANOS = 100_000_000;
+
+        /**
+         * Builds a closed, organically wobbling border around a {@code w} by
+         * {@code h} box (origin at 0,0). The perimeter is walked with outward
+         * normals and offset by layered sines, so it reads as a living aura
+         * rather than a rounded rectangle.
+         *
+         * @param w width of the box to frame
+         * @param h height of the box to frame
+         * @param wavePhase animation phase; advance it every frame to wobble
+         * @param smallestSide smaller box dimension, used to tame the wobble
+         * @return the closed aura path
+         */
+        private static java.awt.Shape wavyBorder(final int w, final int h, final double wavePhase,
+                final int smallestSide) {
+            final float radius = 18f;
+            final float x0 = 0f;
+            final float y0 = 0f;
+            final float x1 = w;
+            final float y1 = h;
+            final double ampScale = Math.max(0.35, Math.min(1.0, smallestSide / 200.0));
+            final double amp1 = 7.0 * ampScale;
+            final double amp2 = 3.0 * ampScale;
+            final double perimeter = 2.0 * (w + h);
+            final double lambda1 = perimeter / 7.0;
+            final double lambda2 = perimeter / 11.0;
+
+            final java.util.List<double[]> points = new java.util.ArrayList<>();
+            // Each entry: x, y, normalX, normalY, arcLength.
+            final double[] length = {0.0};
+            final double[] last = {0.0, 0.0};
+            final boolean[] started = {false};
+            final java.util.function.BiConsumer<double[], double[]> addPoint =
+                    (point, normal) -> {
+                        if (started[0]) {
+                            final double dx = point[0] - last[0];
+                            final double dy = point[1] - last[1];
+                            length[0] += Math.sqrt(dx * dx + dy * dy);
+                        } else {
+                            started[0] = true;
+                        }
+                        last[0] = point[0];
+                        last[1] = point[1];
+                        final double s = length[0];
+                        final double wobble = amp1 * Math.sin(2.0 * Math.PI * s / lambda1 + wavePhase)
+                                + amp2 * Math.sin(2.0 * Math.PI * s / lambda2 - 1.7 * wavePhase);
+                        points.add(new double[]{point[0] + normal[0] * wobble, point[1] + normal[1] * wobble});
+                    };
+
+            final int edgeSteps = 12;
+            final int arcSteps = 10;
+            for (int i = 0; i <= edgeSteps; i++) {
+                final double t = (double) i / edgeSteps;
+                addPoint.accept(new double[]{x0 + radius + t * (x1 - x0 - 2 * radius), y0}, new double[]{0, -1});
+            }
+            for (int i = 1; i <= arcSteps; i++) {
+                final double a = -Math.PI / 2 + (double) i / arcSteps * Math.PI / 2;
+                addPoint.accept(new double[]{x1 - radius + radius * Math.cos(a), y0 + radius + radius * Math.sin(a)},
+                        new double[]{Math.cos(a), Math.sin(a)});
+            }
+            for (int i = 1; i <= edgeSteps; i++) {
+                final double t = (double) i / edgeSteps;
+                addPoint.accept(new double[]{x1, y0 + radius + t * (y1 - y0 - 2 * radius)}, new double[]{1, 0});
+            }
+            for (int i = 1; i <= arcSteps; i++) {
+                final double a = (double) i / arcSteps * Math.PI / 2;
+                addPoint.accept(new double[]{x1 - radius + radius * Math.cos(a), y1 - radius + radius * Math.sin(a)},
+                        new double[]{Math.cos(a), Math.sin(a)});
+            }
+            for (int i = 1; i <= edgeSteps; i++) {
+                final double t = (double) i / edgeSteps;
+                addPoint.accept(new double[]{x1 - radius - t * (x1 - x0 - 2 * radius), y1}, new double[]{0, 1});
+            }
+            for (int i = 1; i <= arcSteps; i++) {
+                final double a = Math.PI / 2 + (double) i / arcSteps * Math.PI / 2;
+                addPoint.accept(new double[]{x0 + radius + radius * Math.cos(a), y1 - radius + radius * Math.sin(a)},
+                        new double[]{Math.cos(a), Math.sin(a)});
+            }
+            for (int i = 1; i <= edgeSteps; i++) {
+                final double t = (double) i / edgeSteps;
+                addPoint.accept(new double[]{x0, y1 - radius - t * (y1 - y0 - 2 * radius)}, new double[]{-1, 0});
+            }
+            for (int i = 1; i < arcSteps; i++) {
+                final double a = Math.PI + (double) i / arcSteps * Math.PI / 2;
+                addPoint.accept(new double[]{x0 + radius + radius * Math.cos(a), y0 + radius + radius * Math.sin(a)},
+                        new double[]{Math.cos(a), Math.sin(a)});
+            }
+
+            final java.awt.geom.Path2D.Float path = new java.awt.geom.Path2D.Float();
+            boolean first = true;
+            for (final double[] point : points) {
+                if (first) {
+                    path.moveTo(point[0], point[1]);
+                    first = false;
+                } else {
+                    path.lineTo(point[0], point[1]);
+                }
+            }
+            path.closePath();
+            return path;
+        }
 
         GlowOverlay(final boolean topmost) {
             try {
@@ -584,35 +1042,157 @@ public class Telekinesis extends ActionBase {
                                 final int glowR = (int) (168 + (239 - 168) * heat);
                                 final int glowG = (int) (85 + (68 - 85) * heat);
                                 final int glowB = (int) (247 + (68 - 247) * heat);
+                                final java.awt.Shape aura = wavyBorder(w - 20, h - 20,
+                                        phase * 0.35, Math.min(w, h));
+                                g2.translate(10, 10);
+                                g2.setColor(new Color(glowR, glowG, glowB, 40));
+                                g2.fillRoundRect(0, 0, w - 20, h - 20, 14, 14);
                                 g2.setColor(new Color(glowR, glowG, glowB, 45));
-                                g2.fillRoundRect(10, 10, w - 20, h - 20, 14, 14);
+                                g2.fill(aura);
+                                final float small = Math.min(w, h) < 100 ? 0.5f : 1f;
                                 g2.setColor(new Color(glowR, glowG, glowB, 110 + (int) (pulse * 70)));
-                                g2.setStroke(new BasicStroke(12));
-                                g2.drawRoundRect(7, 7, w - 14, h - 14, 20, 20);
+                                g2.setStroke(new BasicStroke(12 * small));
+                                g2.draw(aura);
                                 g2.setColor(new Color(
                                         (int) (216 + (252 - 216) * heat),
                                         (int) (180 + (165 - 180) * heat),
                                         (int) (254 + (165 - 254) * heat),
                                         150 + (int) (pulse * 80)));
-                                g2.setStroke(new BasicStroke(7));
-                                g2.drawRoundRect(7, 7, w - 14, h - 14, 20, 20);
+                                g2.setStroke(new BasicStroke(7 * small));
+                                g2.draw(aura);
                                 g2.setColor(new Color(249, 168, 212, 90));
-                                g2.setStroke(new BasicStroke(5));
-                                g2.drawRoundRect(7, 7, w - 14, h - 14, 20, 20);
+                                g2.setStroke(new BasicStroke(5 * small));
+                                g2.draw(aura);
                                 g2.setColor(new Color(249, 168, 212));
-                                g2.setStroke(new BasicStroke(3));
-                                g2.drawRoundRect(7, 7, w - 14, h - 14, 20, 20);
+                                g2.setStroke(new BasicStroke(3 * small));
+                                g2.draw(aura);
                                 g2.dispose();
                             }
                         };
                         panel.setOpaque(false);
                         window.setContentPane(panel);
+
+                        // Restack timer: runs every 16 ms on the EDT, independently
+                        // of the action tick. This keeps the glow above the target
+                        // even after focus changes and taskbar clicks.
+                        restackTimer = new Timer(16, e -> restack());
+                        restackTimer.setRepeats(true);
+                        restackTimer.start();
                     } catch (final RuntimeException e) {
                         log.warn("Could not create telekinesis glow window", e);
                     }
                 });
             } catch (final RuntimeException e) {
                 log.warn("Could not schedule telekinesis glow creation", e);
+            }
+        }
+
+        /**
+         * Re-positions the glow window directly above the target in z-order.
+         * Called every 16 ms by the restack timer so focus changes can't bury it.
+         */
+        private void restack() {
+            if (window == null || !visible) return;
+            // setVisible creates the native peer synchronously, so the
+            // displayable guard below passes from the very first tick.
+            // Without this the window starts invisible, isDisplayable stays
+            // false forever, and the effect never appears.
+            if (!window.isVisible()) {
+                window.setVisible(true);
+            }
+            if (!window.isDisplayable()) return; // peer not yet created, skip
+            final Rectangle current = latestBounds;
+            final long handle = latestHandle;
+            if (current == null) return;
+            try {
+                ensureClickThrough();
+                if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+                    final com.sun.jna.platform.win32.WinDef.HWND own =
+                            new com.sun.jna.platform.win32.WinDef.HWND(
+                                    com.sun.jna.Native.getWindowPointer(window));
+                    final com.sun.jna.platform.win32.WinDef.HWND insertAfter;
+                    if (handle != 0) {
+                        final com.sun.jna.platform.win32.WinDef.HWND targetHwnd =
+                                new com.sun.jna.platform.win32.WinDef.HWND(new com.sun.jna.Pointer(handle));
+                        // Walk z-order above the target, skipping our own glow window,
+                        // to find the first real window above it.
+                        com.sun.jna.platform.win32.WinDef.HWND aboveTarget =
+                                com.sun.jna.platform.win32.User32.INSTANCE.GetWindow(
+                                        targetHwnd,
+                                        new com.sun.jna.platform.win32.WinDef.DWORD(
+                                                com.sun.jna.platform.win32.User32.GW_HWNDPREV));
+                        if (aboveTarget != null && aboveTarget.equals(own)) {
+                            aboveTarget = com.sun.jna.platform.win32.User32.INSTANCE.GetWindow(
+                                    aboveTarget,
+                                    new com.sun.jna.platform.win32.WinDef.DWORD(
+                                            com.sun.jna.platform.win32.User32.GW_HWNDPREV));
+                        }
+                        // If a maximized window is above the target, it fully covers
+                        // the grabbed window — hide the glow entirely.
+                        if (aboveTarget != null) {
+                            final com.sun.jna.platform.win32.WinUser.WINDOWPLACEMENT wp =
+                                    new com.sun.jna.platform.win32.WinUser.WINDOWPLACEMENT();
+                            // GetWindowPlacement fails unless length is set.
+                            wp.length = wp.size();
+                            boolean placementOk = false;
+                            try {
+                                placementOk = com.sun.jna.platform.win32.User32.INSTANCE
+                                        .GetWindowPlacement(aboveTarget, wp).booleanValue();
+                            } catch (final RuntimeException e) {
+                                placementOk = false;
+                            }
+                            if (placementOk
+                                    && wp.showCmd == com.sun.jna.platform.win32.WinUser.SW_SHOWMAXIMIZED) {
+                                if (window.isVisible()) window.setVisible(false);
+                                return;
+                            }
+                        }
+                        if (!window.isVisible()) window.setVisible(true);
+                        insertAfter = (aboveTarget != null)
+                                ? aboveTarget
+                                : new com.sun.jna.platform.win32.WinDef.HWND(new com.sun.jna.Pointer(0)); // HWND_TOP
+                    } else {
+                        if (!window.isVisible()) window.setVisible(true);
+                        insertAfter = new com.sun.jna.platform.win32.WinDef.HWND(
+                                new com.sun.jna.Pointer(-1)); // HWND_TOPMOST for cursor glow
+                    }
+                    com.sun.jna.platform.win32.User32.INSTANCE.SetWindowPos(own, insertAfter,
+                            current.x, current.y, current.width, current.height,
+                            com.sun.jna.platform.win32.User32.SWP_NOACTIVATE
+                                    | com.sun.jna.platform.win32.User32.SWP_SHOWWINDOW);
+                } else {
+                    window.setBounds(current);
+                }
+                // Repaints rebuild the whole wavy path: throttle them so the
+                // 16 ms z-order work never queues behind paint work. The wobble
+                // still animates at 10 fps; positioning stays immediate.
+                final long now = System.nanoTime();
+                if (now - lastRepaintNanos >= REPAINT_MIN_NANOS) {
+                    lastRepaintNanos = now;
+                    window.repaint();
+                }
+            } catch (final RuntimeException | UnsatisfiedLinkError e) {
+                log.warn("Could not restack telekinesis glow window", e);
+            }
+        }
+
+        private void ensureClickThrough() {
+            if (clickThrough) return;
+            clickThrough = true;
+            try {
+                if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+                    final com.sun.jna.platform.win32.WinDef.HWND own =
+                            new com.sun.jna.platform.win32.WinDef.HWND(
+                                    com.sun.jna.Native.getWindowPointer(window));
+                    final int ex = com.sun.jna.platform.win32.User32.INSTANCE
+                            .GetWindowLong(own, com.sun.jna.platform.win32.User32.GWL_EXSTYLE);
+                    com.sun.jna.platform.win32.User32.INSTANCE.SetWindowLong(own,
+                            com.sun.jna.platform.win32.User32.GWL_EXSTYLE,
+                            ex | com.sun.jna.platform.win32.User32.WS_EX_TRANSPARENT
+                                    | com.sun.jna.platform.win32.User32.WS_EX_LAYERED);
+                }
+            } catch (final RuntimeException | UnsatisfiedLinkError | NoClassDefFoundError e) {
+                log.warn("Could not make telekinesis glow click-through", e);
             }
         }
 
@@ -623,64 +1203,14 @@ public class Telekinesis extends ActionBase {
         void showAt(final Rectangle bounds, final int animationPhase, final long targetHandle, final float heat) {
             phase = animationPhase;
             this.heat = heat;
-            try {
-                SwingUtilities.invokeLater(() -> {
-                    try {
-                        if (window != null) {
-                            // Visible first: the window must be displayable
-                            // before getWindowPointer works.
-                            if (!window.isVisible()) {
-                                window.setVisible(true);
-                            }
-                            // Click-through so the glow never eats clicks meant
-                            // for the held app (Windows only, once, best effort).
-                            if (!clickThrough) {
-                                clickThrough = true;
-                                try {
-                                    if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT)
-                                            .contains("win")) {
-                                        final com.sun.jna.platform.win32.WinDef.HWND own =
-                                                new com.sun.jna.platform.win32.WinDef.HWND(
-                                                        com.sun.jna.Native.getWindowPointer(window));
-                                        final int ex = com.sun.jna.platform.win32.User32.INSTANCE
-                                                .GetWindowLong(own,
-                                                        com.sun.jna.platform.win32.User32.GWL_EXSTYLE);
-                                        com.sun.jna.platform.win32.User32.INSTANCE.SetWindowLong(own,
-                                                com.sun.jna.platform.win32.User32.GWL_EXSTYLE,
-                                                ex | com.sun.jna.platform.win32.User32.WS_EX_TRANSPARENT
-                                                        | com.sun.jna.platform.win32.User32.WS_EX_LAYERED);
-                                    }
-                                } catch (final RuntimeException | UnsatisfiedLinkError | NoClassDefFoundError e) {
-                                    log.warn("Could not make telekinesis glow click-through", e);
-                                }
-                            }
-                            if (targetHandle != 0) {
-                                // Restack directly above the target instead of
-                                // topmost, so covering windows cover the glow too.
-                                final com.sun.jna.platform.win32.WinDef.HWND insertAfter =
-                                        new com.sun.jna.platform.win32.WinDef.HWND(
-                                                new com.sun.jna.Pointer(targetHandle));
-                                final com.sun.jna.platform.win32.WinDef.HWND own =
-                                        new com.sun.jna.platform.win32.WinDef.HWND(
-                                                com.sun.jna.Native.getWindowPointer(window));
-                                com.sun.jna.platform.win32.User32.INSTANCE.SetWindowPos(own, insertAfter,
-                                        bounds.x, bounds.y, bounds.width, bounds.height,
-                                        com.sun.jna.platform.win32.User32.SWP_NOACTIVATE);
-                            } else {
-                                window.setBounds(bounds);
-                            }
-                            window.repaint();
-                        }
-                    } catch (final RuntimeException | UnsatisfiedLinkError e) {
-                        log.warn("Could not move telekinesis glow window", e);
-                    }
-                });
-            } catch (final RuntimeException e) {
-                log.warn("Could not schedule telekinesis glow update", e);
-            }
+            latestBounds = bounds;
+            latestHandle = targetHandle;
+            visible = true;
+            // Restack timer handles the actual SetWindowPos — nothing else needed here.
         }
 
         void hide() {
+            visible = false;
             try {
                 SwingUtilities.invokeLater(() -> {
                     try {
@@ -697,9 +1227,14 @@ public class Telekinesis extends ActionBase {
         }
 
         void dispose() {
+            visible = false;
             try {
                 SwingUtilities.invokeLater(() -> {
                     try {
+                        if (restackTimer != null) {
+                            restackTimer.stop();
+                            restackTimer = null;
+                        }
                         if (window != null) {
                             window.setVisible(false);
                             window.dispose();

@@ -524,6 +524,20 @@ public class Manager {
     }
 
     /**
+     * Gets a snapshot of the mascots in this {@code Manager}.
+     *
+     * @return a copy of the current mascot list
+     */
+    public List<Mascot> getMascots() {
+        mascotLock.readLock().lock();
+        try {
+            return new ArrayList<>(mascots);
+        } finally {
+            mascotLock.readLock().unlock();
+        }
+    }
+
+    /**
      * Gets the number of mascots in this {@code Manager} that use the specified image set.
      * If the specified image set is {@code null}, this returns the total number of mascots in this {@code Manager}.
      *
