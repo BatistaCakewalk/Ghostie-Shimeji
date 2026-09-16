@@ -94,7 +94,7 @@ public class Telekinesis extends ActionBase {
      * Chance to lift a fellow Nigel instead of a window or the cursor.
      * Victims show Fall.png until a real sprite exists.
      */
-    private static final double NIGEL_CHANCE = 0.3;
+    private static final double NIGEL_CHANCE = 0.1;
 
     private Area target;
 
