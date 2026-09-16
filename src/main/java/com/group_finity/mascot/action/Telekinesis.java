@@ -364,13 +364,16 @@ public class Telekinesis extends ActionBase {
         }
     }
 
+    private static final int VICTIM_ASCENT_TICKS = 90;
+    private static final double VICTIM_ASCENT_SPEED = 3.0;
+
     private void applyVictimGrabImage(final Mascot target, final int liftTicks) {
         ensureVictimGrabImagesLoaded(target);
         final String baseKey;
-        if (liftTicks < 30) {
+        if (liftTicks < VICTIM_ASCENT_TICKS) {
             baseKey = victimFallKey;
         } else {
-            baseKey = ((liftTicks - 30) / 30) % 2 == 0 ? victimGrabKey1 : victimGrabKey2;
+            baseKey = ((liftTicks - VICTIM_ASCENT_TICKS) / 30) % 2 == 0 ? victimGrabKey1 : victimGrabKey2;
         }
         if (baseKey == null || !com.group_finity.mascot.image.ImagePairs.contains(baseKey)) {
             return;
@@ -571,10 +574,17 @@ public class Telekinesis extends ActionBase {
                 double targetX;
                 double targetY;
                 if (elapsed < total - returnTicks) {
-                    // Smooth takeoff: ramp the drift in instead of popping skyward.
-                    final double ramp = Math.min(1.0, elapsed / 45.0);
-                    targetX = startX + Math.sin(elapsed * 0.05) * getRadiusX() * ramp;
-                    targetY = startY - getLift() * ramp + Math.sin(elapsed * 0.07) * getRadiusY() * ramp;
+                    if (elapsed < VICTIM_ASCENT_TICKS) {
+                        // Phase 1: steady eased rise straight up.
+                        final double ease = Math.min(1.0, elapsed / 30.0);
+                        targetX = startX;
+                        targetY = startY - VICTIM_ASCENT_SPEED * elapsed * ease;
+                    } else {
+                        // Phase 2: hover-drift around the reached altitude.
+                        final double hoverY = startY - VICTIM_ASCENT_SPEED * VICTIM_ASCENT_TICKS;
+                        targetX = startX + Math.sin(elapsed * 0.05) * getRadiusX();
+                        targetY = hoverY + Math.sin(elapsed * 0.07) * getRadiusY();
+                    }
                 } else {
                     final int remaining = Math.max(1, total - elapsed);
                     targetX = curX + (startX - curX) / remaining;
