@@ -294,8 +294,11 @@ public class Telekinesis extends ActionBase {
      * Picks another mascot to lift. Skips self, anyone holding the mouse,
      * and the mouse owner, so ongoing grasps are never disturbed.
      */
+    private int victimLiftTicks;
+
     private void initVictimMode(final Mascot mascot) {
         target = null;
+        victimLiftTicks = 0;
         HELD_VICTIMS.add(victim);
         // Freeze the victim's own ticking: we become the sole writer of its
         // anchor and image, so placement and aura stay deterministic.
@@ -558,6 +561,13 @@ public class Telekinesis extends ActionBase {
             // drift the windows ride. It keeps ticking underneath, so its
             // own engine drops and recovers it the moment we let go.
             if (victim != null) {
+                // TEMP DIAG: trace the first ticks of a lift.
+                if (victimLiftTicks < 8) {
+                    log.info("Telekinesis victim trace t={} anchorBefore={} behavior={}",
+                            victimLiftTicks, victim.getAnchor(),
+                            victim.getBehavior() == null ? "null"
+                                    : victim.getBehavior().getClass().getSimpleName());
+                }
                 if (victim.isDragging()) {
                     log.info("Telekinesis victim grabbed by user, letting go");
                     throw new LostGroundException("Victim grabbed");
@@ -590,6 +600,13 @@ public class Telekinesis extends ActionBase {
                 curY = targetY;
 
                 victim.getAnchor().setLocation((int) Math.round(targetX), (int) Math.round(targetY));
+                // TEMP DIAG: trace the first ticks of a lift.
+                if (victimLiftTicks < 8) {
+                    log.info("Telekinesis victim trace t={} computed=({}, {}) anchorAfter={}",
+                            victimLiftTicks, (int) Math.round(targetX), (int) Math.round(targetY),
+                            victim.getAnchor());
+                    victimLiftTicks++;
+                }
                 // Paused victims never reposition their own window, so drive
                 // it here or the body floats free of the aura.
                 try {
