@@ -691,6 +691,8 @@ public class Telekinesis extends ActionBase {
         private volatile long latestHandle;
         private Timer restackTimer;
         private volatile boolean visible;
+        private volatile long lastRepaintNanos;
+        private static final long REPAINT_MIN_NANOS = 100_000_000;
 
         /**
          * Builds a closed, organically wobbling border around a {@code w} by
@@ -936,7 +938,14 @@ public class Telekinesis extends ActionBase {
                 } else {
                     window.setBounds(current);
                 }
-                window.repaint();
+                // Repaints rebuild the whole wavy path: throttle them so the
+                // 16 ms z-order work never queues behind paint work. The wobble
+                // still animates at 10 fps; positioning stays immediate.
+                final long now = System.nanoTime();
+                if (now - lastRepaintNanos >= REPAINT_MIN_NANOS) {
+                    lastRepaintNanos = now;
+                    window.repaint();
+                }
             } catch (final RuntimeException | UnsatisfiedLinkError e) {
                 log.warn("Could not restack telekinesis glow window", e);
             }
