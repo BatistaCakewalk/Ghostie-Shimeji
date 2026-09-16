@@ -703,6 +703,107 @@ public class Telekinesis extends ActionBase {
         private volatile float heat;
         private volatile boolean clickThrough;
 
+        /**
+         * Builds a closed, organically wobbling border around a {@code w} by
+         * {@code h} box (origin at 0,0). The perimeter is walked with outward
+         * normals and offset by layered sines, so it reads as a living aura
+         * rather than a rounded rectangle.
+         *
+         * @param w width of the box to frame
+         * @param h height of the box to frame
+         * @param wavePhase animation phase; advance it every frame to wobble
+         * @param smallestSide smaller box dimension, used to tame the wobble
+         * @return the closed aura path
+         */
+        private static java.awt.Shape wavyBorder(final int w, final int h, final double wavePhase,
+                final int smallestSide) {
+            final float radius = 18f;
+            final float x0 = 0f;
+            final float y0 = 0f;
+            final float x1 = w;
+            final float y1 = h;
+            final double ampScale = Math.max(0.35, Math.min(1.0, smallestSide / 200.0));
+            final double amp1 = 7.0 * ampScale;
+            final double amp2 = 3.0 * ampScale;
+            final double perimeter = 2.0 * (w + h);
+            final double lambda1 = perimeter / 7.0;
+            final double lambda2 = perimeter / 11.0;
+
+            final java.util.List<double[]> points = new java.util.ArrayList<>();
+            // Each entry: x, y, normalX, normalY, arcLength.
+            final double[] length = {0.0};
+            final double[] last = {0.0, 0.0};
+            final boolean[] started = {false};
+            final java.util.function.BiConsumer<double[], double[]> addPoint =
+                    (point, normal) -> {
+                        if (started[0]) {
+                            final double dx = point[0] - last[0];
+                            final double dy = point[1] - last[1];
+                            length[0] += Math.sqrt(dx * dx + dy * dy);
+                        } else {
+                            started[0] = true;
+                        }
+                        last[0] = point[0];
+                        last[1] = point[1];
+                        final double s = length[0];
+                        final double wobble = amp1 * Math.sin(2.0 * Math.PI * s / lambda1 + wavePhase)
+                                + amp2 * Math.sin(2.0 * Math.PI * s / lambda2 - 1.7 * wavePhase);
+                        points.add(new double[]{point[0] + normal[0] * wobble, point[1] + normal[1] * wobble});
+                    };
+
+            final int edgeSteps = 12;
+            final int arcSteps = 10;
+            for (int i = 0; i <= edgeSteps; i++) {
+                final double t = (double) i / edgeSteps;
+                addPoint.accept(new double[]{x0 + radius + t * (x1 - x0 - 2 * radius), y0}, new double[]{0, -1});
+            }
+            for (int i = 1; i <= arcSteps; i++) {
+                final double a = -Math.PI / 2 + (double) i / arcSteps * Math.PI / 2;
+                addPoint.accept(new double[]{x1 - radius + radius * Math.cos(a), y0 + radius + radius * Math.sin(a)},
+                        new double[]{Math.cos(a), Math.sin(a)});
+            }
+            for (int i = 1; i <= edgeSteps; i++) {
+                final double t = (double) i / edgeSteps;
+                addPoint.accept(new double[]{x1, y0 + radius + t * (y1 - y0 - 2 * radius)}, new double[]{1, 0});
+            }
+            for (int i = 1; i <= arcSteps; i++) {
+                final double a = (double) i / arcSteps * Math.PI / 2;
+                addPoint.accept(new double[]{x1 - radius + radius * Math.cos(a), y1 - radius + radius * Math.sin(a)},
+                        new double[]{Math.cos(a), Math.sin(a)});
+            }
+            for (int i = 1; i <= edgeSteps; i++) {
+                final double t = (double) i / edgeSteps;
+                addPoint.accept(new double[]{x1 - radius - t * (x1 - x0 - 2 * radius), y1}, new double[]{0, 1});
+            }
+            for (int i = 1; i <= arcSteps; i++) {
+                final double a = Math.PI / 2 + (double) i / arcSteps * Math.PI / 2;
+                addPoint.accept(new double[]{x0 + radius + radius * Math.cos(a), y1 - radius + radius * Math.sin(a)},
+                        new double[]{Math.cos(a), Math.sin(a)});
+            }
+            for (int i = 1; i <= edgeSteps; i++) {
+                final double t = (double) i / edgeSteps;
+                addPoint.accept(new double[]{x0, y1 - radius - t * (y1 - y0 - 2 * radius)}, new double[]{-1, 0});
+            }
+            for (int i = 1; i < arcSteps; i++) {
+                final double a = Math.PI + (double) i / arcSteps * Math.PI / 2;
+                addPoint.accept(new double[]{x0 + radius + radius * Math.cos(a), y0 + radius + radius * Math.sin(a)},
+                        new double[]{Math.cos(a), Math.sin(a)});
+            }
+
+            final java.awt.geom.Path2D.Float path = new java.awt.geom.Path2D.Float();
+            boolean first = true;
+            for (final double[] point : points) {
+                if (first) {
+                    path.moveTo(point[0], point[1]);
+                    first = false;
+                } else {
+                    path.lineTo(point[0], point[1]);
+                }
+            }
+            path.closePath();
+            return path;
+        }
+
         GlowOverlay(final boolean topmost) {
             try {
                 SwingUtilities.invokeLater(() -> {
@@ -725,24 +826,31 @@ public class Telekinesis extends ActionBase {
                                 final int glowR = (int) (168 + (239 - 168) * heat);
                                 final int glowG = (int) (85 + (68 - 85) * heat);
                                 final int glowB = (int) (247 + (68 - 247) * heat);
+                                final java.awt.Shape aura = wavyBorder(w - 20, h - 20,
+                                        phase * 0.35, Math.min(w, h));
+                                g2.translate(10, 10);
+                                // Full interior wash first, like the reference bath.
+                                g2.setColor(new Color(glowR, glowG, glowB, 40));
+                                g2.fillRoundRect(0, 0, w - 20, h - 20, 14, 14);
                                 g2.setColor(new Color(glowR, glowG, glowB, 45));
-                                g2.fillRoundRect(10, 10, w - 20, h - 20, 14, 14);
+                                g2.fill(aura);
+                                final float small = Math.min(w, h) < 100 ? 0.5f : 1f;
                                 g2.setColor(new Color(glowR, glowG, glowB, 110 + (int) (pulse * 70)));
-                                g2.setStroke(new BasicStroke(12));
-                                g2.drawRoundRect(7, 7, w - 14, h - 14, 20, 20);
+                                g2.setStroke(new BasicStroke(12 * small));
+                                g2.draw(aura);
                                 g2.setColor(new Color(
                                         (int) (216 + (252 - 216) * heat),
                                         (int) (180 + (165 - 180) * heat),
                                         (int) (254 + (165 - 254) * heat),
                                         150 + (int) (pulse * 80)));
-                                g2.setStroke(new BasicStroke(7));
-                                g2.drawRoundRect(7, 7, w - 14, h - 14, 20, 20);
+                                g2.setStroke(new BasicStroke(7 * small));
+                                g2.draw(aura);
                                 g2.setColor(new Color(249, 168, 212, 90));
-                                g2.setStroke(new BasicStroke(5));
-                                g2.drawRoundRect(7, 7, w - 14, h - 14, 20, 20);
+                                g2.setStroke(new BasicStroke(5 * small));
+                                g2.draw(aura);
                                 g2.setColor(new Color(249, 168, 212));
-                                g2.setStroke(new BasicStroke(3));
-                                g2.drawRoundRect(7, 7, w - 14, h - 14, 20, 20);
+                                g2.setStroke(new BasicStroke(3 * small));
+                                g2.draw(aura);
                                 g2.dispose();
                             }
                         };
