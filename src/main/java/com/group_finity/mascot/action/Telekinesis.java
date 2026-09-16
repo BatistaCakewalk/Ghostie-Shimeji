@@ -103,6 +103,8 @@ public class Telekinesis extends ActionBase {
     private boolean victimWasPaused;
 
     private String victimFallKey;
+    private String victimGrabKey1;
+    private String victimGrabKey2;
     private String victimFallSet;
 
     private GlowOverlay glow;
@@ -333,7 +335,7 @@ public class Telekinesis extends ActionBase {
         }
     }
 
-    private void ensureVictimFallImageLoaded(final Mascot target) {
+    private void ensureVictimGrabImagesLoaded(final Mascot target) {
         final String imageSet = target.getImageSet() != null ? target.getImageSet() : "NigelShimeji";
         if (victimFallKey != null && imageSet.equals(victimFallSet)
                 && com.group_finity.mascot.image.ImagePairs.contains(victimFallKey)) {
@@ -345,12 +347,34 @@ public class Telekinesis extends ActionBase {
                     com.group_finity.mascot.Main.getInstance().getSettings().filter;
             final double opacity = com.group_finity.mascot.Main.getInstance().getSettings().opacity;
             victimFallKey = com.group_finity.mascot.image.ImagePairs.load(
-                    java.nio.file.Path.of(imageSet, "fall.png"), null, 96, 200,
+                    java.nio.file.Path.of(imageSet, "telegrabbedstart.png"), null, 96, 200,
                     scaling, filter, opacity);
-            victimFallSet = imageSet;
             com.group_finity.mascot.image.ImagePairs.addUsage(victimFallKey, imageSet);
+            victimGrabKey1 = com.group_finity.mascot.image.ImagePairs.load(
+                    java.nio.file.Path.of(imageSet, "telegrabbed1.png"), null, 96, 200,
+                    scaling, filter, opacity);
+            com.group_finity.mascot.image.ImagePairs.addUsage(victimGrabKey1, imageSet);
+            victimGrabKey2 = com.group_finity.mascot.image.ImagePairs.load(
+                    java.nio.file.Path.of(imageSet, "telegrabbed2.png"), null, 96, 200,
+                    scaling, filter, opacity);
+            com.group_finity.mascot.image.ImagePairs.addUsage(victimGrabKey2, imageSet);
+            victimFallSet = imageSet;
         } catch (final java.io.IOException | RuntimeException e) {
-            log.warn("Failed to load victim fall image for Telekinesis", e);
+            log.warn("Failed to load victim grab images for Telekinesis", e);
+        }
+    }
+
+    private void applyVictimGrabImage(final Mascot target, final int liftTicks) {
+        ensureVictimGrabImagesLoaded(target);
+        final String key;
+        if (liftTicks < 30) {
+            key = victimFallKey;
+        } else {
+            key = ((liftTicks - 30) / 30) % 2 == 0 ? victimGrabKey1 : victimGrabKey2;
+        }
+        if (key != null && com.group_finity.mascot.image.ImagePairs.contains(key)) {
+            target.setImage(com.group_finity.mascot.image.ImagePairs.get(key)
+                    .getImage(target.isLookRight()));
         }
     }
 
@@ -471,8 +495,10 @@ public class Telekinesis extends ActionBase {
                 double targetX;
                 double targetY;
                 if (elapsed < total - returnTicks) {
-                    targetX = startX + Math.sin(elapsed * 0.05) * getRadiusX();
-                    targetY = startY - getLift() + Math.sin(elapsed * 0.07) * getRadiusY();
+                    // Smooth takeoff: ramp the drift in instead of popping skyward.
+                    final double ramp = Math.min(1.0, elapsed / 45.0);
+                    targetX = startX + Math.sin(elapsed * 0.05) * getRadiusX() * ramp;
+                    targetY = startY - getLift() * ramp + Math.sin(elapsed * 0.07) * getRadiusY() * ramp;
                 } else {
                     final int remaining = Math.max(1, total - elapsed);
                     targetX = curX + (startX - curX) / remaining;
@@ -503,12 +529,7 @@ public class Telekinesis extends ActionBase {
                     }
                 } catch (final RuntimeException ignored) {
                 }
-                ensureVictimFallImageLoaded(victim);
-                if (victimFallKey != null
-                        && com.group_finity.mascot.image.ImagePairs.contains(victimFallKey)) {
-                    victim.setImage(com.group_finity.mascot.image.ImagePairs.get(victimFallKey)
-                            .getImage(victim.isLookRight()));
-                }
+                applyVictimGrabImage(victim, elapsed);
                 if (glow != null) {
                     glow.showAt(tightFrame(victim), getTime(), 0);
                 }
@@ -536,8 +557,9 @@ public class Telekinesis extends ActionBase {
             double targetX;
             double targetY;
             if (elapsed < total - returnTicks) {
-                targetX = startX + Math.sin(elapsed * 0.05) * getRadiusX();
-                targetY = startY - getLift() + Math.sin(elapsed * 0.07) * getRadiusY();
+                final double ramp = Math.min(1.0, elapsed / 45.0);
+                targetX = startX + Math.sin(elapsed * 0.05) * getRadiusX() * ramp;
+                targetY = startY - getLift() * ramp + Math.sin(elapsed * 0.07) * getRadiusY() * ramp;
             } else {
                 // Ease it back where he found it.
                 final int remaining = Math.max(1, total - elapsed);
