@@ -586,9 +586,9 @@ public class Telekinesis extends ActionBase {
                         targetY = hoverY + Math.sin(elapsed * 0.07) * getRadiusY();
                     }
                 } else {
-                    final int remaining = Math.max(1, total - elapsed);
-                    targetX = curX + (startX - curX) / remaining;
-                    targetY = curY + (startY - curY) / remaining;
+                    // No ease-back: drop him and let gravity do the rest.
+                    log.info("Telekinesis dropping victim mid-air");
+                    throw new LostGroundException("Dropped the victim");
                 }
 
                 // Mascot anchors are feet (sprite center-bottom), not top-left
