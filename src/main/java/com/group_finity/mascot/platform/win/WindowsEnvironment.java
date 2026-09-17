@@ -315,11 +315,24 @@ class WindowsEnvironment extends AbstractEnvironment {
 
         User32.INSTANCE.EnumWindows((hWnd, data) -> {
             try {
+                // TEMP-DEBUG: one line per candidate so filter decisions are
+                // traceable from the log. Remove before merging to main.
+                final char[] titleBuf = new char[256];
+                String title = "?";
+                try {
+                    final int titleLen = User32.INSTANCE.GetWindowText(hWnd, titleBuf, titleBuf.length);
+                    if (titleLen > 0) {
+                        title = new String(titleBuf, 0, titleLen);
+                    }
+                } catch (final RuntimeException ignored) {
+                }
                 if (!User32.INSTANCE.IsWindowVisible(hWnd)) {
+                    log.info("TELE-DEBUG reject [invisible]: '{}'", title);
                     return true;
                 }
                 // Minimized and maximized windows are out.
                 if (User32Extra.INSTANCE.IsIconic(hWnd) || User32Extra.INSTANCE.IsZoomed(hWnd)) {
+                    log.info("TELE-DEBUG reject [min/max]: '{}'", title);
                     return true;
                 }
                 // Cloaked metro/UWP leftovers are out.
@@ -327,6 +340,7 @@ class WindowsEnvironment extends AbstractEnvironment {
                     final LongByReference flagsRef = new LongByReference();
                     final HRESULT result2 = Dwmapi.INSTANCE.DwmGetWindowAttribute(hWnd, Dwmapi.DWMWA_CLOAKED, flagsRef.getPointer(), 8);
                     if (result2.equals(WinError.S_OK) && flagsRef.getValue() != 0) {
+                        log.info("TELE-DEBUG reject [cloaked]: '{}'", title);
                         return true;
                     }
                 }
@@ -334,6 +348,7 @@ class WindowsEnvironment extends AbstractEnvironment {
                 final IntByReference pidRef = new IntByReference();
                 User32.INSTANCE.GetWindowThreadProcessId(hWnd, pidRef);
                 if (pidRef.getValue() == ownPid) {
+                    log.info("TELE-DEBUG reject [own pid]: '{}'", title);
                     return true;
                 }
                 // Shell chrome is out: taskbar, multi-monitor taskbars,
@@ -350,6 +365,7 @@ class WindowsEnvironment extends AbstractEnvironment {
                     if (cls.equals("Shell_TrayWnd") || cls.equals("Shell_SecondaryTrayWnd")
                             || cls.equals("Progman") || cls.equals("WorkerW")
                             || cls.equals("tooltips_class32")) {
+                        log.info("TELE-DEBUG reject [shell chrome {}]: '{}'", cls, title);
                         return true;
                     }
                 }
@@ -358,24 +374,29 @@ class WindowsEnvironment extends AbstractEnvironment {
                 // stand-on-window whitelist/blacklist settings.
                 final Rectangle rect = getWindowRect(hWnd, true);
                 if (rect == null || rect.width <= 0 || rect.height <= 0) {
+                    log.info("TELE-DEBUG reject [empty rect]: '{}'", title);
                     return true;
                 }
                 if (!getScreen().intersects(rect)) {
+                    log.info("TELE-DEBUG reject [off-screen {}]: '{}'", rect, title);
                     return true;
                 }
                 // Fullscreen and borderless-fullscreen games cover a monitor;
                 // small borderless widgets (Rainmeter etc.) still pass.
                 if (coversMonitor(rect)) {
+                    log.info("TELE-DEBUG reject [covers monitor {}]: '{}'", rect, title);
                     return true;
                 }
                 // Fully buried windows (e.g. entirely behind a maximized app)
                 // are out; anything peeking out still passes.
                 try {
                     if (isCovered(hWnd, 95)) {
+                        log.info("TELE-DEBUG reject [buried>=95% {}]: '{}'", rect, title);
                         return true;
                     }
                 } catch (final RuntimeException ignored) {
                 }
+                log.info("TELE-DEBUG ACCEPTED {}: '{}'", rect, title);
                 final Area area = new Area();
                 area.set(rect);
                 area.setVisible(true);
@@ -409,11 +430,13 @@ class WindowsEnvironment extends AbstractEnvironment {
             }
             final Long grabbedAt = lastGrabbedAt.get(handle);
             if (grabbedAt != null) {
+                log.info("TELE-DEBUG reject [cooldown, grabbed {}s ago]", (now - grabbedAt) / 1000);
                 return true;
             }
             final String image = getProcessImageName(handle);
             final boolean blacklisted = isBlacklistedProcess(image);
             if (blacklisted) {
+                log.info("TELE-DEBUG reject [blacklisted process {}]", image);
                 grabbableWindowHandles.remove(area);
             }
             return blacklisted;
