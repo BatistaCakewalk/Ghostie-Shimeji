@@ -46,32 +46,9 @@ src/main/resources/schema.properties
 
 ## Configuration
 
-Each mascot resolves `img/[NAME]/conf/actions.xml` → `conf/actions.xml` fallback, same for `behaviors.xml`. Required actions/behaviors: `Fall`, `Dragged`, `Thrown`, `ChaseMouse`.
+Nigel works out of the box — no config needed. Right-click him for mascot options (`Chase and Hug/Eat`, `Telekinesis Window/Mouse/Nigel`, `CatchMouse` force).
 
-**Frequencies** are weights: `P = Frequency / sum(Frequencies)` inside the active `Condition`. Example floor:
-
-```xml
-<Condition Condition="#{mascot.environment.floor.isOn(mascot.anchor)}">
-  <Behavior Name="StandUp" Frequency="6"/>
-  <Behavior Name="Walk" Frequency="7"/>
-  <Behavior Name="ChaseMouse" Frequency="7"/>
-  <Behavior Name="CatchMouse" Frequency="2"/>
-  <Behavior Name="Telekinesis" Frequency="3"/>
-</Condition>
-```
-<!-- 6+7+7+2+3=25: StandUp 24%, Walk 28%, ChaseMouse 28%, CatchMouse 8%, Telekinesis 12% -->
-
-Raise `CatchMouse` to `10` → `10/33≈30%` of floor picks. `Grasp` itself is `Duration="20000"` — must be `> CuddleIdle+Duration (~18600)` to allow full cuddle.
-
-**Grasp attributes** (on `<Action Name="Grasp" ...>`):
-
-`MaxStruggle`, `Regen`, `MissThreshold (150→450 on tackle)`, `GraspOffsetY`, `FastThreshold/Multiplier`, `FuriousThreshold/Multiplier`, `TackleStaggerTicks`, `TackleKnockback`, `CuddleIdleTicks`, `CuddleDurationTicks`, `CuddleShakeThreshold`, `CuddleShakeCount`, `SwallowChance`, `SwallowClickCount`, `SwallowClickWindow`, `SickPhase1Ticks`, `SickPhase2Ticks`, `SpitSpeedX`, `SpitSpeedY`, `SpitGravity`, `SpitBounce`, `SickClickPower`.
-
-**Telekinesis attributes** (on `<Action Name="Telekinesis" ...>`, `Duration="400"`):
-
-`TeleRadiusX`, `TeleRadiusY`, `TeleLift`, `TeleReturnTicks`, `TeleMode` (`window`/`mouse`/`nigel`, else 50/50 mouse/window + 30% fellow Nigel).
-
-Image sets: drop a folder mimicking `img/NigelShimeji` (same filenames) into `img/`; `img/unused/` is ignored. `conf/settings.properties` / Image Set Chooser remembers active sets.
+To tweak his behavior (frequencies, grasp, telekinesis, custom image sets), see **[CONFIGURATION.md](CONFIGURATION.md)**.
 
 ## Troubleshooting
 
