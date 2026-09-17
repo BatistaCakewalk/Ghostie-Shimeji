@@ -182,10 +182,11 @@ public class GraspMouse extends ActionBase {
 
     /**
      * Belly ticks with no registered clicks before Nigel gets sick on his
-     * own (3000 ticks at 40ms = 2 minutes). Anti-softlock: if the cursor
+     * own (90000 ticks at 40ms = an hour). Anti-softlock: if the cursor
      * ever stops landing clicks on Nigel, the swallow must still end.
+     * Why? Fuck you that's why-
      */
-    private static final int SWALLOW_MAX_TICKS = 3000;
+    private static final int SWALLOW_MAX_TICKS = 90000;
 
     private Robot robot;
 
