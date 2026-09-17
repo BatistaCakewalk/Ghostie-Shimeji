@@ -601,7 +601,28 @@
         <attribute name="SickClickPower" type="tns:ScriptableDouble" default="0.05">
             <annotation>
                 <documentation>
-                    Extra fling power per click during the sick window, capped at double speed. Defaults to 0.05.
+                    Extra fling power per click during the sick window, capped at 1+SickPowerCap. Defaults to 0.05.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="SickBurpClicks" type="tns:ScriptableDouble" default="6">
+            <annotation>
+                <documentation>
+                    Clicks required during the sick window before Nigel can burp (one extra phase of heaving otherwise). Defaults to 6.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="SickPowerCap" type="tns:ScriptableDouble" default="3.0">
+            <annotation>
+                <documentation>
+                    Cap on bonus fling power from sick clicks (power = 1 + up to cap). Defaults to 3.0.
+                </documentation>
+            </annotation>
+        </attribute>
+        <attribute name="MaxStruggleBonus" type="tns:ScriptableDouble" default="600">
+            <annotation>
+                <documentation>
+                    Random bonus HP per grasp on top of MaxStruggle (0..bonus). Defaults to 600.
                 </documentation>
             </annotation>
         </attribute>
