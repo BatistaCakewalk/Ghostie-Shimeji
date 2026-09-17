@@ -25,7 +25,9 @@ Raise `CatchMouse` to `10` → `10/33≈30%` of floor picks. `Grasp` itself is `
 
 On `<Action Name="Grasp" ...>`:
 
-`MaxStruggle`, `Regen`, `MissThreshold (150→450 on tackle)`, `GraspOffsetY`, `FastThreshold/Multiplier`, `FuriousThreshold/Multiplier`, `TackleStaggerTicks`, `TackleKnockback`, `CuddleIdleTicks`, `CuddleDurationTicks`, `CuddleShakeThreshold`, `CuddleShakeCount`, `SwallowChance`, `SwallowClickCount`, `SwallowClickWindow`, `SickPhase1Ticks`, `SickPhase2Ticks`, `SpitSpeedX`, `SpitSpeedY`, `SpitGravity`, `SpitBounce`, `SickClickPower`.
+`MaxStruggle` (plus a random `0..MaxStruggleBonus` bonus HP per grasp, default 600), `Regen`, `MissThreshold (150→450 on tackle)`, `GraspOffsetY`, `FastThreshold/Multiplier`, `FuriousThreshold/Multiplier`, `TackleStaggerTicks`, `TackleKnockback`, `CuddleIdleTicks`, `CuddleDurationTicks`, `CuddleShakeThreshold`, `CuddleShakeCount`, `SwallowChance`, `SwallowClickCount`, `SwallowClickWindow`, `SickPhase1Ticks`, `SickPhase2Ticks`, `SpitSpeedX`, `SpitSpeedY`, `SpitGravity`, `SpitBounce`, `SickClickPower`, `SickBurpClicks` (clicks needed before the burp, default 6), `SickPowerCap` (bonus power cap, default 3.0).
+
+While swallowed past the gulp, physical mouse movement drags Nigel inverted at 35% (belly fight); the spit-fling leaves a fading saliva-droplet trail and floor-bounces while it has bounces banked from sick clicks.
 
 ## Telekinesis attributes
 
