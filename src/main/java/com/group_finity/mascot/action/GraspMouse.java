@@ -165,8 +165,9 @@ public class GraspMouse extends ActionBase {
 
     /**
      * Belly fight: while swallowed past the gulp, the user's physical mouse
-     * deltas drag Nigel around inverted (opposite direction) and sluggish
-     * (this fraction of the distance) — like fighting from inside.
+     * deltas move the pinned cursor inverted (opposite direction) and
+     * sluggish (this fraction of the distance) — like fighting from inside.
+     * Nigel himself stays put; only the cursor squirms wrong.
      */
     private static final double BELLY_RESPONSE = 0.35;
 
@@ -252,9 +253,12 @@ public class GraspMouse extends ActionBase {
     private String burpAftermathKey;
     private boolean burpImageLoaded;
 
-    // Belly-fight state: where the cursor was pinned last tick, so physical
-    // mouse deltas can drag Nigel inverted + sluggish while swallowed
-    private Point bellyLastPinned;
+    // Belly-fight state: drifting pin for the swallowed cursor. Past the
+    // gulp the cursor is no longer nailed to Nigel's hands; physical mouse
+    // deltas move it inverted + sluggish instead.
+    private double bellyPinX;
+    private double bellyPinY;
+    private boolean bellyPinActive;
 
     // Mega-burp state: floor bounces left on the current fling
     private int flingBounces;
@@ -594,7 +598,7 @@ public class GraspMouse extends ActionBase {
             swallowWindowRemaining = 0;
             swallowDir = 0;
             swallowWander = 0;
-            bellyLastPinned = null;
+            bellyPinActive = false;
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
@@ -662,7 +666,7 @@ public class GraspMouse extends ActionBase {
             swallowWindowRemaining = 0;
             swallowDir = 0;
             swallowWander = 0;
-            bellyLastPinned = null;
+            bellyPinActive = false;
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
@@ -712,6 +716,7 @@ public class GraspMouse extends ActionBase {
                 sickTicks = 0;
                 sickClicks = 0;
                 sickExtraTicks = 0;
+                bellyPinActive = false;
             }
 
             // Fully trapped: HP frozen, cursor pinned hard.
@@ -750,24 +755,37 @@ public class GraspMouse extends ActionBase {
                 }
             }
             if (!gulping) {
-                // Belly fight: the delta between where the cursor physically
-                // is and where it was pinned last tick is the user's doing —
-                // drag Nigel the opposite way, damped. Fighting from inside.
+                // Gullet revolt: the pin lets go of Nigel's hands. The gap
+                // between where the cursor physically is and where it was
+                // pinned is the user's doing — answer it the opposite way,
+                // damped. Nigel doesn't move; the cursor squirms wrong.
                 final Point physical = currentCursor();
-                if (physical != null && bellyLastPinned != null) {
-                    final int dx = physical.x - bellyLastPinned.x;
-                    final int dy = physical.y - bellyLastPinned.y;
-                    if (dx != 0 || dy != 0) {
-                        getMascot().getAnchor().translate(
-                                (int) Math.round(-dx * BELLY_RESPONSE),
-                                (int) Math.round(-dy * BELLY_RESPONSE));
+                if (physical != null) {
+                    if (!bellyPinActive) {
+                        final Point handsNow = getGraspPoint();
+                        bellyPinX = handsNow.x;
+                        bellyPinY = handsNow.y;
+                        bellyPinActive = true;
+                    } else {
+                        bellyPinX -= (physical.x - bellyPinX) * BELLY_RESPONSE;
+                        bellyPinY -= (physical.y - bellyPinY) * BELLY_RESPONSE;
+                        final Area bellyScreen = getEnvironment().getScreen();
+                        bellyPinX = Math.max(bellyScreen.getLeft(),
+                                Math.min(bellyScreen.getRight(), bellyPinX));
+                        bellyPinY = Math.max(bellyScreen.getTop(),
+                                Math.min(bellyScreen.getBottom(), bellyPinY));
                     }
                 }
+            } else {
+                bellyPinActive = false;
             }
             clampAnchorToScreen();
             final Point hands = getGraspPoint();
-            robot.mouseMove(hands.x, hands.y);
-            bellyLastPinned = new Point(hands.x, hands.y);
+            if (bellyPinActive) {
+                robot.mouseMove((int) Math.round(bellyPinX), (int) Math.round(bellyPinY));
+            } else {
+                robot.mouseMove(hands.x, hands.y);
+            }
             applySwallowAnimation(waddling);
             reassertCursorHidden();
             return;
