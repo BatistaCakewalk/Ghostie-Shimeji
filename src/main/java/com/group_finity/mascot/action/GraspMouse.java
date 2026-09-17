@@ -173,11 +173,19 @@ public class GraspMouse extends ActionBase {
 
     /**
      * Half-size of the belly box (in pixels, around the grasp point) the
-     * swallowed cursor may squirm in. Keeps it visibly inside Nigel while
-     * it moves inverted + sluggish.
+     * swallowed cursor may squirm in. Kept small and central so the cursor
+     * stays over Nigel's opaque belly: clicks only register on his window,
+     * and losing those means losing the only way out.
      */
-    private static final double BELLY_SQUIRM_X = 56.0;
-    private static final double BELLY_SQUIRM_Y = 48.0;
+    private static final double BELLY_SQUIRM_X = 28.0;
+    private static final double BELLY_SQUIRM_Y = 24.0;
+
+    /**
+     * Belly ticks with no registered clicks before Nigel gets sick on his
+     * own (3000 ticks at 40ms = 2 minutes). Anti-softlock: if the cursor
+     * ever stops landing clicks on Nigel, the swallow must still end.
+     */
+    private static final int SWALLOW_MAX_TICKS = 3000;
 
     private Robot robot;
 
@@ -267,6 +275,7 @@ public class GraspMouse extends ActionBase {
     private double bellyPinX;
     private double bellyPinY;
     private boolean bellyPinActive;
+    private int swallowStuckTicks;
 
     // Mega-burp state: floor bounces left on the current fling
     private int flingBounces;
@@ -607,6 +616,7 @@ public class GraspMouse extends ActionBase {
             swallowDir = 0;
             swallowWander = 0;
             bellyPinActive = false;
+            swallowStuckTicks = 0;
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
@@ -675,6 +685,7 @@ public class GraspMouse extends ActionBase {
             swallowDir = 0;
             swallowWander = 0;
             bellyPinActive = false;
+            swallowStuckTicks = 0;
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
@@ -720,6 +731,18 @@ public class GraspMouse extends ActionBase {
             }
             if (swallowClicks >= getSwallowClickCount()) {
                 log.info("Swallow shaken loose after {} clicks, Nigel feels sick", swallowClicks);
+                sickPhase = 1;
+                sickTicks = 0;
+                sickClicks = 0;
+                sickExtraTicks = 0;
+                bellyPinActive = false;
+            }
+            if (swallowClicks > 0) {
+                swallowStuckTicks = 0;
+            } else if (++swallowStuckTicks >= SWALLOW_MAX_TICKS) {
+                // Anti-softlock: clicks only register on Nigel's window. If
+                // none ever land, don't hold the cursor hostage forever.
+                log.info("Swallow failsafe: no clicks registered, Nigel feels sick anyway");
                 sickPhase = 1;
                 sickTicks = 0;
                 sickClicks = 0;
