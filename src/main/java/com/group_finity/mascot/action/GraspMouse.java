@@ -742,11 +742,6 @@ public class GraspMouse extends ActionBase {
     }
 
     /**
-     * The brief dazed pause that follows a head-on tackle. The cursor is NOT
-     * held during this window: the user can still bolt, and there is real
-     * dodge room until the hold snaps in on the last stagger tick.
-     */
-    /**
      * The contact window right after landing. The cursor is NOT held during
      * it: every tick it is sampled into the history buffer, so once the window
      * closes the closing speed can be measured over multiple ticks rather

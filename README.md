@@ -46,26 +46,9 @@ src/main/resources/schema.properties
 
 ## Configuration
 
-Each mascot resolves `img/[NAME]/conf/actions.xml` → `conf/actions.xml` fallback, same for `behaviors.xml`. Required actions/behaviors: `Fall`, `Dragged`, `Thrown`, `ChaseMouse`.
+Nigel works out of the box — no config needed. Right-click him for mascot options (`Chase and Hug/Eat`, `Telekinesis Window/Mouse/Nigel`, `CatchMouse` force).
 
-**Frequencies** are weights: `P = Frequency / sum(Frequencies)` inside the active `Condition`. Example floor:
-
-```xml
-<Condition Condition="#{mascot.environment.floor.isOn(mascot.anchor)}">
-  <Behavior Name="StandUp" Frequency="6"/>
-  <Behavior Name="Walk" Frequency="7"/>
-  <Behavior Name="ChaseMouse" Frequency="7"/>
-  <Behavior Name="CatchMouse" Frequency="2"/> <!-- 2/22≈9.1% -->
-</Condition>
-```
-
-Raise `CatchMouse` to `10` → `10/30≈33%` of floor picks. `Grasp` itself is `Duration="750"` — must be `> CuddleIdle+Duration (~18600)` to allow full cuddle, so currently set to `~20000` or removed.
-
-**Grasp attributes** (on `<Action Name="Grasp" ...>`):
-
-`MaxStruggle`, `Regen`, `MissThreshold (150→450 on tackle)`, `GraspOffsetY`, `FastThreshold/Multiplier`, `FuriousThreshold/Multiplier`, `TackleStaggerTicks`, `TackleKnockback`, `CuddleIdleTicks`, `CuddleDurationTicks`, `CuddleShakeThreshold`, `CuddleShakeCount`.
-
-Image sets: drop a folder mimicking `img/NigelShimeji` (same filenames) into `img/`; `img/unused/` is ignored. `conf/settings.properties` / Image Set Chooser remembers active sets.
+To tweak his behavior (frequencies, grasp, telekinesis, custom image sets), see **[CONFIGURATION.md](CONFIGURATION.md)**.
 
 ## Troubleshooting
 
