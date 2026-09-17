@@ -263,6 +263,13 @@ public class GraspMouse extends ActionBase {
     private int sickExtraTicks;
 
     private static final int RECOVER_MIN_TICKS = 75;
+
+    /**
+     * Ticks after the spit launch before the burp recover starts, so Nigel
+     * is already coming down while the cursor is still flying. Short
+     * flights land before this and recover on the ground as before.
+     */
+    private static final int RECOVER_LEAD_TICKS = 25;
     private String cuddleImageKey1;
     private String cuddleImageKey2;
     private boolean cuddleImagesLoaded;
@@ -676,8 +683,10 @@ public class GraspMouse extends ActionBase {
 
         // --- Swallow mode handling ---
         if (swallowMode) {
-            // Burp recover first: once landed it owns the ticks until handoff.
-            if (recoverActive) {
+            // Burp recover first, but never ahead of an active fling: while
+            // the cursor still flies, tickSickFling owns the ticks and runs
+            // the recover visuals itself once the lead-in passes.
+            if (recoverActive && !flingActive) {
                 tickRecover();
                 return;
             }
@@ -1327,6 +1336,17 @@ public class GraspMouse extends ActionBase {
         if (flingTicks % 2 == 0) {
             spawnDroplets(flingX, flingY, 1.0);
         }
+        // Burp recover starts mid-flight (after a short lead-in), so Nigel
+        // is already coming down while the cursor still flies. The handoff
+        // itself stays gated on landing inside tickRecover.
+        if (!recoverActive && flingTicks >= RECOVER_LEAD_TICKS) {
+            log.info("Burp recover starting mid-flight");
+            recoverActive = true;
+            recoverTicks = 0;
+        }
+        if (recoverActive) {
+            tickRecover();
+        }
         // Burp frame from the launch stays put; don't paint Sicken2 back over it.
 
         final Area workArea = getEnvironment().getWorkArea();
@@ -1348,8 +1368,11 @@ public class GraspMouse extends ActionBase {
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
-            recoverActive = true;
-            recoverTicks = 0;
+            sickExtraTicks = 0;
+            if (!recoverActive) {
+                recoverActive = true;
+                recoverTicks = 0;
+            }
             // Stay untouchable through the recover: no pickup, no menu.
             getMascot().setGrasping(true);
         }
@@ -1383,10 +1406,11 @@ public class GraspMouse extends ActionBase {
     }
 
     /**
-     * Burp recover after the flung cursor lands: the cursor is already free
-     * and visible again, Nigel floats back down with a sway (same gentle
-     * descent as the swallow sink) showing the burp sprite, then hands off
-     * to StandUp so the Fall animation never plays.
+     * Burp recover: Nigel floats back down with a sway (same gentle descent
+     * as the swallow sink) showing the burp sprite, then hands off to
+     * StandUp so the Fall animation never plays. Starts mid-flight after a
+     * short lead-in, but the handoff only fires once the fling is over —
+     * never strand the cursor mid-air by ending the grasp early.
      */
     private void tickRecover() throws LostGroundException, VariableException {
         recoverTicks++;
@@ -1401,8 +1425,10 @@ public class GraspMouse extends ActionBase {
             }
             return;
         }
-        // Landed fast: hold the aftermath frame a beat longer so it reads.
-        if (recoverTicks < RECOVER_MIN_TICKS) {
+        // Landed fast, or still flying: hold the aftermath frame. The handoff
+        // waits for both touchdown and the minimum beat, so a long flight
+        // can never end the grasp (and strand the hidden cursor) early.
+        if (flingActive || recoverTicks < RECOVER_MIN_TICKS) {
             if (burpAftermathKey != null && ImagePairs.contains(burpAftermathKey)) {
                 getMascot().setImage(ImagePairs.get(burpAftermathKey).getImage(getMascot().isLookRight()));
             }
