@@ -44,6 +44,10 @@ public class SettingsWindow extends JDialog implements Localizable {
     private boolean alwaysShowShimejiChooser = false;
     private boolean alwaysShowInformationScreen = false;
     private boolean drawShimejiBounds = false;
+    private boolean nigelGrabEnabled = true;
+    private boolean nigelTelekinesisEnabled = true;
+    private boolean nigelSwallowEnabled = true;
+    private boolean nigelSwallowBeforeGrabOff = true;
     private Filter filter = Filter.NEAREST_NEIGHBOUR;
     private double scaling = 1.0;
     private double opacity = 1.0;
@@ -109,6 +113,16 @@ public class SettingsWindow extends JDialog implements Localizable {
         chkAlwaysShowShimejiChooser.setSelected(alwaysShowShimejiChooser);
         chkAlwaysShowInformationScreen.setSelected(alwaysShowInformationScreen);
         chkDrawShimejiBounds.setSelected(drawShimejiBounds);
+        final java.util.List<String> nigelDisabled =
+                settings.disabledBehaviors.getOrDefault("NigelShimeji", java.util.Collections.emptyList());
+        nigelGrabEnabled = !nigelDisabled.contains("CatchMouse");
+        nigelTelekinesisEnabled = !nigelDisabled.contains("Telekinesis");
+        nigelSwallowEnabled = settings.nigelSwallowEnabled;
+        nigelSwallowBeforeGrabOff = nigelSwallowEnabled;
+        chkNigelGrab.setSelected(nigelGrabEnabled);
+        chkNigelTelekinesis.setSelected(nigelTelekinesisEnabled);
+        chkNigelSwallow.setSelected(nigelSwallowEnabled);
+        applyNigelDependencies();
         radFilterHqx.setEnabled(scaling % 2 == 0 || scaling % 3 == 0);
         if (filter == Filter.BICUBIC) {
             radFilterBicubic.setSelected(true);
@@ -168,8 +182,9 @@ public class SettingsWindow extends JDialog implements Localizable {
         pnlTabs.setTitleAt(0, languageBundle.getString("General"));
         pnlTabs.setTitleAt(1, languageBundle.getString("InteractiveWindows"));
         pnlTabs.setTitleAt(2, languageBundle.getString("WindowMode"));
-        pnlTabs.setTitleAt(3, languageBundle.getString("About"));
-        lblShimejiEE.setText(languageBundle.getString("ShimejiEE"));
+        pnlTabs.setTitleAt(3, "Nigel Settings");
+        pnlTabs.setTitleAt(4, languageBundle.getString("About"));
+        lblShimejiEE.setText("Nigel Shimeji");
         lblDevelopedBy.setText(languageBundle.getString("DevelopedBy"));
         chkShowTrayIcon.setText(languageBundle.getString("ShowTrayIcon"));
         chkAlwaysShowShimejiChooser.setText(languageBundle.getString("AlwaysShowShimejiChooser"));
@@ -199,7 +214,7 @@ public class SettingsWindow extends JDialog implements Localizable {
                 languageBundle.getString("BackgroundModeStretch")
         }));
         btnBackgroundImageRemove.setText(languageBundle.getString("Remove"));
-        lblShimejiEE.setText(languageBundle.getString("ShimejiEE"));
+        lblShimejiEE.setText("Nigel Shimeji");
         lblDevelopedBy.setText(languageBundle.getString("DevelopedBy"));
         btnWebsite.setText(languageBundle.getString("Website"));
         btnDone.setText(languageBundle.getString("Done"));
@@ -314,6 +329,7 @@ public class SettingsWindow extends JDialog implements Localizable {
         rigid3 = new javax.swing.Box.Filler(new java.awt.Dimension(0, 15), new java.awt.Dimension(0, 15), new java.awt.Dimension(0, 15));
         lblDevelopedBy = new javax.swing.JLabel();
         lblKilkakon = new javax.swing.JLabel();
+        lblBasedOn = new javax.swing.JLabel();
         rigid4 = new javax.swing.Box.Filler(new java.awt.Dimension(0, 30), new java.awt.Dimension(0, 30), new java.awt.Dimension(0, 30));
         pnlAboutButtons = new javax.swing.JPanel();
         btnWebsite = new javax.swing.JButton();
@@ -699,13 +715,13 @@ public class SettingsWindow extends JDialog implements Localizable {
         pnlAbout.add(rigid1);
 
         lblShimejiEE.setFont(lblShimejiEE.getFont().deriveFont(lblShimejiEE.getFont().getStyle() | java.awt.Font.BOLD, lblShimejiEE.getFont().getSize()+10));
-        lblShimejiEE.setText("Shimeji-ee");
+        lblShimejiEE.setText("Nigel Shimeji");
         lblShimejiEE.setAlignmentX(0.5F);
         pnlAbout.add(lblShimejiEE);
         pnlAbout.add(rigid2);
 
         lblVersion.setFont(lblVersion.getFont().deriveFont(lblVersion.getFont().getSize()+4f));
-        lblVersion.setText("1.0.22");
+        lblVersion.setText("1.1.0");
         lblVersion.setAlignmentX(0.5F);
         pnlAbout.add(lblVersion);
         pnlAbout.add(rigid3);
@@ -714,9 +730,13 @@ public class SettingsWindow extends JDialog implements Localizable {
         lblDevelopedBy.setAlignmentX(0.5F);
         pnlAbout.add(lblDevelopedBy);
 
-        lblKilkakon.setText("Kilkakon");
+        lblKilkakon.setText("BatistaCakewalk");
         lblKilkakon.setAlignmentX(0.5F);
         pnlAbout.add(lblKilkakon);
+
+        lblBasedOn.setText("Nigel fork of Shimeji-ee by Kilkakon");
+        lblBasedOn.setAlignmentX(0.5F);
+        pnlAbout.add(lblBasedOn);
         pnlAbout.add(rigid4);
 
         pnlAboutButtons.setMaximumSize(new java.awt.Dimension(32767, 36));
@@ -745,6 +765,34 @@ public class SettingsWindow extends JDialog implements Localizable {
 
         pnlAbout.add(pnlAboutButtons);
         pnlAbout.add(glue2);
+
+        pnlNigel = new javax.swing.JPanel();
+        chkNigelGrab = new javax.swing.JCheckBox();
+        chkNigelTelekinesis = new javax.swing.JCheckBox();
+        chkNigelSwallow = new javax.swing.JCheckBox();
+
+        pnlNigel.setLayout(new javax.swing.BoxLayout(pnlNigel, javax.swing.BoxLayout.PAGE_AXIS));
+        pnlNigel.add(javax.swing.Box.createVerticalStrut(10));
+
+        chkNigelGrab.setText("Let Nigel grab the cursor");
+        chkNigelGrab.setAlignmentX(0.0F);
+        chkNigelGrab.addItemListener(this::chkNigelGrabItemStateChanged);
+        pnlNigel.add(chkNigelGrab);
+        pnlNigel.add(javax.swing.Box.createVerticalStrut(10));
+
+        chkNigelTelekinesis.setText("Telekinesis (windows, cursor, other Nigels)");
+        chkNigelTelekinesis.setAlignmentX(0.0F);
+        chkNigelTelekinesis.addItemListener(this::chkNigelTelekinesisItemStateChanged);
+        pnlNigel.add(chkNigelTelekinesis);
+        pnlNigel.add(javax.swing.Box.createVerticalStrut(10));
+
+        chkNigelSwallow.setText("Swallow the cursor whole");
+        chkNigelSwallow.setAlignmentX(0.0F);
+        chkNigelSwallow.addItemListener(this::chkNigelSwallowItemStateChanged);
+        pnlNigel.add(chkNigelSwallow);
+        pnlNigel.add(javax.swing.Box.createVerticalGlue());
+
+        pnlTabs.addTab("Nigel Settings", pnlNigel);
 
         pnlTabs.addTab("About", pnlAbout);
 
@@ -811,6 +859,14 @@ public class SettingsWindow extends JDialog implements Localizable {
         settings.scaling = scaling;
         settings.filter = filter;
         settings.drawShimejiBounds = drawShimejiBounds;
+        settings.nigelSwallowEnabled = nigelSwallowEnabled;
+        final java.util.List<String> nigelDisabled =
+                settings.disabledBehaviors.computeIfAbsent("NigelShimeji", k -> new java.util.ArrayList<>());
+        setNigelBehaviorDisabled(nigelDisabled, "CatchMouse", !nigelGrabEnabled);
+        setNigelBehaviorDisabled(nigelDisabled, "Telekinesis", !nigelTelekinesisEnabled);
+        setNigelBehaviorDisabled(nigelDisabled, "TelekinesisWindow", !nigelTelekinesisEnabled);
+        setNigelBehaviorDisabled(nigelDisabled, "TelekinesisMouse", !nigelTelekinesisEnabled);
+        setNigelBehaviorDisabled(nigelDisabled, "TelekinesisNigel", !nigelTelekinesisEnabled);
         settings.interactiveWindows = listData;
         settings.interactiveWindowsBlacklist = blacklistData;
         settings.windowedMode = windowedMode;
@@ -870,6 +926,42 @@ public class SettingsWindow extends JDialog implements Localizable {
         drawShimejiBounds = evt.getStateChange() == ItemEvent.SELECTED;
     }//GEN-LAST:event_chkDrawShimejiBoundsItemStateChanged
 
+    private void applyNigelDependencies() {
+        // Swallowing needs grabbing: with the grab off, swallow goes off and greys out.
+        chkNigelSwallow.setEnabled(nigelGrabEnabled);
+    }
+
+    private void chkNigelGrabItemStateChanged(ItemEvent evt) {
+        nigelGrabEnabled = evt.getStateChange() == ItemEvent.SELECTED;
+        if (!nigelGrabEnabled) {
+            nigelSwallowBeforeGrabOff = nigelSwallowEnabled;
+            nigelSwallowEnabled = false;
+            chkNigelSwallow.setSelected(false);
+        } else {
+            nigelSwallowEnabled = nigelSwallowBeforeGrabOff;
+            chkNigelSwallow.setSelected(nigelSwallowEnabled);
+        }
+        applyNigelDependencies();
+    }
+
+    private void chkNigelTelekinesisItemStateChanged(ItemEvent evt) {
+        nigelTelekinesisEnabled = evt.getStateChange() == ItemEvent.SELECTED;
+    }
+
+    private void chkNigelSwallowItemStateChanged(ItemEvent evt) {
+        nigelSwallowEnabled = evt.getStateChange() == ItemEvent.SELECTED;
+    }
+
+    private static void setNigelBehaviorDisabled(java.util.List<String> disabled, String name, boolean off) {
+        if (off) {
+            if (!disabled.contains(name)) {
+                disabled.add(name);
+            }
+        } else {
+            disabled.remove(name);
+        }
+    }
+
     private void radFilterItemStateChanged(ItemEvent evt) {//GEN-FIRST:event_radFilterItemStateChanged
         if (evt.getStateChange() == ItemEvent.SELECTED) {
             Object source = evt.getItemSelectable();
@@ -903,7 +995,7 @@ public class SettingsWindow extends JDialog implements Localizable {
     }//GEN-LAST:event_sldScalingStateChanged
 
     private void btnWebsiteActionPerformed(ActionEvent evt) {//GEN-FIRST:event_btnWebsiteActionPerformed
-        browseToUrl("https://kilkakon.com/");
+        browseToUrl("https://github.com/BatistaCakewalk/Ghostie-Shimeji");
     }//GEN-LAST:event_btnWebsiteActionPerformed
 
     private void btnDiscordActionPerformed(ActionEvent evt) {//GEN-FIRST:event_btnDiscordActionPerformed
@@ -1076,6 +1168,9 @@ public class SettingsWindow extends JDialog implements Localizable {
     private javax.swing.JCheckBox chkAlwaysShowInformationScreen;
     private javax.swing.JCheckBox chkAlwaysShowShimejiChooser;
     private javax.swing.JCheckBox chkDrawShimejiBounds;
+    private javax.swing.JCheckBox chkNigelGrab;
+    private javax.swing.JCheckBox chkNigelSwallow;
+    private javax.swing.JCheckBox chkNigelTelekinesis;
     private javax.swing.JCheckBox chkShowTrayIcon;
     private javax.swing.JCheckBox chkWindowModeEnabled;
     private javax.swing.JComboBox<String> cmbBackgroundImageMode;
@@ -1096,6 +1191,7 @@ public class SettingsWindow extends JDialog implements Localizable {
     private javax.swing.JLabel lblFilter;
     private javax.swing.JLabel lblIcon;
     private javax.swing.JLabel lblKilkakon;
+    private javax.swing.JLabel lblBasedOn;
     private javax.swing.JLabel lblOpacity;
     private javax.swing.JLabel lblScaling;
     private javax.swing.JLabel lblShimejiEE;
@@ -1113,6 +1209,7 @@ public class SettingsWindow extends JDialog implements Localizable {
     private javax.swing.JPanel pnlInteractiveButtons;
     private javax.swing.JTabbedPane pnlInteractiveTabs;
     private javax.swing.JPanel pnlInteractiveWindows;
+    private javax.swing.JPanel pnlNigel;
     private javax.swing.JTabbedPane pnlTabs;
     private javax.swing.JPanel pnlWhitelistTab;
     private javax.swing.JPanel pnlWindowMode;

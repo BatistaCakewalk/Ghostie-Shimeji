@@ -593,7 +593,7 @@ public class GraspMouse extends ActionBase {
     private void enterIdleReward(final boolean quickReenter) throws VariableException {
         idleTicks = 0;
         postCuddleGrace = 0;
-        if (Math.random() < getSwallowChance()) {
+        if (Main.getInstance().getSettings().nigelSwallowEnabled && Math.random() < getSwallowChance()) {
             log.info("Entering swallow mode (quick re-enter: {})", quickReenter);
             swallowMode = true;
             swallowTicks = 0;
@@ -658,6 +658,12 @@ public class GraspMouse extends ActionBase {
         }
 
         // Devoured straight out of a max-strength pull: no idle wait, no cuddle roll.
+        // (Unless swallowing is disabled in Nigel Settings: then the devour
+        // just becomes a normal grasp.)
+        if (devourQueued && !Main.getInstance().getSettings().nigelSwallowEnabled) {
+            devourQueued = false;
+            log.info("Devoured but swallowing is disabled, normal grasp continues");
+        }
         if (devourQueued) {
             devourQueued = false;
             log.info("Devoured straight into swallow mode");
