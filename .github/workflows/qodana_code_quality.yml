@@ -25,6 +25,7 @@ jobs:
         with:
           pr-mode: false
           upload-result: true
+          args: --baseline,qodana.sarif.json
         env:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN_1333160870 }}
           QODANA_ENDPOINT: 'https://qodana.cloud'
