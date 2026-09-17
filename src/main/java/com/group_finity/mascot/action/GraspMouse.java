@@ -171,6 +171,14 @@ public class GraspMouse extends ActionBase {
      */
     private static final double BELLY_RESPONSE = 0.35;
 
+    /**
+     * Half-size of the belly box (in pixels, around the grasp point) the
+     * swallowed cursor may squirm in. Keeps it visibly inside Nigel while
+     * it moves inverted + sluggish.
+     */
+    private static final double BELLY_SQUIRM_X = 56.0;
+    private static final double BELLY_SQUIRM_Y = 48.0;
+
     private Robot robot;
 
     private double maxHp;
@@ -758,24 +766,22 @@ public class GraspMouse extends ActionBase {
                 // Gullet revolt: the pin lets go of Nigel's hands. The gap
                 // between where the cursor physically is and where it was
                 // pinned is the user's doing — answer it the opposite way,
-                // damped. Nigel doesn't move; the cursor squirms wrong.
+                // damped. Nigel doesn't move; the cursor squirms wrong, but
+                // stays pinned inside the belly box around his hands.
                 final Point physical = currentCursor();
-                if (physical != null) {
-                    if (!bellyPinActive) {
-                        final Point handsNow = getGraspPoint();
-                        bellyPinX = handsNow.x;
-                        bellyPinY = handsNow.y;
-                        bellyPinActive = true;
-                    } else {
-                        bellyPinX -= (physical.x - bellyPinX) * BELLY_RESPONSE;
-                        bellyPinY -= (physical.y - bellyPinY) * BELLY_RESPONSE;
-                        final Area bellyScreen = getEnvironment().getScreen();
-                        bellyPinX = Math.max(bellyScreen.getLeft(),
-                                Math.min(bellyScreen.getRight(), bellyPinX));
-                        bellyPinY = Math.max(bellyScreen.getTop(),
-                                Math.min(bellyScreen.getBottom(), bellyPinY));
-                    }
+                final Point bellyHands = getGraspPoint();
+                if (!bellyPinActive) {
+                    bellyPinX = bellyHands.x;
+                    bellyPinY = bellyHands.y;
+                    bellyPinActive = true;
+                } else if (physical != null) {
+                    bellyPinX -= (physical.x - bellyPinX) * BELLY_RESPONSE;
+                    bellyPinY -= (physical.y - bellyPinY) * BELLY_RESPONSE;
                 }
+                bellyPinX = Math.max(bellyHands.x - BELLY_SQUIRM_X,
+                        Math.min(bellyHands.x + BELLY_SQUIRM_X, bellyPinX));
+                bellyPinY = Math.max(bellyHands.y - BELLY_SQUIRM_Y,
+                        Math.min(bellyHands.y + BELLY_SQUIRM_Y, bellyPinY));
             } else {
                 bellyPinActive = false;
             }
