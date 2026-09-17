@@ -12,8 +12,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.AWTException;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Graphics;
 import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.PointerInfo;
@@ -22,8 +25,13 @@ import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.ResourceBundle;
+
+import javax.swing.JComponent;
+import javax.swing.JWindow;
+import javax.swing.SwingUtilities;
 
 /**
  * Action for grabbing the user's cursor and refusing to let go.
@@ -113,6 +121,15 @@ public class GraspMouse extends ActionBase {
     private static final String PARAMETER_SICK_CLICK_POWER = "SickClickPower";
     private static final double DEFAULT_SICK_CLICK_POWER = 0.05;
 
+    private static final String PARAMETER_SICK_BURP_CLICKS = "SickBurpClicks";
+    private static final int DEFAULT_SICK_BURP_CLICKS = 6;
+
+    private static final String PARAMETER_SICK_POWER_CAP = "SickPowerCap";
+    private static final double DEFAULT_SICK_POWER_CAP = 3.0;
+
+    private static final String PARAMETER_MAX_STRUGGLE_BONUS = "MaxStruggleBonus";
+    private static final double DEFAULT_MAX_STRUGGLE_BONUS = 600.0;
+
     private static final int CUDDLE_SHAKE_WINDOW = 30;
     private static final int CUDDLE_ANIM_INTERVAL = 30;
     private static final int SWALLOW_GULP_TICKS = 40;
@@ -145,6 +162,14 @@ public class GraspMouse extends ActionBase {
      * flung. Keeps full-screen whips survivable while normal fights feel the same.
      */
     private static final double MAX_DRAIN_PER_TICK = 30.0;
+
+    /**
+     * Belly ticks with no registered clicks before Nigel gets sick on his
+     * own (90000 ticks at 40ms = an hour). Anti-softlock: if the cursor
+     * ever stops landing clicks on Nigel, the swallow must still end.
+     * Why? Fuck you that's why-
+     */
+    private static final int SWALLOW_MAX_TICKS = 90000;
 
     private Robot robot;
 
@@ -228,7 +253,23 @@ public class GraspMouse extends ActionBase {
     private String burpAftermathKey;
     private boolean burpImageLoaded;
 
+    // Swallow failsafe state: ticks since the last registered click
+    private int swallowStuckTicks;
+
+    // Mega-burp state: floor bounces left on the current fling
+    private int flingBounces;
+
+    // Sick extension: extra phase-2 ticks granted while burp clicks run short
+    private int sickExtraTicks;
+
     private static final int RECOVER_MIN_TICKS = 75;
+
+    /**
+     * Ticks after the spit launch before the burp recover starts, so Nigel
+     * is already coming down while the cursor is still flying. Short
+     * flights land before this and recover on the ground as before.
+     */
+    private static final int RECOVER_LEAD_TICKS = 25;
     private String cuddleImageKey1;
     private String cuddleImageKey2;
     private boolean cuddleImagesLoaded;
@@ -251,6 +292,118 @@ public class GraspMouse extends ActionBase {
         }
     }
 
+    /**
+     * Saliva droplets for the spit trail. Self-expiring on a Swing Timer (EDT)
+     * so no action-end hook is needed: even if the grasp is interrupted
+     * mid-fling, every droplet fades and disposes itself on its own clock.
+     */
+    private static final class Droplet {
+        double x;
+        double y;
+        double vx;
+        double vy;
+        long born;
+        JWindow window;
+    }
+
+    private static final long DROPLET_LIFE_MILLIS = 650;
+    private static final int DROPLET_MAX_ALIVE = 40;
+    private static final List<Droplet> DROPLETS = new ArrayList<>();
+    private static javax.swing.Timer dropletTimer;
+
+    private static synchronized void ensureDropletTimer() {
+        if (dropletTimer != null) {
+            return;
+        }
+        dropletTimer = new javax.swing.Timer(50, e -> tickDroplets());
+        dropletTimer.setRepeats(true);
+        dropletTimer.start();
+    }
+
+    private static synchronized void tickDroplets() {
+        final long now = System.currentTimeMillis();
+        for (int i = DROPLETS.size() - 1; i >= 0; i--) {
+            final Droplet d = DROPLETS.get(i);
+            final long age = now - d.born;
+            if (age >= DROPLET_LIFE_MILLIS) {
+                try {
+                    d.window.dispose();
+                } catch (final RuntimeException ignored) {
+                }
+                DROPLETS.remove(i);
+                continue;
+            }
+            d.vy += 0.6;
+            d.x += d.vx;
+            d.y += d.vy;
+            try {
+                d.window.setLocation((int) Math.round(d.x), (int) Math.round(d.y));
+                d.window.setOpacity(1.0f - (float) age / DROPLET_LIFE_MILLIS);
+            } catch (final RuntimeException ignored) {
+            }
+        }
+        if (DROPLETS.isEmpty() && dropletTimer != null) {
+            dropletTimer.stop();
+            dropletTimer = null;
+        }
+    }
+
+    /**
+     * Spawns a burst of saliva droplets at the given screen position. Window
+     * creation happens on the EDT; safe to call from the mascot tick thread.
+     */
+    private static void spawnDroplets(final double x, final double y, final double power) {
+        ensureDropletTimer();
+        final int count = Math.min(8, 2 + (int) Math.round(power * 2.0));
+        SwingUtilities.invokeLater(() -> {
+            synchronized (GraspMouse.class) {
+                for (int i = 0; i < count; i++) {
+                    while (DROPLETS.size() >= DROPLET_MAX_ALIVE) {
+                        final Droplet oldest = DROPLETS.remove(0);
+                        try {
+                            oldest.window.dispose();
+                        } catch (final RuntimeException ignored) {
+                        }
+                    }
+                    final int size = 8 + (int) (Math.random() * 7);
+                    final JWindow window = new JWindow();
+                    try {
+                        window.setAlwaysOnTop(true);
+                        window.setBackground(new Color(0, 0, 0, 0));
+                        final JComponent dot = new JComponent() {
+                            @Override
+                            protected void paintComponent(final Graphics g) {
+                                super.paintComponent(g);
+                                g.setColor(new Color(150, 220, 90));
+                                g.fillOval(0, 0, size, size);
+                                g.setColor(new Color(205, 255, 150));
+                                g.fillOval(size / 4, size / 4, size / 3, size / 3);
+                            }
+                        };
+                        dot.setPreferredSize(new Dimension(size, size));
+                        window.add(dot);
+                        window.pack();
+                        final Droplet d = new Droplet();
+                        d.x = x + (Math.random() * 28.0 - 14.0) - size / 2.0;
+                        d.y = y + (Math.random() * 28.0 - 14.0) - size / 2.0;
+                        d.vx = Math.random() * 8.0 - 4.0;
+                        d.vy = -Math.random() * 3.0;
+                        d.born = System.currentTimeMillis();
+                        d.window = window;
+                        window.setLocation((int) Math.round(d.x), (int) Math.round(d.y));
+                        window.setVisible(true);
+                        DROPLETS.add(d);
+                    } catch (final RuntimeException e) {
+                        try {
+                            window.dispose();
+                        } catch (final RuntimeException ignored) {
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     public GraspMouse(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
         super(schema, animations, context);
     }
@@ -259,7 +412,7 @@ public class GraspMouse extends ActionBase {
     public void init(final Mascot mascot) throws VariableException {
         super.init(mascot);
 
-        maxHp = getMaxStruggle();
+        maxHp = getMaxStruggle() + Math.random() * Math.max(0.0, getMaxStruggleBonus());
         hp = maxHp;
         fatigue = 0;
         driftTargetX = 0.0;
@@ -298,8 +451,10 @@ public class GraspMouse extends ActionBase {
         sickPhase = 0;
         sickTicks = 0;
         sickClicks = 0;
+        sickExtraTicks = 0;
         flingActive = false;
         flingTicks = 0;
+        flingBounces = 0;
         recoverActive = false;
         recoverTicks = 0;
         recoilVX = 0.0;
@@ -446,6 +601,7 @@ public class GraspMouse extends ActionBase {
             swallowWindowRemaining = 0;
             swallowDir = 0;
             swallowWander = 0;
+            swallowStuckTicks = 0;
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
@@ -513,6 +669,7 @@ public class GraspMouse extends ActionBase {
             swallowWindowRemaining = 0;
             swallowDir = 0;
             swallowWander = 0;
+            swallowStuckTicks = 0;
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
@@ -526,8 +683,10 @@ public class GraspMouse extends ActionBase {
 
         // --- Swallow mode handling ---
         if (swallowMode) {
-            // Burp recover first: once landed it owns the ticks until handoff.
-            if (recoverActive) {
+            // Burp recover first, but never ahead of an active fling: while
+            // the cursor still flies, tickSickFling owns the ticks and runs
+            // the recover visuals itself once the lead-in passes.
+            if (recoverActive && !flingActive) {
                 tickRecover();
                 return;
             }
@@ -561,6 +720,18 @@ public class GraspMouse extends ActionBase {
                 sickPhase = 1;
                 sickTicks = 0;
                 sickClicks = 0;
+                sickExtraTicks = 0;
+            }
+            if (swallowClicks > 0) {
+                swallowStuckTicks = 0;
+            } else if (++swallowStuckTicks >= SWALLOW_MAX_TICKS) {
+                // Anti-softlock: clicks only register on Nigel's window. If
+                // none ever land, don't hold the cursor hostage forever.
+                log.info("Swallow failsafe: no clicks registered, Nigel feels sick anyway");
+                sickPhase = 1;
+                sickTicks = 0;
+                sickClicks = 0;
+                sickExtraTicks = 0;
             }
 
             // Fully trapped: HP frozen, cursor pinned hard.
@@ -598,6 +769,8 @@ public class GraspMouse extends ActionBase {
                     swallowWander++;
                 }
             }
+            // Fully trapped, pinned dead center on Nigel: clicks only
+            // register on his window, so the cursor stays exactly on him.
             clampAnchorToScreen();
             final Point hands = getGraspPoint();
             robot.mouseMove(hands.x, hands.y);
@@ -1112,9 +1285,18 @@ public class GraspMouse extends ActionBase {
                 // Faster, harder shakes.
                 driftTo(Math.random() * 6.0 - 3.0, Math.random() * 4.0 - 2.0);
                 setSickImage(sickKey2);
-            } else {
+            } else if (sickClicks >= getSickBurpClicks() || sickExtraTicks >= phase2) {
+                // The burp needs its clicks; short one extra phase-2 worth of
+                // heaving first (failsafe so a clickless swallow still ends).
                 launchFling();
                 return;
+            } else {
+                sickExtraTicks++;
+                sickPhase = 2;
+                // Heave harder the longer the burp is held in.
+                final double heave = 1.0 + sickExtraTicks / (double) Math.max(1, phase2);
+                driftTo((Math.random() * 6.0 - 3.0) * heave, (Math.random() * 4.0 - 2.0) * heave);
+                setSickImage(sickKey2);
             }
             clampAnchorToScreen();
             // Still pinned while sick.
@@ -1150,11 +1332,32 @@ public class GraspMouse extends ActionBase {
         }
         robot.mouseMove((int) Math.round(flingX), (int) Math.round(flingY));
         reassertCursorHidden();
+        // Drool trail along the flight path.
+        if (flingTicks % 2 == 0) {
+            spawnDroplets(flingX, flingY, 1.0);
+        }
+        // Burp recover starts mid-flight (after a short lead-in), so Nigel
+        // is already coming down while the cursor still flies. The handoff
+        // itself stays gated on landing inside tickRecover.
+        if (!recoverActive && flingTicks >= RECOVER_LEAD_TICKS) {
+            log.info("Burp recover starting mid-flight");
+            recoverActive = true;
+            recoverTicks = 0;
+        }
+        if (recoverActive) {
+            tickRecover();
+        }
         // Burp frame from the launch stays put; don't paint Sicken2 back over it.
 
         final Area workArea = getEnvironment().getWorkArea();
         final double speed = Math.sqrt(flingVX * flingVX + flingVY * flingVY);
-        if (flingY >= workArea.getBottom() - 2 || speed < 2.0 || flingTicks > 300) {
+        if (flingY >= workArea.getBottom() - 2 && flingBounces > 0) {
+            // Mega-burp: bounce off the floor instead of landing.
+            flingY = workArea.getBottom() - 2;
+            flingVY = -Math.abs(flingVY) * bounce;
+            flingBounces--;
+            spawnDroplets(flingX, flingY, 2.0);
+        } else if (flingY >= workArea.getBottom() - 2 || speed < 2.0 || flingTicks > 300) {
             log.info("Cursor landed after fling at ({}, {}), starting burp recover", (int) flingX, (int) flingY);
             // Hand the cursor back now; Nigel floats down gently instead of falling.
             restoreCursor();
@@ -1165,16 +1368,23 @@ public class GraspMouse extends ActionBase {
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
-            recoverActive = true;
-            recoverTicks = 0;
+            sickExtraTicks = 0;
+            if (!recoverActive) {
+                recoverActive = true;
+                recoverTicks = 0;
+            }
             // Stay untouchable through the recover: no pickup, no menu.
             getMascot().setGrasping(true);
         }
     }
 
     private void launchFling() throws VariableException {
-        // Clicks during the sick window power the fling, capped at double.
-        final double power = 1.0 + Math.min(1.0, sickClicks * getSickClickPower());
+        // Clicks during the sick window power the fling, capped at 1+cap.
+        // Rapid clicking earns a mega-burp: more power plus floor bounces,
+        // so the cursor pinballs instead of landing straight away.
+        final double power = 1.0 + Math.min(getSickPowerCap(), sickClicks * getSickClickPower());
+        final int required = Math.max(1, getSickBurpClicks());
+        flingBounces = Math.min(6, sickClicks / required);
         final double dir = getMascot().isLookRight() ? 1.0 : -1.0;
         final Point hands = getGraspPoint();
         flingX = hands.x;
@@ -1184,21 +1394,23 @@ public class GraspMouse extends ActionBase {
         flingTicks = 0;
         flingActive = true;
         // Recoil: a visible shove opposite the launch, decaying over the flight
-        // (an instant teleport reads as a glitch, not a kick).
-        recoilVX = -dir * 6.0;
-        recoilVY = 2.0;
+        // (an instant teleport reads as a glitch, not a kick). Scales with power.
+        recoilVX = -dir * 6.0 * power;
+        recoilVY = 2.0 * power;
         ensureBurpImageLoaded();
         if (burpKey != null && ImagePairs.contains(burpKey)) {
             getMascot().setImage(ImagePairs.get(burpKey).getImage(getMascot().isLookRight()));
         }
-        log.info("Spit fling launched: power={}, v=({},{})", power, flingVX, flingVY);
+        spawnDroplets(flingX, flingY, power);
+        log.info("Spit fling launched: power={}, bounces={}, v=({},{})", power, flingBounces, flingVX, flingVY);
     }
 
     /**
-     * Burp recover after the flung cursor lands: the cursor is already free
-     * and visible again, Nigel floats back down with a sway (same gentle
-     * descent as the swallow sink) showing the burp sprite, then hands off
-     * to StandUp so the Fall animation never plays.
+     * Burp recover: Nigel floats back down with a sway (same gentle descent
+     * as the swallow sink) showing the burp sprite, then hands off to
+     * StandUp so the Fall animation never plays. Starts mid-flight after a
+     * short lead-in, but the handoff only fires once the fling is over —
+     * never strand the cursor mid-air by ending the grasp early.
      */
     private void tickRecover() throws LostGroundException, VariableException {
         recoverTicks++;
@@ -1213,8 +1425,10 @@ public class GraspMouse extends ActionBase {
             }
             return;
         }
-        // Landed fast: hold the aftermath frame a beat longer so it reads.
-        if (recoverTicks < RECOVER_MIN_TICKS) {
+        // Landed fast, or still flying: hold the aftermath frame. The handoff
+        // waits for both touchdown and the minimum beat, so a long flight
+        // can never end the grasp (and strand the hidden cursor) early.
+        if (flingActive || recoverTicks < RECOVER_MIN_TICKS) {
             if (burpAftermathKey != null && ImagePairs.contains(burpAftermathKey)) {
                 getMascot().setImage(ImagePairs.get(burpAftermathKey).getImage(getMascot().isLookRight()));
             }
@@ -1387,5 +1601,17 @@ public class GraspMouse extends ActionBase {
 
     private double getSickClickPower() throws VariableException {
         return eval(getSchema().getString(PARAMETER_SICK_CLICK_POWER), Number.class, DEFAULT_SICK_CLICK_POWER).doubleValue();
+    }
+
+    private int getSickBurpClicks() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SICK_BURP_CLICKS), Number.class, DEFAULT_SICK_BURP_CLICKS).intValue();
+    }
+
+    private double getSickPowerCap() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_SICK_POWER_CAP), Number.class, DEFAULT_SICK_POWER_CAP).doubleValue();
+    }
+
+    private double getMaxStruggleBonus() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_MAX_STRUGGLE_BONUS), Number.class, DEFAULT_MAX_STRUGGLE_BONUS).doubleValue();
     }
 }
