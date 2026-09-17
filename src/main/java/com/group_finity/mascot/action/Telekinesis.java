@@ -1127,25 +1127,64 @@ public class Telekinesis extends ActionBase {
                                     new com.sun.jna.platform.win32.WinDef.DWORD(
                                             com.sun.jna.platform.win32.User32.GW_HWNDPREV));
                         }
-                        // If a maximized window is above the target, it fully covers
-                        // the grabbed window — hide the glow entirely.
-                        if (aboveTarget != null) {
-                            final com.sun.jna.platform.win32.WinUser.WINDOWPLACEMENT wp =
-                                    new com.sun.jna.platform.win32.WinUser.WINDOWPLACEMENT();
-                            // GetWindowPlacement fails unless length is set.
-                            wp.length = wp.size();
-                            boolean placementOk = false;
-                            try {
-                                placementOk = com.sun.jna.platform.win32.User32.INSTANCE
-                                        .GetWindowPlacement(aboveTarget, wp).booleanValue();
-                            } catch (final RuntimeException e) {
-                                placementOk = false;
+                        // Walk the whole chain above the target, skipping our own
+                        // glow window: if ANY maximized window up there covers
+                        // the grabbed window, hide the glow entirely instead
+                        // of floating over the maximized app. Only the first
+                        // window used to be checked, so anything sandwiched
+                        // between the target and the maximized app fooled it.
+                        boolean buriedByMaximized = false;
+                        com.sun.jna.platform.win32.WinDef.HWND chain = aboveTarget;
+                        int chainSteps = 0;
+                        while (chain != null && chainSteps++ < 200) {
+                            if (!chain.equals(own)) {
+                                try {
+                                    if (com.sun.jna.platform.win32.User32.INSTANCE
+                                            .IsWindowVisible(chain)) {
+                                        final com.sun.jna.platform.win32.WinUser.WINDOWPLACEMENT wp =
+                                                new com.sun.jna.platform.win32.WinUser.WINDOWPLACEMENT();
+                                        // GetWindowPlacement fails unless length is set.
+                                        wp.length = wp.size();
+                                        boolean placementOk = false;
+                                        try {
+                                            placementOk = com.sun.jna.platform.win32.User32.INSTANCE
+                                                    .GetWindowPlacement(chain, wp).booleanValue();
+                                        } catch (final RuntimeException e) {
+                                            placementOk = false;
+                                        }
+                                        if (placementOk
+                                                && wp.showCmd == com.sun.jna.platform.win32.WinUser.SW_SHOWMAXIMIZED) {
+                                            boolean covers = true;
+                                            try {
+                                                final com.sun.jna.platform.win32.WinDef.RECT coverRect =
+                                                        new com.sun.jna.platform.win32.WinDef.RECT();
+                                                if (com.sun.jna.platform.win32.User32.INSTANCE
+                                                        .GetWindowRect(chain, coverRect)) {
+                                                    covers = coverRect.left < current.x + current.width
+                                                            && coverRect.right > current.x
+                                                            && coverRect.top < current.y + current.height
+                                                            && coverRect.bottom > current.y;
+                                                }
+                                            } catch (final RuntimeException e) {
+                                                covers = true;
+                                            }
+                                            if (covers) {
+                                                buriedByMaximized = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                } catch (final RuntimeException ignored) {
+                                }
                             }
-                            if (placementOk
-                                    && wp.showCmd == com.sun.jna.platform.win32.WinUser.SW_SHOWMAXIMIZED) {
-                                if (window.isVisible()) window.setVisible(false);
-                                return;
-                            }
+                            chain = com.sun.jna.platform.win32.User32.INSTANCE.GetWindow(
+                                    chain,
+                                    new com.sun.jna.platform.win32.WinDef.DWORD(
+                                            com.sun.jna.platform.win32.User32.GW_HWNDPREV));
+                        }
+                        if (buriedByMaximized) {
+                            if (window.isVisible()) window.setVisible(false);
+                            return;
                         }
                         if (!window.isVisible()) window.setVisible(true);
                         insertAfter = (aboveTarget != null)
