@@ -731,7 +731,11 @@ public class Mascot {
                 pendingBehaviorName = null;
                 try {
                     final Configuration configuration = Main.getInstance().getConfiguration(imageSet);
-                    setBehavior(configuration.buildBehavior(queued));
+                    if (configuration.isBehaviorEnabled(queued, this)) {
+                        setBehavior(configuration.buildBehavior(queued));
+                    } else {
+                        log.info("Skipped queued behavior \"{}\" for mascot \"{}\": disabled in settings", queued, this);
+                    }
                 } catch (final BehaviorInstantiationException | BehaviorExecutionException e) {
                     log.error("Failed to start queued behavior \"{}\" for mascot \"{}\"", queued, this, e);
                 }

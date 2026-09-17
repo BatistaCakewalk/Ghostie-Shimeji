@@ -5,11 +5,11 @@
     <BehaviorList>
         <Behavior Name="SitAndFaceMouse" Frequency="0" Hidden="true"/>
         <Behavior Name="SitAndSpinHead" Frequency="0" Hidden="true"/>
-        <Behavior Name="TelekinesisNigel" Frequency="0"
+        <Behavior Name="TelekinesisNigel" Frequency="0" Toggleable="true"
                 Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.isGrasping() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
-        <Behavior Name="TelekinesisWindow" Frequency="0"
+        <Behavior Name="TelekinesisWindow" Frequency="0" Toggleable="true"
                 Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.isGrasping() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
-        <Behavior Name="TelekinesisMouse" Frequency="0"
+        <Behavior Name="TelekinesisMouse" Frequency="0" Toggleable="true"
                 Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.isGrasping() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
 
         <!-- ALWAYS REQUIRED -->
@@ -29,8 +29,8 @@
             <Behavior Name="StandUp" Frequency="6" Hidden="true"/>
             <Behavior Name="Walk" Frequency="7" Hidden="true"/>
             <Behavior Name="ChaseMouse" Frequency="7" Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
-            <Behavior Name="CatchMouse" Frequency="2" Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
-            <Behavior Name="Telekinesis" Frequency="3" Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.isGrasping() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
+            <Behavior Name="CatchMouse" Frequency="2" Toggleable="true" Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
+            <Behavior Name="Telekinesis" Frequency="3" Toggleable="true" Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.isGrasping() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
         </Condition>
 
     </BehaviorList>
