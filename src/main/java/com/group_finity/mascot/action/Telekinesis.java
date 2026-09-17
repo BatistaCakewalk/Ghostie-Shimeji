@@ -1145,7 +1145,7 @@ public class Telekinesis extends ActionBase {
                                                 new com.sun.jna.platform.win32.WinUser.WINDOWPLACEMENT();
                                         // GetWindowPlacement fails unless length is set.
                                         wp.length = wp.size();
-                                        boolean placementOk = false;
+                                        boolean placementOk;
                                         try {
                                             placementOk = com.sun.jna.platform.win32.User32.INSTANCE
                                                     .GetWindowPlacement(chain, wp).booleanValue();
@@ -1154,7 +1154,7 @@ public class Telekinesis extends ActionBase {
                                         }
                                         if (placementOk
                                                 && wp.showCmd == com.sun.jna.platform.win32.WinUser.SW_SHOWMAXIMIZED) {
-                                            boolean covers = true;
+                                            boolean covers;
                                             try {
                                                 final com.sun.jna.platform.win32.WinDef.RECT coverRect =
                                                         new com.sun.jna.platform.win32.WinDef.RECT();
@@ -1164,6 +1164,8 @@ public class Telekinesis extends ActionBase {
                                                             && coverRect.right > current.x
                                                             && coverRect.top < current.y + current.height
                                                             && coverRect.bottom > current.y;
+                                                } else {
+                                                    covers = true;
                                                 }
                                             } catch (final RuntimeException e) {
                                                 covers = true;
