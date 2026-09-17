@@ -1,2 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Qodana baseline fingerprints are content-sensitive: never convert line endings
+qodana.sarif.json -text
