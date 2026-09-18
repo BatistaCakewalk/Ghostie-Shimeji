@@ -131,7 +131,7 @@ public class GraspMouse extends ActionBase {
     private static final double DEFAULT_MAX_STRUGGLE_BONUS = 600.0;
 
     private static final String PARAMETER_MAX_CATCHABLE_CURSOR_SIZE = "MaxCatchableCursorSize";
-    private static final double DEFAULT_MAX_CATCHABLE_CURSOR_SIZE = 48.0;
+    private static final double DEFAULT_MAX_CATCHABLE_CURSOR_SIZE = 96.0;
 
     private static final int CUDDLE_SHAKE_WINDOW = 30;
     private static final int CUDDLE_ANIM_INTERVAL = 30;
@@ -232,6 +232,10 @@ public class GraspMouse extends ActionBase {
     private String bloatKey2;
     private String bloatWalkKey1;
     private String bloatWalkKey2;
+    private String bloatBigKey1;
+    private String bloatBigKey2;
+    private String bloatBigWalkKey1;
+    private String bloatBigWalkKey2;
     private boolean swallowImagesLoaded;
 
     // Sick + spit-fling state after a swallow is shaken loose
@@ -745,7 +749,7 @@ public class GraspMouse extends ActionBase {
                 // Stale clicks bleed off: stop clicking and progress fades ~1 click per 15 ticks.
                 swallowClicks--;
             }
-            if (swallowClicks >= getSwallowClickCount()) {
+            if (swallowClicks >= getSwallowClicksRequired()) {
                 log.info("Swallow shaken loose after {} clicks, Nigel feels sick", swallowClicks);
                 com.group_finity.mascot.sound.NigelSounds.playHeave();
                 sickPhase = 1;
@@ -1277,14 +1281,32 @@ public class GraspMouse extends ActionBase {
             ImagePairs.addUsage(bloatWalkKey1, imageSet);
             bloatWalkKey2 = ImagePairs.load(Path.of(imageSet, "BloatWalk2.png"), null, 96, 200, scaling, filter, opacity);
             ImagePairs.addUsage(bloatWalkKey2, imageSet);
+            // Stuffed tier (BloatBig*.png) is optional: missing files just fall
+            // back to the normal bloat sprites, one file at a time.
+            bloatBigKey1 = loadOptionalSwallowImage(imageSet, "BloatBigStand.png", scaling, filter, opacity);
+            bloatBigKey2 = loadOptionalSwallowImage(imageSet, "BloatBigStand2.png", scaling, filter, opacity);
+            bloatBigWalkKey1 = loadOptionalSwallowImage(imageSet, "BloatBigWalk1.png", scaling, filter, opacity);
+            bloatBigWalkKey2 = loadOptionalSwallowImage(imageSet, "BloatBigWalk2.png", scaling, filter, opacity);
             swallowImagesLoaded = true;
         } catch (final IOException | RuntimeException e) {
             log.warn("Failed to load swallow images for GraspMouse", e);
         }
     }
 
+    private static String loadOptionalSwallowImage(final String imageSet, final String file,
+            final double scaling, final Filter filter, final double opacity) {
+        try {
+            final String key = ImagePairs.load(Path.of(imageSet, file), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(key, imageSet);
+            return key;
+        } catch (final IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     private void applySwallowAnimation(final boolean waddling) {
         ensureSwallowImagesLoaded();
+        final boolean stuffed = isStuffedSwallow();
         final String key;
         if (swallowTicks < SWALLOW_GULP_TICKS) {
             key = swallowKeyStart;
@@ -1292,14 +1314,21 @@ public class GraspMouse extends ActionBase {
             key = swallowKeyAfter;
         } else if (waddling) {
             key = ((swallowTicks - SWALLOW_GULP_TICKS - SWALLOW_AFTER_TICKS) / BLOAT_ANIM_INTERVAL) % 2 == 0
-                    ? bloatWalkKey1 : bloatWalkKey2;
+                    ? orElse(bloatBigWalkKey1, bloatWalkKey1, stuffed) : orElse(bloatBigWalkKey2, bloatWalkKey2, stuffed);
         } else {
             key = ((swallowTicks - SWALLOW_GULP_TICKS - SWALLOW_AFTER_TICKS) / BLOAT_ANIM_INTERVAL) % 2 == 0
-                    ? bloatKey1 : bloatKey2;
+                    ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
         }
         if (key != null && ImagePairs.contains(key)) {
             getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
         }
+    }
+
+    private static String orElse(final String big, final String normal, final boolean stuffed) {
+        if (stuffed && big != null && ImagePairs.contains(big)) {
+            return big;
+        }
+        return normal;
     }
 
     /**
@@ -1661,5 +1690,28 @@ public class GraspMouse extends ActionBase {
 
     private boolean isCursorTooBig() throws VariableException {
         return getEnvironment().getCursorSizePixels() > getMaxCatchableCursorSize();
+    }
+
+    /**
+     * Swallow click requirement scaled by cursor size: normal cursors (32px
+     * and under) need the base count, bigger ones up to triple it. He has
+     * to work the big ones down before they fit.
+     */
+    private int getSwallowClicksRequired() throws VariableException {
+        final int base = getSwallowClickCount();
+        final int size = getEnvironment().getCursorSizePixels();
+        if (size <= 32) {
+            return base;
+        }
+        final double t = Math.min(1.0, (size - 32) / 64.0);
+        return base + (int) Math.round(base * 2.0 * t);
+    }
+
+    /**
+     * Stuffed tier: cursors over 64px show the big-belly sprites while
+     * swallowed, when the image set provides them.
+     */
+    private boolean isStuffedSwallow() {
+        return getEnvironment().getCursorSizePixels() > 64;
     }
 }

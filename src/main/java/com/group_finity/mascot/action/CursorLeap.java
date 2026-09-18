@@ -34,7 +34,7 @@ public class CursorLeap extends ActionBase {
     private static final double DEFAULT_VELOCITY = 38.0;
 
     private static final String PARAMETER_MAX_CATCHABLE_CURSOR_SIZE = "MaxCatchableCursorSize";
-    private static final double DEFAULT_MAX_CATCHABLE_CURSOR_SIZE = 48.0;
+    private static final double DEFAULT_MAX_CATCHABLE_CURSOR_SIZE = 96.0;
 
     private static final String VARIABLE_VELOCITYX = "VelocityX";
 

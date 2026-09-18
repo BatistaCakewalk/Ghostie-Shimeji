@@ -882,7 +882,11 @@ public class Telekinesis extends ActionBase {
             return;
         }
         // Strength ramps with time held: starts buffed and triples over ~300 ticks.
-        final double step = PULL_STEP * (1.0 + 2.0 * Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS));
+        // Heavy cursors drag: pull strength scales down with OS cursor size
+        // (32px reels full speed, big ones crawl, floor at a quarter).
+        final double sizeFactor =
+                Math.max(0.25, Math.min(1.0, 32.0 / getEnvironment().getCursorSizePixels()));
+        final double step = PULL_STEP * (1.0 + 2.0 * Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS)) * sizeFactor;
         robot.mouseMove((int) Math.round(raw.x + dx / distance * step),
                 (int) Math.round(raw.y + dy / distance * step));
     }

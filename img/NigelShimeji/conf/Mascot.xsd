@@ -626,10 +626,10 @@
                 </documentation>
             </annotation>
         </attribute>
-        <attribute name="MaxCatchableCursorSize" type="tns:ScriptableDouble" default="48">
+        <attribute name="MaxCatchableCursorSize" type="tns:ScriptableDouble" default="96">
             <annotation>
                 <documentation>
-                    OS cursor size in pixels above which Nigel refuses the catch (and the swallow). Defaults to 48.
+                    OS cursor size in pixels at which Nigel refuses the catch (and the swallow). Defaults to 96.
                 </documentation>
             </annotation>
         </attribute>
