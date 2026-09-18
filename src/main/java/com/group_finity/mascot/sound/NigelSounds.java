@@ -205,6 +205,7 @@ public final class NigelSounds {
         final double seconds = 2.0;
         final int samples = Math.max(1, (int) (SAMPLE_RATE * seconds));
         final byte[] pcm = new byte[samples * 2];
+        double smoothNoise = 0.0;
         for (int i = 0; i < samples; i++) {
             final double time = i / (double) SAMPLE_RATE;
             final double progress = i / (double) samples;
@@ -212,9 +213,14 @@ public final class NigelSounds {
                     + Math.sin(2.0 * Math.PI * baseFreq * 1.5 * time) * 0.3
                     + Math.sin(2.0 * Math.PI * baseFreq * 2.0 * time) * 0.2;
             final double beat = 0.7 + 0.3 * Math.sin(2.0 * Math.PI * (0.5 + harshness * 5.0) * time);
-            final double grit = (Math.random() * 2.0 - 1.0) * harshness * 0.4;
+            // Instability as beating and dark rumble, not white-noise hiss:
+            // a detuned partial plus heavily smoothed noise.
+            final double detune = Math.sin(2.0 * Math.PI * baseFreq * 2.01 * time) * harshness * 0.15;
+            smoothNoise += 0.08 * ((Math.random() * 2.0 - 1.0) - smoothNoise);
+            final double rumble = smoothNoise * harshness * 0.5;
             final double edge = Math.min(1.0, Math.min(progress, 1.0 - progress) * samples / (SAMPLE_RATE * 0.05));
-            final short value = (short) ((wave * (1.0 - harshness * 0.4) + grit) * beat * edge * 0.22 * 32767);
+            final short value = (short) ((wave * (1.0 - harshness * 0.2) + detune + rumble)
+                    * beat * edge * 0.22 * 32767);
             pcm[i * 2] = (byte) (value & 0xFF);
             pcm[i * 2 + 1] = (byte) ((value >> 8) & 0xFF);
         }
