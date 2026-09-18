@@ -29,7 +29,7 @@ On `<Action Name="Grasp" ...>`:
 
 While swallowed the cursor stays pinned dead center on Nigel (escape clicks only register on his window); an hour with zero registered clicks forces sickness as an anti-softlock. The spit-fling leaves a fading saliva-droplet trail and floor-bounces while it has bounces banked from sick clicks.
 
-Big cursors: past `MaxCatchableCursorSize` (default 96px) Nigel won't pounce or hold at all (he'll still chase). Below that, swallowing scales: 32px needs the base `SwallowClickCount`, up to quadruple at 96px, with the click window and bleed-off stretched to match. Over 64px he shows the stuffed `BloatBig*.png` sprites when the set provides them (`BloatBigStand.png`, `BloatBigStand2.png`, `BloatBigWalk1.png`, `BloatBigWalk2.png` — 192x192, anchor 96,200, optional, falls back per file). Tele-mouse reels slow down with cursor size (full speed at 32px, quarter floor).
+Big cursors: past `MaxCatchableCursorSize` (default 96px) Nigel won't pounce or hold at all (he'll still chase). Below that, swallowing scales: 32px needs the base `SwallowClickCount`, up to quadruple at 96px, with the click window and bleed-off stretched to match. Over 64px he shows the stuffed sprites when the set provides them (`FatterStand.png`, `FatterStand2.png` for standing, `BloatBigWalk1.png`, `BloatBigWalk2.png` for waddling — 192x192, anchor 96,200, optional, falls back per file). Tele-mouse reels slow down with cursor size (full speed at 32px, quarter floor).
 
 ## Telekinesis attributes
 

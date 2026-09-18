@@ -1361,8 +1361,8 @@ public class GraspMouse extends ActionBase {
             ImagePairs.addUsage(bloatWalkKey2, imageSet);
             // Stuffed tier (BloatBig*.png) is optional: missing files just fall
             // back to the normal bloat sprites, one file at a time.
-            bloatBigKey1 = loadOptionalSwallowImage(imageSet, "BloatBigStand.png", scaling, filter, opacity);
-            bloatBigKey2 = loadOptionalSwallowImage(imageSet, "BloatBigStand2.png", scaling, filter, opacity);
+            bloatBigKey1 = loadOptionalSwallowImage(imageSet, "FatterStand.png", scaling, filter, opacity);
+            bloatBigKey2 = loadOptionalSwallowImage(imageSet, "FatterStand2.png", scaling, filter, opacity);
             bloatBigWalkKey1 = loadOptionalSwallowImage(imageSet, "BloatBigWalk1.png", scaling, filter, opacity);
             bloatBigWalkKey2 = loadOptionalSwallowImage(imageSet, "BloatBigWalk2.png", scaling, filter, opacity);
             // Stuffed intro set (SwallowBig1-3, SwallowAfter1-4): all or
