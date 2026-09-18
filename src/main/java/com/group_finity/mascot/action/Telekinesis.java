@@ -823,6 +823,11 @@ public class Telekinesis extends ActionBase {
         // Redness runs on the clock: fully red ~6s into the pull.
         pullTicks++;
         final double heat = Math.min(1.0, pullTicks / (double) PULL_RED_TICKS);
+        // Strain blips, uglier as the pull nears max force.
+        if (pullTicks % 25 == 0) {
+            com.group_finity.mascot.sound.NigelSounds.playStrain(
+                    Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS));
+        }
         if (!warnedForcing && heat >= 0.5) {
             warnedForcing = true;
             log.info("Nigel forcing the pull harder, heat={}", heat);

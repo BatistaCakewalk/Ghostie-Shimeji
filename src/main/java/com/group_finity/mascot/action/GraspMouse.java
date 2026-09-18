@@ -706,6 +706,10 @@ public class GraspMouse extends ActionBase {
                 return;
             }
             swallowTicks++;
+            if (swallowTicks == SWALLOW_GULP_TICKS + 1) {
+                // Cursor fully inside (SwallowAfter sprite): deep GLUG-glug.
+                com.group_finity.mascot.sound.NigelSounds.playGlug();
+            }
 
             if (swallowWindowRemaining > 0) {
                 swallowWindowRemaining--;

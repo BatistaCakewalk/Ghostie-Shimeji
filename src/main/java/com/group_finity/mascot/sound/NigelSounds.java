@@ -47,9 +47,10 @@ public final class NigelSounds {
         if (!isEnabled()) {
             return;
         }
-        // Low downward slide with grit; bigger power means longer and lower.
+        // Wet burp: low slide with a fast gargle flutter and grit.
+        // Bigger power means longer, lower and wetter.
         final double clamped = Math.max(1.0, Math.min(4.0, power));
-        play(tone(200.0, 90.0 - clamped * 5.0, 0.2 + clamped * 0.08, 0.35, false));
+        play(gargle(190.0, 70.0, 0.25 + clamped * 0.09, 28.0, 0.45));
     }
 
     public static void playLaunch() {
@@ -97,15 +98,15 @@ public final class NigelSounds {
             return;
         }
         // Queasy wobble before the burp: pitch wavers instead of sliding.
-        play(wobble(160.0, 0.3, 9.0, 40.0));
+        play(wobble(160.0, 0.3, 9.0, 40.0, 0.0));
     }
 
     public static void playTeleLift() {
         if (!isEnabled()) {
             return;
         }
-        // Spooky shimmer: high sine swelling in.
-        play(swell(880.0, 1320.0, 0.25));
+        // Aura surge: a long evolving shimmer while the hold takes.
+        play(swell(660.0, 1320.0, 0.9));
     }
 
     public static void playDropThud() {
@@ -114,6 +115,25 @@ public final class NigelSounds {
         }
         // Window dropped: dull low thud with grit.
         play(tone(120.0, 60.0, 0.14, 0.4, false));
+    }
+
+    public static void playGlug() {
+        if (!isEnabled()) {
+            return;
+        }
+        // Cursor fully inside: deep two-stage GLUG-glug.
+        play(notes(new double[] { 280.0, 190.0 }, 0.1, 0.25, false));
+    }
+
+    public static void playStrain(final double harshness) {
+        if (!isEnabled()) {
+            return;
+        }
+        // Tele-mouse at rising force: short harsh blip that gets uglier
+        // as the pull nears max. Called periodically through the pull.
+        final double harsh = Math.max(0.0, Math.min(1.0, harshness));
+        play(wobble(250.0 + harsh * 200.0, 0.15, 20.0 + harsh * 60.0, 30.0 + harsh * 80.0,
+                0.1 + harsh * 0.5));
     }
 
     private static byte[] tone(final double freqFrom, final double freqTo, final double seconds,
@@ -165,7 +185,7 @@ public final class NigelSounds {
     }
 
     private static byte[] wobble(final double baseFreq, final double seconds, final double wobbleHz,
-            final double wobbleDepth) {
+            final double wobbleDepth, final double noiseMix) {
         final int samples = Math.max(1, (int) (SAMPLE_RATE * seconds));
         final byte[] pcm = new byte[samples * 2];
         double phase = 0.0;
@@ -176,7 +196,31 @@ public final class NigelSounds {
             final double progress = i / (double) samples;
             final double attack = Math.min(1.0, i / (SAMPLE_RATE * 0.005));
             final double envelope = attack * (1.0 - progress * 0.5);
-            final short value = (short) (Math.sin(phase) * envelope * VOLUME * 32767);
+            final double sample = Math.sin(phase) * (1.0 - noiseMix)
+                    + (Math.random() * 2.0 - 1.0) * noiseMix;
+            final short value = (short) (sample * envelope * VOLUME * 32767);
+            pcm[i * 2] = (byte) (value & 0xFF);
+            pcm[i * 2 + 1] = (byte) ((value >> 8) & 0xFF);
+        }
+        return pcm;
+    }
+
+    private static byte[] gargle(final double freqFrom, final double freqTo, final double seconds,
+            final double flutterHz, final double noiseMix) {
+        final int samples = Math.max(1, (int) (SAMPLE_RATE * seconds));
+        final byte[] pcm = new byte[samples * 2];
+        for (int i = 0; i < samples; i++) {
+            final double progress = i / (double) samples;
+            final double time = i / (double) SAMPLE_RATE;
+            final double phase = 2.0 * Math.PI
+                    * (freqFrom * time + (freqTo - freqFrom) * time * time / (2.0 * seconds));
+            // Fast amplitude flutter reads as wetness; noise reads as grit.
+            final double flutter = 0.55 + 0.45 * Math.sin(2.0 * Math.PI * flutterHz * time);
+            final double sample = (Math.sin(phase) * (1.0 - noiseMix)
+                    + (Math.random() * 2.0 - 1.0) * noiseMix) * flutter;
+            final double attack = Math.min(1.0, i / (SAMPLE_RATE * 0.005));
+            final double envelope = attack * Math.exp(-2.5 * progress);
+            final short value = (short) (sample * envelope * VOLUME * 32767);
             pcm[i * 2] = (byte) (value & 0xFF);
             pcm[i * 2 + 1] = (byte) ((value >> 8) & 0xFF);
         }
@@ -191,9 +235,10 @@ public final class NigelSounds {
             final double time = i / (double) SAMPLE_RATE;
             final double phase = 2.0 * Math.PI
                     * (freqFrom * time + (freqTo - freqFrom) * time * time / (2.0 * seconds));
-            // Swells in, then cuts: the opposite of the usual decay.
+            // Swells in with a slow shimmer, then cuts: the opposite of the usual decay.
+            final double shimmer = 0.8 + 0.2 * Math.sin(2.0 * Math.PI * 6.0 * time);
             final double envelope = Math.min(1.0, progress * 3.0) * (1.0 - Math.max(0.0, progress - 0.8) * 5.0);
-            final short value = (short) (Math.sin(phase) * envelope * VOLUME * 32767);
+            final short value = (short) (Math.sin(phase) * envelope * shimmer * VOLUME * 32767);
             pcm[i * 2] = (byte) (value & 0xFF);
             pcm[i * 2 + 1] = (byte) ((value >> 8) & 0xFF);
         }
