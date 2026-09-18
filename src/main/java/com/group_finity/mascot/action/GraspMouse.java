@@ -1363,8 +1363,8 @@ public class GraspMouse extends ActionBase {
             // back to the normal bloat sprites, one file at a time.
             bloatBigKey1 = loadOptionalSwallowImage(imageSet, "FatterStand.png", scaling, filter, opacity);
             bloatBigKey2 = loadOptionalSwallowImage(imageSet, "FatterStand2.png", scaling, filter, opacity);
-            bloatBigWalkKey1 = loadOptionalSwallowImage(imageSet, "BloatBigWalk1.png", scaling, filter, opacity);
-            bloatBigWalkKey2 = loadOptionalSwallowImage(imageSet, "BloatBigWalk2.png", scaling, filter, opacity);
+            bloatBigWalkKey1 = loadOptionalSwallowImage(imageSet, "WalkBigBloated1.png", scaling, filter, opacity);
+            bloatBigWalkKey2 = loadOptionalSwallowImage(imageSet, "WalkBigBloated2.png", scaling, filter, opacity);
             // Stuffed intro set (SwallowBig1-3, SwallowAfter1-4): all or
             // nothing, the choreography needs every frame.
             bigSwallowKey1 = loadOptionalSwallowImage(imageSet, "SwallowBig1.png", scaling, filter, opacity);
