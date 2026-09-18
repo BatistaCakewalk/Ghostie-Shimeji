@@ -206,6 +206,11 @@ public final class NigelSounds {
         final int samples = Math.max(1, (int) (SAMPLE_RATE * seconds));
         final byte[] pcm = new byte[samples * 2];
         double smoothNoise = 0.0;
+        // Break-apart texture, only audible near max harshness: random
+        // micro-dropouts plus sparse crackle pops, baked into the loop so
+        // they repeat with the drone instead of firing as events.
+        int dropLeft = 0;
+        int nextDropIn = (int) (SAMPLE_RATE * 0.3);
         for (int i = 0; i < samples; i++) {
             final double time = i / (double) SAMPLE_RATE;
             final double progress = i / (double) samples;
@@ -219,8 +224,23 @@ public final class NigelSounds {
             smoothNoise += 0.08 * ((Math.random() * 2.0 - 1.0) - smoothNoise);
             final double rumble = smoothNoise * harshness * 0.5;
             final double edge = Math.min(1.0, Math.min(progress, 1.0 - progress) * samples / (SAMPLE_RATE * 0.05));
-            final short value = (short) ((wave * (1.0 - harshness * 0.2) + detune + rumble)
-                    * beat * edge * 0.22 * 32767);
+            double breakup = 1.0;
+            double crackle = 0.0;
+            if (harshness > 0.55) {
+                final double heat = (harshness - 0.55) / 0.45;
+                if (dropLeft > 0) {
+                    dropLeft--;
+                    breakup = 0.05;
+                } else if (--nextDropIn <= 0) {
+                    dropLeft = 200 + (int) (Math.random() * 700);
+                    nextDropIn = (int) (SAMPLE_RATE * (0.45 - heat * 0.3) * (0.5 + Math.random()));
+                }
+                if (Math.random() < heat * 0.0008) {
+                    crackle = (Math.random() * 2.0 - 1.0) * 0.6 * heat;
+                }
+            }
+            final short value = (short) (((wave * (1.0 - harshness * 0.2) + detune + rumble) * breakup
+                    + crackle) * beat * edge * 0.22 * 32767);
             pcm[i * 2] = (byte) (value & 0xFF);
             pcm[i * 2 + 1] = (byte) ((value >> 8) & 0xFF);
         }
