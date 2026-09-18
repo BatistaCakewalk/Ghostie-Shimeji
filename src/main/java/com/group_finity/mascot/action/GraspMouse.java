@@ -755,8 +755,8 @@ public class GraspMouse extends ActionBase {
                 return;
             }
             swallowTicks++;
-            if (swallowTicks == getScaledSwallowGulpTicks() + 1) {
-                // Cursor fully inside (SwallowAfter sprite): deep GLUG-glug.
+            if (swallowTicks == getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks()) {
+                // Fully inside at the very end: the actual gulp.
                 com.group_finity.mascot.sound.NigelSounds.playGlug();
             }
 
@@ -807,12 +807,14 @@ public class GraspMouse extends ActionBase {
             boolean waddling = false;
             if (gulping) {
                 // Gulp in place where he caught it. Big cursors go down
-                // hard: the body shakes with size and he chokes on the way.
-                if (swallowSizeMult > 1.0) {
-                    if (swallowTicks % 30 == 0) {
-                        com.group_finity.mascot.sound.NigelSounds.playChoke();
-                    }
-                    wrestle(10.0 * (swallowSizeMult - 1.0), true);
+                // hard: on choke ticks the body heaves once with the sound,
+                // otherwise he holds still and strains. The actual gulp
+                // lands at the very end, when it's fully inside.
+                if (swallowSizeMult > 1.0 && swallowTicks % 30 == 0) {
+                    com.group_finity.mascot.sound.NigelSounds.playChoke();
+                    getMascot().getAnchor().translate(
+                            (int) Math.round(Math.random() * 4.0 - 2.0),
+                            (int) Math.round(Math.random() * 4.0 - 2.0));
                 } else {
                     wrestle(0.0, false);
                 }
