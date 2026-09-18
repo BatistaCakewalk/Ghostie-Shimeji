@@ -2,6 +2,8 @@
 
 # Nigel Shimeji
 
+[![Qodana](https://github.com/BatistaCakewalk/Ghostie-Shimeji/actions/workflows/qodana_code_quality.yml/badge.svg)](https://github.com/BatistaCakewalk/Ghostie-Shimeji/actions/workflows/qodana_code_quality.yml)
+
 A strange little guy that lives on your desktop. He hovers, stares, and will most likely make your day worse.
 
 Heavily customized fork of [Shimeji-ee](https://github.com/DalekCraft2/Shimeji-Desktop) (Kilkakon/Shimeji-ee → Yuki Yamada's original Shimeji) focused on a single character — **Nigel**.
