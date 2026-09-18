@@ -75,9 +75,10 @@ public class Telekinesis extends ActionBase {
 
     /**
      * Extra pull ticks past max force before the overloaded hold snaps.
-     * Skilled dodging can outlast him; the cursor goes free.
+     * Skilled dodging can outlast him; the cursor goes free. Must stay
+     * under the behavior Duration (400): 300 ramp + 75 redline = 375.
      */
-    private static final int PULL_OVERLOAD_TICKS = 150;
+    private static final int PULL_OVERLOAD_TICKS = 75;
 
     /**
      * Hands height above the anchor, mirroring GraspMouse's GraspOffsetY, so
