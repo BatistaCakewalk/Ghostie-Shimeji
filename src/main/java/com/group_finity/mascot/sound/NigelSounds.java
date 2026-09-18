@@ -114,42 +114,87 @@ public final class NigelSounds {
      * Starts the telekinesis drone: a looping hum that lasts the whole hold.
      * Restart-safe (restarts cleanly) so re-pitching mid-pull and rapid
      * re-lifts never stack drones. Higher base pitch and harshness read as
-     * more force; full harshness sounds unstable on purpose.
+     * more force; full harshness sounds unstable on purpose. Re-pitches
+     * crossfade: the new loop starts first and the old one closes after a
+     * short overlap, so there is no dropout gap.
      */
     public static synchronized void startHum(final double baseFreq, final double harshness) {
         if (!isEnabled()) {
             return;
         }
-        stopHumLocked();
-        try {
-            final byte[] drone = drone(baseFreq, Math.max(0.0, Math.min(1.0, harshness)));
-            final AudioFormat format = new AudioFormat(SAMPLE_RATE, 16, 1, true, false);
-            humClip = AudioSystem.getClip();
-            humClip.open(format, drone, 0, drone.length);
-            humClip.loop(Clip.LOOP_CONTINUOUSLY);
-        } catch (final Exception ignored) {
-            humClip = null;
+        if (humClip != null && baseFreq == humBase && harshness == humHarsh) {
+            return;
         }
+        humBase = baseFreq;
+        humHarsh = harshness;
+        final Clip outgoing = humClip;
+        humClip = null;
+        final long gen = ++humGen;
+        PLAYER.execute(() -> {
+            Clip incoming = null;
+            try {
+                incoming = openHum(baseFreq, harshness);
+                incoming.start();
+            } catch (final Exception ignored) {
+            }
+            if (outgoing != null) {
+                try {
+                    Thread.sleep(HUM_OVERLAP_MILLIS);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            synchronized (NigelSounds.class) {
+                if (gen == humGen && humClip == null) {
+                    humClip = incoming;
+                    incoming = null;
+                }
+            }
+            closeQuietly(outgoing);
+            closeQuietly(incoming);
+        });
     }
 
     /**
      * Stops the telekinesis drone. Idempotent: safe from every hold exit
-     * path at once (endHold and disposeGlows both call it).
+     * path at once (endHold and disposeGlows both call it). Also cancels a
+     * crossfade in flight: the generation bump strands it, and it closes
+     * everything it opened.
      */
     public static synchronized void stopHum() {
-        stopHumLocked();
+        humGen++;
+        humBase = Double.NaN;
+        humHarsh = Double.NaN;
+        closeQuietly(humClip);
+        humClip = null;
     }
+
+    private static final long HUM_OVERLAP_MILLIS = 120;
 
     private static Clip humClip;
 
-    private static void stopHumLocked() {
-        if (humClip != null) {
+    private static long humGen;
+
+    private static double humBase = Double.NaN;
+
+    private static double humHarsh = Double.NaN;
+
+    private static Clip openHum(final double baseFreq, final double harshness) throws Exception {
+        final byte[] drone = drone(baseFreq, Math.max(0.0, Math.min(1.0, harshness)));
+        final AudioFormat format = new AudioFormat(SAMPLE_RATE, 16, 1, true, false);
+        final Clip clip = AudioSystem.getClip();
+        clip.open(format, drone, 0, drone.length);
+        clip.loop(Clip.LOOP_CONTINUOUSLY);
+        return clip;
+    }
+
+    private static void closeQuietly(final Clip clip) {
+        if (clip != null) {
             try {
-                humClip.stop();
-                humClip.close();
+                clip.stop();
+                clip.close();
             } catch (final Exception ignored) {
             }
-            humClip = null;
         }
     }
 
