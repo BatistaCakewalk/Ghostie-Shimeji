@@ -269,6 +269,7 @@ public class Telekinesis extends ActionBase {
         faceWindow();
         log.info("Telekinesis init: holding window at ({}, {}) size {}x{}",
                 (int) startX, (int) startY, winW, winH);
+        com.group_finity.mascot.sound.NigelSounds.playTeleLift();
     }
 
     @Override
@@ -502,6 +503,7 @@ public class Telekinesis extends ActionBase {
         // The drop is unmarked: glow goes away the moment the hold breaks.
         disposeGlows();
         log.info("Telekinesis cancelled: dropping window at ({}, {})", (int) curX, (int) curY);
+        com.group_finity.mascot.sound.NigelSounds.playDropThud();
         final Timer timer = new Timer(40, null);
         timer.addActionListener(event -> {
             try {

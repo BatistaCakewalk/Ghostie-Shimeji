@@ -795,7 +795,7 @@ public class SettingsWindow extends JDialog implements Localizable {
         pnlNigel.add(javax.swing.Box.createVerticalStrut(10));
 
         chkNigelSounds = new javax.swing.JCheckBox();
-        chkNigelSounds.setText("Sound blips (gulp, burp, launch)");
+        chkNigelSounds.setText("Sound blips (actions and events)");
         chkNigelSounds.setAlignmentX(0.0F);
         chkNigelSounds.addItemListener(this::chkNigelSoundsItemStateChanged);
         pnlNigel.add(chkNigelSounds);

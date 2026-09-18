@@ -614,7 +614,8 @@ public class GraspMouse extends ActionBase {
             recoilVY = 0.0;
             return;
         }
-        log.info("Entering cuddle mode after idle (quick re-enter: {})", quickReenter);
+            log.info("Entering cuddle mode after idle (quick re-enter: {})", quickReenter);
+            com.group_finity.mascot.sound.NigelSounds.playCuddle();
         cuddleMode = true;
         cuddleTicks = 0;
         shakeCount = 0;
@@ -648,6 +649,7 @@ public class GraspMouse extends ActionBase {
         if (cuddleQueued) {
             cuddleQueued = false;
             log.info("Entering cuddle mode immediately (menu-ordered)");
+            com.group_finity.mascot.sound.NigelSounds.playCuddle();
             hideCursor();
             idleTicks = 0;
             postCuddleGrace = 0;
@@ -725,6 +727,7 @@ public class GraspMouse extends ActionBase {
             }
             if (swallowClicks >= getSwallowClickCount()) {
                 log.info("Swallow shaken loose after {} clicks, Nigel feels sick", swallowClicks);
+                com.group_finity.mascot.sound.NigelSounds.playHeave();
                 sickPhase = 1;
                 sickTicks = 0;
                 sickClicks = 0;
@@ -918,6 +921,7 @@ public class GraspMouse extends ActionBase {
 
         if (hp <= 0) {
             log.info("Grasp broken: ticksHeld={}, finalStruggle={}, fatigue={}", getTime(), struggle, fatigue);
+            com.group_finity.mascot.sound.NigelSounds.playBreakFree();
             throw new LostGroundException("The mouse broke free of Nigel's grasp");
         }
     }
