@@ -130,6 +130,9 @@ public class GraspMouse extends ActionBase {
     private static final String PARAMETER_MAX_STRUGGLE_BONUS = "MaxStruggleBonus";
     private static final double DEFAULT_MAX_STRUGGLE_BONUS = 600.0;
 
+    private static final String PARAMETER_MAX_CATCHABLE_CURSOR_SIZE = "MaxCatchableCursorSize";
+    private static final double DEFAULT_MAX_CATCHABLE_CURSOR_SIZE = 48.0;
+
     private static final int CUDDLE_SHAKE_WINDOW = 30;
     private static final int CUDDLE_ANIM_INTERVAL = 30;
     private static final int SWALLOW_GULP_TICKS = 40;
@@ -595,7 +598,8 @@ public class GraspMouse extends ActionBase {
     private void enterIdleReward(final boolean quickReenter) throws VariableException {
         idleTicks = 0;
         postCuddleGrace = 0;
-        if (Main.getInstance().getSettings().nigelSwallowEnabled && Math.random() < getSwallowChance()) {
+        if (Main.getInstance().getSettings().nigelSwallowEnabled && !isCursorTooBig()
+                && Math.random() < getSwallowChance()) {
             log.info("Entering swallow mode (quick re-enter: {})", quickReenter);
             com.group_finity.mascot.sound.NigelSounds.playGulp();
             swallowMode = true;
@@ -673,11 +677,11 @@ public class GraspMouse extends ActionBase {
         }
 
         // Devoured straight out of a max-strength pull: no idle wait, no cuddle roll.
-        // (Unless swallowing is disabled in Nigel Settings: then the devour
-        // just becomes a normal grasp.)
-        if (devourQueued && !Main.getInstance().getSettings().nigelSwallowEnabled) {
+        // (Unless swallowing is disabled in Nigel Settings, or the cursor is
+        // too big to fit: then the devour just becomes a normal grasp.)
+        if (devourQueued && (!Main.getInstance().getSettings().nigelSwallowEnabled || isCursorTooBig())) {
             devourQueued = false;
-            log.info("Devoured but swallowing is disabled, normal grasp continues");
+            log.info("Devoured but swallowing is off the table, normal grasp continues");
         }
         if (devourQueued) {
             devourQueued = false;
@@ -1649,5 +1653,13 @@ public class GraspMouse extends ActionBase {
 
     private double getMaxStruggleBonus() throws VariableException {
         return eval(getSchema().getString(PARAMETER_MAX_STRUGGLE_BONUS), Number.class, DEFAULT_MAX_STRUGGLE_BONUS).doubleValue();
+    }
+
+    private double getMaxCatchableCursorSize() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_MAX_CATCHABLE_CURSOR_SIZE), Number.class, DEFAULT_MAX_CATCHABLE_CURSOR_SIZE).doubleValue();
+    }
+
+    private boolean isCursorTooBig() throws VariableException {
+        return getEnvironment().getCursorSizePixels() > getMaxCatchableCursorSize();
     }
 }

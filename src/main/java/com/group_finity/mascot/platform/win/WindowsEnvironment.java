@@ -8,7 +8,10 @@ import com.group_finity.mascot.platform.win.jna.User32Extra;
 import com.sun.jna.Pointer;
 import com.sun.jna.platform.WindowUtils;
 import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Advapi32Util;
 import com.sun.jna.platform.win32.User32;
+import com.sun.jna.platform.win32.WinReg;
+import com.sun.jna.platform.win32.WinUser;
 import com.sun.jna.platform.win32.VersionHelpers;
 import com.sun.jna.platform.win32.Win32Exception;
 import com.sun.jna.platform.win32.WinDef.HWND;
@@ -280,6 +283,29 @@ class WindowsEnvironment extends AbstractEnvironment {
         } catch (final Exception ignored) {
         }
         return super.isMouseLocked();
+    }
+
+    @Override
+    public int getCursorSizePixels() {
+        // Accessibility pointer size lives in CursorBaseSize; fall back to
+        // the system cursor metric, then the default. Big cursors welcome
+        // nowhere near Nigel.
+        try {
+            final int base = Advapi32Util.registryGetIntValue(
+                    WinReg.HKEY_CURRENT_USER, "Control Panel\\Cursors", "CursorBaseSize");
+            if (base > 0) {
+                return base;
+            }
+        } catch (final RuntimeException ignored) {
+        }
+        try {
+            final int metric = User32.INSTANCE.GetSystemMetrics(WinUser.SM_CXCURSOR);
+            if (metric > 0) {
+                return metric;
+            }
+        } catch (final RuntimeException ignored) {
+        }
+        return 32;
     }
 
     /**

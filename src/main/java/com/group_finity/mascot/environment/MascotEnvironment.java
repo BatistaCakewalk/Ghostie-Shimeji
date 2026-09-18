@@ -461,6 +461,16 @@ public class MascotEnvironment {
     }
 
     /**
+     * OS cursor size in pixels (largest dimension).
+     *
+     * @return the cursor size in pixels
+     * @see Environment#getCursorSizePixels()
+     */
+    public int getCursorSizePixels() {
+        return impl.getCursorSizePixels();
+    }
+
+    /**
      * Checks whether the mascot is on the top or bottom border of exactly one screen.
      * Returns {@code false} if the mascot is on multiple top/bottom borders (i.e., the mascot is on the border between
      * two screens).

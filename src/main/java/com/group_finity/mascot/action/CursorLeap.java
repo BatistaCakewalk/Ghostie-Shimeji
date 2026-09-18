@@ -33,6 +33,9 @@ public class CursorLeap extends ActionBase {
     private static final String PARAMETER_VELOCITY = "VelocityParam";
     private static final double DEFAULT_VELOCITY = 38.0;
 
+    private static final String PARAMETER_MAX_CATCHABLE_CURSOR_SIZE = "MaxCatchableCursorSize";
+    private static final double DEFAULT_MAX_CATCHABLE_CURSOR_SIZE = 48.0;
+
     private static final String VARIABLE_VELOCITYX = "VelocityX";
 
     private static final String VARIABLE_VELOCITYY = "VelocityY";
@@ -74,8 +77,9 @@ public class CursorLeap extends ActionBase {
     public void init(final Mascot mascot) throws VariableException {
         super.init(mascot);
 
-        if (mascot.getEnvironment().isFullscreen() || mascot.getEnvironment().isMouseLocked()) {
-            log.info("CursorLeap suppressed: fullscreen/mouse-lock detected, mascot {}", mascot);
+        if (mascot.getEnvironment().isFullscreen() || mascot.getEnvironment().isMouseLocked()
+                || isCursorTooBig(mascot)) {
+            log.info("CursorLeap suppressed: fullscreen/mouse-lock/big-cursor detected, mascot {}", mascot);
             scaling = Main.getInstance().getSettings().scaling;
             frozenTargetX = mascot.getAnchor().x;
             frozenTargetY = mascot.getAnchor().y;
@@ -207,5 +211,18 @@ public class CursorLeap extends ActionBase {
 
     private double getVelocity() throws VariableException {
         return eval(getSchema().getString(PARAMETER_VELOCITY), Number.class, DEFAULT_VELOCITY).doubleValue();
+    }
+
+    private double getMaxCatchableCursorSize() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_MAX_CATCHABLE_CURSOR_SIZE), Number.class, DEFAULT_MAX_CATCHABLE_CURSOR_SIZE).doubleValue();
+    }
+
+    private boolean isCursorTooBig(final Mascot mascot) throws VariableException {
+        final int size = mascot.getEnvironment().getCursorSizePixels();
+        final boolean tooBig = size > getMaxCatchableCursorSize();
+        if (tooBig) {
+            log.info("Cursor too big to catch ({}px), Nigel wants no part of it", size);
+        }
+        return tooBig;
     }
 }

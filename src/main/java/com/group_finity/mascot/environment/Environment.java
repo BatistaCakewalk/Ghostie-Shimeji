@@ -266,6 +266,16 @@ public interface Environment {
     }
 
     /**
+     * OS cursor size in pixels (largest dimension). Used to refuse cursors
+     * Nigel wants no part of. Platform default: 32.
+     *
+     * @return the cursor size in pixels
+     */
+    default int getCursorSizePixels() {
+        return 32;
+    }
+
+    /**
      * Releases any native resources held by this environment.
      */
     void dispose();
