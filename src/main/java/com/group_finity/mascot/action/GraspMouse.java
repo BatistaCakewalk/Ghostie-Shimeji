@@ -794,7 +794,9 @@ public class GraspMouse extends ActionBase {
                     swallowClicks = 0;
                 }
             }
-            if (clicks > 0) {
+            // No clicking out during the stuffed intro: the choreography
+            // plays first, escape starts once he's waddling with it.
+            if (clicks > 0 && !inBigSwallowIntro()) {
                 if (swallowWindowRemaining == 0) {
                     swallowWindowRemaining = (int) Math.round(
                             getSwallowClickWindow() * getSwallowSizeMultiplier());
