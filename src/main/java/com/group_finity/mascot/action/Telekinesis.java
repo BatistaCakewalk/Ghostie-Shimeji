@@ -74,6 +74,13 @@ public class Telekinesis extends ActionBase {
     private static final int PULL_RED_TICKS = 150;
 
     /**
+     * Extra pull ticks past max force before the overloaded hold snaps.
+     * Skilled dodging can outlast him; the cursor goes free. Must stay
+     * under the behavior Duration (400): 300 ramp + 75 redline = 375.
+     */
+    private static final int PULL_OVERLOAD_TICKS = 75;
+
+    /**
      * Hands height above the anchor, mirroring GraspMouse's GraspOffsetY, so
      * the reeled cursor arrives at his hands instead of his ghost tail.
      */
@@ -230,6 +237,7 @@ public class Telekinesis extends ActionBase {
                 HOLDS.put(mascot, this);
             }
             log.info("Telekinesis init: reeling the cursor in");
+            com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
             return;
         }
         if (victim != null) {
@@ -269,6 +277,7 @@ public class Telekinesis extends ActionBase {
         faceWindow();
         log.info("Telekinesis init: holding window at ({}, {}) size {}x{}",
                 (int) startX, (int) startY, winW, winH);
+        com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
     }
 
     @Override
@@ -311,6 +320,7 @@ public class Telekinesis extends ActionBase {
             HOLDS.put(mascot, this);
         }
         log.info("Telekinesis init: lifting fellow mascot {}", victim);
+        com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
     }
 
     private Mascot pickVictim(final Mascot mascot) {
@@ -502,6 +512,7 @@ public class Telekinesis extends ActionBase {
         // The drop is unmarked: glow goes away the moment the hold breaks.
         disposeGlows();
         log.info("Telekinesis cancelled: dropping window at ({}, {})", (int) curX, (int) curY);
+        com.group_finity.mascot.sound.NigelSounds.playTeleBreak();
         final Timer timer = new Timer(40, null);
         timer.addActionListener(event -> {
             try {
@@ -515,6 +526,7 @@ public class Telekinesis extends ActionBase {
                 final double floorY = screen.getBottom() - winH;
                 if (curY >= floorY) {
                     curY = Math.max(screen.getTop(), floorY);
+                    com.group_finity.mascot.sound.NigelSounds.playDropThud();
                     finishFall(timer);
                     return;
                 }
@@ -630,10 +642,12 @@ public class Telekinesis extends ActionBase {
             }
             if (!getEnvironment().isWindowOpen(target)) {
                 log.info("Telekinesis cancelled: window closed mid-lift");
+                com.group_finity.mascot.sound.NigelSounds.playTeleBreak();
                 throw new LostGroundException("Window closed");
             }
             if (getEnvironment().isWindowMinimized(target)) {
                 log.info("Telekinesis cancelled: window minimized mid-lift");
+                com.group_finity.mascot.sound.NigelSounds.playTeleBreak();
                 throw new LostGroundException("Window minimized");
             }
             faceWindow();
@@ -793,7 +807,7 @@ public class Telekinesis extends ActionBase {
      * the tele glow. On arrival the reel ends and the normal catch sequence
      * (leap lands on the spot, grasp locks) takes over into the struggle.
      */
-    private void pullCursorTowardsMascot() throws VariableException {
+    private void pullCursorTowardsMascot() throws LostGroundException, VariableException {
         if (!pullMouse || robot == null) {
             return;
         }
@@ -821,6 +835,18 @@ public class Telekinesis extends ActionBase {
         // Redness runs on the clock: fully red ~6s into the pull.
         pullTicks++;
         final double heat = Math.min(1.0, pullTicks / (double) PULL_RED_TICKS);
+        // Overloaded too long past max force: the grip snaps, cursor free.
+        if (pullTicks > PULL_RAMP_TICKS + PULL_OVERLOAD_TICKS) {
+            log.info("Telekinesis pull overloaded after {} ticks, grip broken", pullTicks);
+            com.group_finity.mascot.sound.NigelSounds.playTeleBreak();
+            endHold();
+            throw new LostGroundException("Pull overloaded");
+        }
+        // The hum climbs with pull strength and turns unstable at max force.
+        if (pullTicks % 50 == 0) {
+            final double strain = Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS);
+            com.group_finity.mascot.sound.NigelSounds.startHum(160.0 + strain * 160.0, strain * strain);
+        }
         if (!warnedForcing && heat >= 0.5) {
             warnedForcing = true;
             log.info("Nigel forcing the pull harder, heat={}", heat);
@@ -839,6 +865,8 @@ public class Telekinesis extends ActionBase {
             log.info("Telekinesis mouse pull arrived: raw=({}, {}), anchor=({}, {}), dist={}, ticks={}, {}",
                     raw.x, raw.y, anchor.x, anchor.y, distance, pullTicks,
                     devour ? "devouring straight into swallow" : "starting struggle");
+            // Tele lets go as the hands take over.
+            com.group_finity.mascot.sound.NigelSounds.playTeleBreak();
             if (devour) getMascot().setDevourNext();
             endHold();
             try {
@@ -860,6 +888,9 @@ public class Telekinesis extends ActionBase {
     }
 
     private void disposeGlows() {
+        // The drone lives exactly as long as the hold: every exit path
+        // (endHold, beginFall, finishFall, cancelFor) comes through here.
+        com.group_finity.mascot.sound.NigelSounds.stopHum();
         if (glow != null) {
             try {
                 glow.dispose();

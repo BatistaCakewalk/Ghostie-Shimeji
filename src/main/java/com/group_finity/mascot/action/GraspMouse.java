@@ -208,6 +208,7 @@ public class GraspMouse extends ActionBase {
     // Cuddle mode state
     private int idleTicks;
     private boolean cuddleMode;
+    private boolean catchSoundPlayed;
     private int cuddleTicks;
     private int shakeCount;
     private int shakeWindowRemaining;
@@ -436,6 +437,7 @@ public class GraspMouse extends ActionBase {
         contactRemaining = Math.max(1, CURSOR_HISTORY_SIZE - 1);
         idleTicks = 0;
         cuddleMode = false;
+        catchSoundPlayed = false;
         cuddleTicks = 0;
         shakeCount = 0;
         shakeWindowRemaining = 0;
@@ -595,6 +597,7 @@ public class GraspMouse extends ActionBase {
         postCuddleGrace = 0;
         if (Main.getInstance().getSettings().nigelSwallowEnabled && Math.random() < getSwallowChance()) {
             log.info("Entering swallow mode (quick re-enter: {})", quickReenter);
+            com.group_finity.mascot.sound.NigelSounds.playGulp();
             swallowMode = true;
             swallowTicks = 0;
             swallowClicks = 0;
@@ -613,8 +616,10 @@ public class GraspMouse extends ActionBase {
             recoilVY = 0.0;
             return;
         }
-        log.info("Entering cuddle mode after idle (quick re-enter: {})", quickReenter);
+            log.info("Entering cuddle mode after idle (quick re-enter: {})", quickReenter);
+            com.group_finity.mascot.sound.NigelSounds.playCuddle();
         cuddleMode = true;
+        catchSoundPlayed = true;
         cuddleTicks = 0;
         shakeCount = 0;
         shakeWindowRemaining = 0;
@@ -643,14 +648,24 @@ public class GraspMouse extends ActionBase {
         // Drain presses every tick so the counter never goes stale in normal/cuddle mode.
         final int clicks = getMascot().getAndResetGraspClicks();
 
+        // Lock-in: the hold is real from this first tickGrasp call on. Hug
+        // and swallow orders route elsewhere with their own sounds, so
+        // reaching here unsuppressed means a genuine catch. Gotcha.
+        if (!catchSoundPlayed && !cuddleQueued && !devourQueued) {
+            catchSoundPlayed = true;
+            com.group_finity.mascot.sound.NigelSounds.playCatch();
+        }
+
         // Menu-ordered cuddle: skip the idle wait and enter cuddle mode immediately.
         if (cuddleQueued) {
             cuddleQueued = false;
             log.info("Entering cuddle mode immediately (menu-ordered)");
+            com.group_finity.mascot.sound.NigelSounds.playCuddle();
             hideCursor();
             idleTicks = 0;
             postCuddleGrace = 0;
             cuddleMode = true;
+            catchSoundPlayed = true;
             cuddleTicks = 0;
             shakeCount = 0;
             shakeWindowRemaining = 0;
@@ -667,6 +682,7 @@ public class GraspMouse extends ActionBase {
         if (devourQueued) {
             devourQueued = false;
             log.info("Devoured straight into swallow mode");
+            com.group_finity.mascot.sound.NigelSounds.playGulp();
             // The contact window (which normally hides the cursor) was skipped.
             hideCursor();
             swallowMode = true;
@@ -702,6 +718,10 @@ public class GraspMouse extends ActionBase {
                 return;
             }
             swallowTicks++;
+            if (swallowTicks == SWALLOW_GULP_TICKS + 1) {
+                // Cursor fully inside (SwallowAfter sprite): deep GLUG-glug.
+                com.group_finity.mascot.sound.NigelSounds.playGlug();
+            }
 
             if (swallowWindowRemaining > 0) {
                 swallowWindowRemaining--;
@@ -723,6 +743,7 @@ public class GraspMouse extends ActionBase {
             }
             if (swallowClicks >= getSwallowClickCount()) {
                 log.info("Swallow shaken loose after {} clicks, Nigel feels sick", swallowClicks);
+                com.group_finity.mascot.sound.NigelSounds.playHeave();
                 sickPhase = 1;
                 sickTicks = 0;
                 sickClicks = 0;
@@ -887,6 +908,11 @@ public class GraspMouse extends ActionBase {
             // Fighting: frantic shaking is dulled by the curve, and sustained
             // mashing tires itself out through fatigue. Per-tick drain is
             // capped so full-screen whips can't nuke the meter in one frame.
+            // Audible strain every so often, hotter the harder the fight.
+            if (getTime() % 15 == 0) {
+                com.group_finity.mascot.sound.NigelSounds.playStruggle(
+                        Math.min(1.0, struggle / 150.0));
+            }
             fatigue++;
             final double fatigueMultiplier = Math.max(0.2, 1.0 - fatigue / 100.0);
             hp -= Math.min(applyStruggleCurve(struggle) * fatigueMultiplier, MAX_DRAIN_PER_TICK);
@@ -916,6 +942,7 @@ public class GraspMouse extends ActionBase {
 
         if (hp <= 0) {
             log.info("Grasp broken: ticksHeld={}, finalStruggle={}, fatigue={}", getTime(), struggle, fatigue);
+            com.group_finity.mascot.sound.NigelSounds.playBreakFree();
             throw new LostGroundException("The mouse broke free of Nigel's grasp");
         }
     }
@@ -1074,6 +1101,7 @@ public class GraspMouse extends ActionBase {
             return;
         }
         final double knockback = getTackleKnockback();
+        com.group_finity.mascot.sound.NigelSounds.playBonk();
         getMascot().getAnchor().translate(
                 (int) Math.round(-dx / speed * knockback),
                 (int) Math.round(-dy / speed * knockback));
@@ -1408,6 +1436,8 @@ public class GraspMouse extends ActionBase {
             getMascot().setImage(ImagePairs.get(burpKey).getImage(getMascot().isLookRight()));
         }
         spawnDroplets(flingX, flingY, power);
+        com.group_finity.mascot.sound.NigelSounds.playBurp(power);
+        com.group_finity.mascot.sound.NigelSounds.playLaunch();
         log.info("Spit fling launched: power={}, bounces={}, v=({},{})", power, flingBounces, flingVX, flingVY);
     }
 

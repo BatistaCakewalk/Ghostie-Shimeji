@@ -93,6 +93,7 @@ public class CursorLeap extends ActionBase {
         // Stale approach readings must not leak from a previous leap.
         mascot.setApproachClosingSpeed(0.0);
         log.info("CursorLeap init: frozenTargetX={}, frozenTargetY={}, mascotAnchor={}", frozenTargetX, frozenTargetY, mascot.getAnchor());
+        com.group_finity.mascot.sound.NigelSounds.playLeap();
     }
 
     @Override
