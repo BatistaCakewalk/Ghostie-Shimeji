@@ -152,7 +152,14 @@ public class GraspMouse extends ActionBase {
     private static final int BIG_AFTER2_TICKS = 75;
     private static final int BIG_AFTER34_FRAME = 31;
     private static final int BIG_AFTER34_CYCLES = 4;
-    private static final int BIG_INTRO_END = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
+
+    /**
+     * Stuffed idle glance-back: roughly every this many ticks, the standing
+     * frame swaps to the look-back sprite for a blink below. Offset per
+     * swallow so it never lands on a round beat.
+     */
+    private static final int LOOKBACK_PERIOD = 700;
+    private static final int LOOKBACK_SHOW_TICKS = 45;    private static final int BIG_INTRO_END = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
             + BIG_AFTER1_TICKS + BIG_AFTER2_TICKS + BIG_AFTER34_FRAME * 2 * BIG_AFTER34_CYCLES;
 
     /**
@@ -252,6 +259,8 @@ public class GraspMouse extends ActionBase {
     private String bloatBigKey2;
     private String bloatBigWalkKey1;
     private String bloatBigWalkKey2;
+    private String lookBackKey;
+    private int lookBackPhase;
     private String bigSwallowKey1;
     private String bigSwallowKey2;
     private String bigSwallowKey3;
@@ -662,6 +671,7 @@ public class GraspMouse extends ActionBase {
             swallowDir = 0;
             swallowWander = 0;
             swallowStuckTicks = 0;
+            lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
             swallowSizeMult = getSwallowSizeMultiplier();
             sickPhase = 0;
             sickTicks = 0;
@@ -751,6 +761,7 @@ public class GraspMouse extends ActionBase {
             swallowDir = 0;
             swallowWander = 0;
             swallowStuckTicks = 0;
+            lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
             swallowSizeMult = getSwallowSizeMultiplier();
             sickPhase = 0;
             sickTicks = 0;
@@ -1365,6 +1376,7 @@ public class GraspMouse extends ActionBase {
             bloatBigKey2 = loadOptionalSwallowImage(imageSet, "FatterStand2.png", scaling, filter, opacity);
             bloatBigWalkKey1 = loadOptionalSwallowImage(imageSet, "WalkBigBloated1.png", scaling, filter, opacity);
             bloatBigWalkKey2 = loadOptionalSwallowImage(imageSet, "WalkBigBloated2.png", scaling, filter, opacity);
+            lookBackKey = loadOptionalSwallowImage(imageSet, "FatterStandLookBack.png", scaling, filter, opacity);
             // Stuffed intro set (SwallowBig1-3, SwallowAfter1-4): all or
             // nothing, the choreography needs every frame.
             bigSwallowKey1 = loadOptionalSwallowImage(imageSet, "SwallowBig1.png", scaling, filter, opacity);
@@ -1422,8 +1434,15 @@ public class GraspMouse extends ActionBase {
             key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                     ? orElse(bloatBigWalkKey1, bloatWalkKey1, stuffed) : orElse(bloatBigWalkKey2, bloatWalkKey2, stuffed);
         } else {
-            key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
-                    ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
+            // Stuffed idle glance-back: every so often the standing frame
+            // swaps to the look-back for a blink, then back to the bloat.
+            if (stuffed && lookBackKey != null && ImagePairs.contains(lookBackKey)
+                    && (swallowTicks + lookBackPhase) % LOOKBACK_PERIOD < LOOKBACK_SHOW_TICKS) {
+                key = lookBackKey;
+            } else {
+                key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
+                        ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
+            }
         }
         if (key != null && ImagePairs.contains(key)) {
             getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
