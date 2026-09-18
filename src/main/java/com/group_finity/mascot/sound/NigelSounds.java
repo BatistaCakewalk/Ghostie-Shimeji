@@ -70,6 +70,14 @@ public final class NigelSounds {
         play(tone(150.0, 90.0, 0.09, 0.0, true));
     }
 
+    public static void playCatch() {
+        if (!isEnabled()) {
+            return;
+        }
+        // Gotcha: bright two-note grab with a snap of grit.
+        play(notes(new double[] { 523.25, 783.99 }, 0.08, 0.15, false));
+    }
+
     public static void playLeap() {
         if (!isEnabled()) {
             return;

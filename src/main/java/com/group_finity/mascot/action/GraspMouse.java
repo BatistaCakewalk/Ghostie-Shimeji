@@ -208,6 +208,7 @@ public class GraspMouse extends ActionBase {
     // Cuddle mode state
     private int idleTicks;
     private boolean cuddleMode;
+    private boolean catchSoundPlayed;
     private int cuddleTicks;
     private int shakeCount;
     private int shakeWindowRemaining;
@@ -436,6 +437,7 @@ public class GraspMouse extends ActionBase {
         contactRemaining = Math.max(1, CURSOR_HISTORY_SIZE - 1);
         idleTicks = 0;
         cuddleMode = false;
+        catchSoundPlayed = false;
         cuddleTicks = 0;
         shakeCount = 0;
         shakeWindowRemaining = 0;
@@ -617,6 +619,7 @@ public class GraspMouse extends ActionBase {
             log.info("Entering cuddle mode after idle (quick re-enter: {})", quickReenter);
             com.group_finity.mascot.sound.NigelSounds.playCuddle();
         cuddleMode = true;
+        catchSoundPlayed = true;
         cuddleTicks = 0;
         shakeCount = 0;
         shakeWindowRemaining = 0;
@@ -654,6 +657,7 @@ public class GraspMouse extends ActionBase {
             idleTicks = 0;
             postCuddleGrace = 0;
             cuddleMode = true;
+            catchSoundPlayed = true;
             cuddleTicks = 0;
             shakeCount = 0;
             shakeWindowRemaining = 0;
@@ -893,6 +897,12 @@ public class GraspMouse extends ActionBase {
             fatigue = Math.max(0, fatigue - 2);
             hp = Math.min(maxHp, hp + getRegen());
         } else {
+            // First real fighting tick locks the catch in: gotcha. Hugs and
+            // swallows route elsewhere, so reaching here means a struggle.
+            if (!catchSoundPlayed) {
+                catchSoundPlayed = true;
+                com.group_finity.mascot.sound.NigelSounds.playCatch();
+            }
             // Fighting: frantic shaking is dulled by the curve, and sustained
             // mashing tires itself out through fatigue. Per-tick drain is
             // capped so full-screen whips can't nuke the meter in one frame.
