@@ -112,15 +112,17 @@ public final class NigelSounds {
 
     /**
      * Starts the telekinesis drone: a looping hum that lasts the whole hold.
-     * Restart-safe (restarts cleanly) so rapid re-lifts never stack drones.
+     * Restart-safe (restarts cleanly) so re-pitching mid-pull and rapid
+     * re-lifts never stack drones. Higher base pitch and harshness read as
+     * more force; full harshness sounds unstable on purpose.
      */
-    public static synchronized void startHum() {
+    public static synchronized void startHum(final double baseFreq, final double harshness) {
         if (!isEnabled()) {
             return;
         }
         stopHumLocked();
         try {
-            final byte[] drone = drone();
+            final byte[] drone = drone(baseFreq, Math.max(0.0, Math.min(1.0, harshness)));
             final AudioFormat format = new AudioFormat(SAMPLE_RATE, 16, 1, true, false);
             humClip = AudioSystem.getClip();
             humClip.open(format, drone, 0, drone.length);
@@ -151,21 +153,23 @@ public final class NigelSounds {
         }
     }
 
-    private static byte[] drone() {
-        // Layered low hum with slow beating, quiet enough to sit under
-        // everything. Both ends sit at zero so the loop has no click.
+    private static byte[] drone(final double baseFreq, final double harshness) {
+        // Layered hum with slow beating, quiet enough to sit under
+        // everything. Harshness adds grit and a faster wobble until it
+        // sounds unstable. Both ends sit at zero so the loop has no click.
         final double seconds = 2.0;
         final int samples = Math.max(1, (int) (SAMPLE_RATE * seconds));
         final byte[] pcm = new byte[samples * 2];
         for (int i = 0; i < samples; i++) {
             final double time = i / (double) SAMPLE_RATE;
             final double progress = i / (double) samples;
-            final double wave = Math.sin(2.0 * Math.PI * 110.0 * time) * 0.5
-                    + Math.sin(2.0 * Math.PI * 165.0 * time) * 0.3
-                    + Math.sin(2.0 * Math.PI * 220.0 * time) * 0.2;
-            final double beat = 0.7 + 0.3 * Math.sin(2.0 * Math.PI * 0.5 * time);
+            final double wave = Math.sin(2.0 * Math.PI * baseFreq * time) * 0.5
+                    + Math.sin(2.0 * Math.PI * baseFreq * 1.5 * time) * 0.3
+                    + Math.sin(2.0 * Math.PI * baseFreq * 2.0 * time) * 0.2;
+            final double beat = 0.7 + 0.3 * Math.sin(2.0 * Math.PI * (0.5 + harshness * 5.0) * time);
+            final double grit = (Math.random() * 2.0 - 1.0) * harshness * 0.4;
             final double edge = Math.min(1.0, Math.min(progress, 1.0 - progress) * samples / (SAMPLE_RATE * 0.05));
-            final short value = (short) (wave * beat * edge * 0.22 * 32767);
+            final short value = (short) ((wave * (1.0 - harshness * 0.4) + grit) * beat * edge * 0.22 * 32767);
             pcm[i * 2] = (byte) (value & 0xFF);
             pcm[i * 2 + 1] = (byte) ((value >> 8) & 0xFF);
         }
@@ -178,17 +182,6 @@ public final class NigelSounds {
         }
         // Cursor fully inside: deep two-stage GLUG-glug.
         play(notes(new double[] { 280.0, 190.0 }, 0.1, 0.25, false));
-    }
-
-    public static void playStrain(final double harshness) {
-        if (!isEnabled()) {
-            return;
-        }
-        // Tele-mouse at rising force: short harsh blip that gets uglier
-        // as the pull nears max. Called periodically through the pull.
-        final double harsh = Math.max(0.0, Math.min(1.0, harshness));
-        play(wobble(250.0 + harsh * 200.0, 0.15, 20.0 + harsh * 60.0, 30.0 + harsh * 80.0,
-                0.1 + harsh * 0.5));
     }
 
     private static byte[] tone(final double freqFrom, final double freqTo, final double seconds,

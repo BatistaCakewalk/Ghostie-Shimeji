@@ -230,7 +230,7 @@ public class Telekinesis extends ActionBase {
                 HOLDS.put(mascot, this);
             }
             log.info("Telekinesis init: reeling the cursor in");
-            com.group_finity.mascot.sound.NigelSounds.startHum();
+            com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
             return;
         }
         if (victim != null) {
@@ -270,7 +270,7 @@ public class Telekinesis extends ActionBase {
         faceWindow();
         log.info("Telekinesis init: holding window at ({}, {}) size {}x{}",
                 (int) startX, (int) startY, winW, winH);
-        com.group_finity.mascot.sound.NigelSounds.startHum();
+        com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
     }
 
     @Override
@@ -313,7 +313,7 @@ public class Telekinesis extends ActionBase {
             HOLDS.put(mascot, this);
         }
         log.info("Telekinesis init: lifting fellow mascot {}", victim);
-        com.group_finity.mascot.sound.NigelSounds.startHum();
+        com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
     }
 
     private Mascot pickVictim(final Mascot mascot) {
@@ -825,10 +825,10 @@ public class Telekinesis extends ActionBase {
         // Redness runs on the clock: fully red ~6s into the pull.
         pullTicks++;
         final double heat = Math.min(1.0, pullTicks / (double) PULL_RED_TICKS);
-        // Strain blips, uglier as the pull nears max force.
-        if (pullTicks % 25 == 0) {
-            com.group_finity.mascot.sound.NigelSounds.playStrain(
-                    Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS));
+        // The hum climbs with pull strength and turns unstable at max force.
+        if (pullTicks % 50 == 0) {
+            final double strain = Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS);
+            com.group_finity.mascot.sound.NigelSounds.startHum(160.0 + strain * 160.0, strain * strain);
         }
         if (!warnedForcing && heat >= 0.5) {
             warnedForcing = true;
