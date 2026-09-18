@@ -78,6 +78,16 @@ public final class NigelSounds {
         play(notes(new double[] { 523.25, 783.99 }, 0.08, 0.15, false));
     }
 
+    public static void playStruggle(final double intensity) {
+        if (!isEnabled()) {
+            return;
+        }
+        // Active fighting: short scratchy yelp, harsher the harder the fight.
+        // Called periodically through the struggle, never as a loop.
+        final double hot = Math.max(0.0, Math.min(1.0, intensity));
+        play(tone(400.0 + hot * 300.0, 250.0, 0.1, 0.15 + hot * 0.45, false));
+    }
+
     public static void playLeap() {
         if (!isEnabled()) {
             return;

@@ -648,6 +648,14 @@ public class GraspMouse extends ActionBase {
         // Drain presses every tick so the counter never goes stale in normal/cuddle mode.
         final int clicks = getMascot().getAndResetGraspClicks();
 
+        // Lock-in: the hold is real from this first tickGrasp call on. Hug
+        // and swallow orders route elsewhere with their own sounds, so
+        // reaching here unsuppressed means a genuine catch. Gotcha.
+        if (!catchSoundPlayed && !cuddleQueued && !devourQueued) {
+            catchSoundPlayed = true;
+            com.group_finity.mascot.sound.NigelSounds.playCatch();
+        }
+
         // Menu-ordered cuddle: skip the idle wait and enter cuddle mode immediately.
         if (cuddleQueued) {
             cuddleQueued = false;
@@ -897,15 +905,14 @@ public class GraspMouse extends ActionBase {
             fatigue = Math.max(0, fatigue - 2);
             hp = Math.min(maxHp, hp + getRegen());
         } else {
-            // First real fighting tick locks the catch in: gotcha. Hugs and
-            // swallows route elsewhere, so reaching here means a struggle.
-            if (!catchSoundPlayed) {
-                catchSoundPlayed = true;
-                com.group_finity.mascot.sound.NigelSounds.playCatch();
-            }
             // Fighting: frantic shaking is dulled by the curve, and sustained
             // mashing tires itself out through fatigue. Per-tick drain is
             // capped so full-screen whips can't nuke the meter in one frame.
+            // Audible strain every so often, hotter the harder the fight.
+            if (getTime() % 15 == 0) {
+                com.group_finity.mascot.sound.NigelSounds.playStruggle(
+                        Math.min(1.0, struggle / 150.0));
+            }
             fatigue++;
             final double fatigueMultiplier = Math.max(0.2, 1.0 - fatigue / 100.0);
             hp -= Math.min(applyStruggleCurve(struggle) * fatigueMultiplier, MAX_DRAIN_PER_TICK);
