@@ -140,6 +140,20 @@ public class GraspMouse extends ActionBase {
     private static final int BLOAT_ANIM_INTERVAL = 30;
 
     /**
+     * Stuffed-swallow intro choreography (big-cursor art): Big1/Big2/Big3,
+     * then After1 (5s dizzy), After2 (3s looking down), then After3/After4
+     * alternating 4 cycles (~10s). Suspended in the air throughout; normal
+     * sink/waddle resumes after.
+     */
+    private static final int BIG_SWALLOW_TICKS = 40;
+    private static final int BIG_AFTER1_TICKS = 125;
+    private static final int BIG_AFTER2_TICKS = 75;
+    private static final int BIG_AFTER34_FRAME = 31;
+    private static final int BIG_AFTER34_CYCLES = 4;
+    private static final int BIG_INTRO_END = BIG_SWALLOW_TICKS * 3 + BIG_AFTER1_TICKS + BIG_AFTER2_TICKS
+            + BIG_AFTER34_FRAME * 2 * BIG_AFTER34_CYCLES;
+
+    /**
      * Closing speed (in px/tick) above which a catch counts as a head-on
      * tackle instead of a normal grab.
      */
@@ -236,6 +250,13 @@ public class GraspMouse extends ActionBase {
     private String bloatBigKey2;
     private String bloatBigWalkKey1;
     private String bloatBigWalkKey2;
+    private String bigSwallowKey1;
+    private String bigSwallowKey2;
+    private String bigSwallowKey3;
+    private String bigAfterKey1;
+    private String bigAfterKey2;
+    private String bigAfterKey3;
+    private String bigAfterKey4;
     private boolean swallowImagesLoaded;
 
     // Sick + spit-fling state after a swallow is shaken loose
@@ -755,7 +776,10 @@ public class GraspMouse extends ActionBase {
                 return;
             }
             swallowTicks++;
-            if (swallowTicks == getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks()) {
+            final boolean bigIntro = isStuffedSwallow() && hasBigSwallowArt();
+            final int gulpEnd = bigIntro ? BIG_INTRO_END
+                    : getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
+            if (swallowTicks == gulpEnd) {
                 // Fully inside at the very end: the actual gulp.
                 com.group_finity.mascot.sound.NigelSounds.playGlug();
             }
@@ -801,8 +825,10 @@ public class GraspMouse extends ActionBase {
                 sickExtraTicks = 0;
             }
 
-            // Fully trapped: HP frozen, cursor pinned hard.
-            final boolean gulping = swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
+            // Fully trapped: HP frozen, cursor pinned hard. The big-swallow
+            // intro suspends him in the air for its whole choreography.
+            final boolean gulping = swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks()
+                    || inBigSwallowIntro();
             final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
             boolean waddling = false;
             if (gulping) {
@@ -1329,6 +1355,15 @@ public class GraspMouse extends ActionBase {
             bloatBigKey2 = loadOptionalSwallowImage(imageSet, "BloatBigStand2.png", scaling, filter, opacity);
             bloatBigWalkKey1 = loadOptionalSwallowImage(imageSet, "BloatBigWalk1.png", scaling, filter, opacity);
             bloatBigWalkKey2 = loadOptionalSwallowImage(imageSet, "BloatBigWalk2.png", scaling, filter, opacity);
+            // Stuffed intro set (SwallowBig1-3, SwallowAfter1-4): all or
+            // nothing, the choreography needs every frame.
+            bigSwallowKey1 = loadOptionalSwallowImage(imageSet, "SwallowBig1.png", scaling, filter, opacity);
+            bigSwallowKey2 = loadOptionalSwallowImage(imageSet, "SwallowBig2.png", scaling, filter, opacity);
+            bigSwallowKey3 = loadOptionalSwallowImage(imageSet, "SwallowBig3.png", scaling, filter, opacity);
+            bigAfterKey1 = loadOptionalSwallowImage(imageSet, "SwallowAfter1.png", scaling, filter, opacity);
+            bigAfterKey2 = loadOptionalSwallowImage(imageSet, "SwallowAfter2.png", scaling, filter, opacity);
+            bigAfterKey3 = loadOptionalSwallowImage(imageSet, "SwallowAfter3.png", scaling, filter, opacity);
+            bigAfterKey4 = loadOptionalSwallowImage(imageSet, "SwallowAfter4.png", scaling, filter, opacity);
             swallowImagesLoaded = true;
         } catch (final IOException | RuntimeException e) {
             log.warn("Failed to load swallow images for GraspMouse", e);
@@ -1350,7 +1385,25 @@ public class GraspMouse extends ActionBase {
         ensureSwallowImagesLoaded();
         final boolean stuffed = isStuffedSwallow();
         final String key;
-        if (swallowTicks < getScaledSwallowGulpTicks()) {
+        if (inBigSwallowIntro()) {
+            final int t = swallowTicks;
+            final int big3End = BIG_SWALLOW_TICKS * 3;
+            final int after1End = big3End + BIG_AFTER1_TICKS;
+            final int after2End = after1End + BIG_AFTER2_TICKS;
+            if (t < BIG_SWALLOW_TICKS) {
+                key = bigSwallowKey1;
+            } else if (t < BIG_SWALLOW_TICKS * 2) {
+                key = bigSwallowKey2;
+            } else if (t < big3End) {
+                key = bigSwallowKey3;
+            } else if (t < after1End) {
+                key = bigAfterKey1;
+            } else if (t < after2End) {
+                key = bigAfterKey2;
+            } else {
+                key = ((t - after2End) / BIG_AFTER34_FRAME) % 2 == 0 ? bigAfterKey3 : bigAfterKey4;
+            }
+        } else if (swallowTicks < getScaledSwallowGulpTicks()) {
             key = swallowKeyStart;
         } else if (swallowTicks < getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks()) {
             key = swallowKeyAfter;
@@ -1371,6 +1424,20 @@ public class GraspMouse extends ActionBase {
             return big;
         }
         return normal;
+    }
+
+    private boolean hasBigSwallowArt() {
+        return bigSwallowKey1 != null && ImagePairs.contains(bigSwallowKey1)
+                && bigSwallowKey2 != null && ImagePairs.contains(bigSwallowKey2)
+                && bigSwallowKey3 != null && ImagePairs.contains(bigSwallowKey3)
+                && bigAfterKey1 != null && ImagePairs.contains(bigAfterKey1)
+                && bigAfterKey2 != null && ImagePairs.contains(bigAfterKey2)
+                && bigAfterKey3 != null && ImagePairs.contains(bigAfterKey3)
+                && bigAfterKey4 != null && ImagePairs.contains(bigAfterKey4);
+    }
+
+    private boolean inBigSwallowIntro() {
+        return isStuffedSwallow() && hasBigSwallowArt() && swallowTicks < BIG_INTRO_END;
     }
 
     /**
