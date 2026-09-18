@@ -541,6 +541,16 @@ public class GraspMouse extends ActionBase {
                     throw new LostGroundException("Missed the cursor");
                 }
 
+                // Too big to hold, even delivered: telekinesis can drag a
+                // huge cursor onto the sprite, but the arms still refuse it.
+                if (isCursorTooBig()) {
+                    log.info("Grasp refused: cursor too big ({}px)", getEnvironment().getCursorSizePixels());
+                    Mascot.releaseMouse(getMascot());
+                    getMascot().consumeDevourNext();
+                    getMascot().consumeCuddleNext();
+                    throw new LostGroundException("Cursor too big to hold");
+                }
+
                 // Only one Nigel may hold the mouse at a time.
                 if (!Mascot.tryAcquireMouse(getMascot())) {
                     final Mascot owner = Mascot.getMouseOwner();
@@ -604,7 +614,8 @@ public class GraspMouse extends ActionBase {
         postCuddleGrace = 0;
         if (Main.getInstance().getSettings().nigelSwallowEnabled && !isCursorTooBig()
                 && Math.random() < getSwallowChance()) {
-            log.info("Entering swallow mode (quick re-enter: {})", quickReenter);
+            log.info("Entering swallow mode (quick re-enter: {}, cursor {}px, needs {} clicks)",
+                    quickReenter, getEnvironment().getCursorSizePixels(), getSwallowClicksRequired());
             com.group_finity.mascot.sound.NigelSounds.playGulp();
             swallowMode = true;
             swallowTicks = 0;
@@ -689,7 +700,8 @@ public class GraspMouse extends ActionBase {
         }
         if (devourQueued) {
             devourQueued = false;
-            log.info("Devoured straight into swallow mode");
+            log.info("Devoured straight into swallow mode (cursor {}px, needs {} clicks)",
+                    getEnvironment().getCursorSizePixels(), getSwallowClicksRequired());
             com.group_finity.mascot.sound.NigelSounds.playGulp();
             // The contact window (which normally hides the cursor) was skipped.
             hideCursor();
@@ -739,14 +751,17 @@ public class GraspMouse extends ActionBase {
             }
             if (clicks > 0) {
                 if (swallowWindowRemaining == 0) {
-                    swallowWindowRemaining = getSwallowClickWindow();
+                    swallowWindowRemaining = (int) Math.round(
+                            getSwallowClickWindow() * getSwallowSizeMultiplier());
                     swallowClicks = clicks;
                 } else {
                     swallowClicks += clicks;
                 }
                 log.info("Swallow clicks: {} this tick, {} in window", clicks, swallowClicks);
-            } else if (swallowClicks > 0 && swallowTicks % 15 == 0) {
-                // Stale clicks bleed off: stop clicking and progress fades ~1 click per 15 ticks.
+            } else if (swallowClicks > 0
+                    && swallowTicks % Math.max(1, Math.round(15 * getSwallowSizeMultiplier())) == 0) {
+                // Stale clicks bleed off, slower for big cursors: stop
+                // clicking and progress fades ~1 click per scaled interval.
                 swallowClicks--;
             }
             if (swallowClicks >= getSwallowClicksRequired()) {
@@ -1693,18 +1708,26 @@ public class GraspMouse extends ActionBase {
     }
 
     /**
-     * Swallow click requirement scaled by cursor size: normal cursors (32px
-     * and under) need the base count, bigger ones up to triple it. He has
-     * to work the big ones down before they fit.
+     * Swallow difficulty multiplier from cursor size: 1x at normal size
+     * (32px and under), up to 4x at the refusal threshold. Scales the click
+     * requirement, the click window, and the bleed-off together, so big
+     * cursors take longer but stay feasible.
      */
-    private int getSwallowClicksRequired() throws VariableException {
-        final int base = getSwallowClickCount();
+    private double getSwallowSizeMultiplier() {
         final int size = getEnvironment().getCursorSizePixels();
         if (size <= 32) {
-            return base;
+            return 1.0;
         }
-        final double t = Math.min(1.0, (size - 32) / 64.0);
-        return base + (int) Math.round(base * 2.0 * t);
+        return 1.0 + 3.0 * Math.min(1.0, (size - 32) / 64.0);
+    }
+
+    /**
+     * Swallow click requirement scaled by cursor size: normal cursors need
+     * the base count, bigger ones up to quadruple it. He has to work the
+     * big ones down before they fit.
+     */
+    private int getSwallowClicksRequired() throws VariableException {
+        return (int) Math.round(getSwallowClickCount() * getSwallowSizeMultiplier());
     }
 
     /**
