@@ -284,6 +284,14 @@ public final class NigelSounds {
         play(notes(new double[] { 280.0, 190.0 }, 0.1, 0.25, false));
     }
 
+    public static void playChoke() {
+        if (!isEnabled()) {
+            return;
+        }
+        // Big gulp going down hard: short mid gag with grit.
+        play(tone(320.0, 180.0, 0.12, 0.3, false));
+    }
+
     private static byte[] tone(final double freqFrom, final double freqTo, final double seconds,
             final double noiseMix, final boolean square) {
         final int samples = Math.max(1, (int) (SAMPLE_RATE * seconds));
