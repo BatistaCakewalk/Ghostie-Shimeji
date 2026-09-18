@@ -595,6 +595,7 @@ public class GraspMouse extends ActionBase {
         postCuddleGrace = 0;
         if (Main.getInstance().getSettings().nigelSwallowEnabled && Math.random() < getSwallowChance()) {
             log.info("Entering swallow mode (quick re-enter: {})", quickReenter);
+            com.group_finity.mascot.sound.NigelSounds.playGulp();
             swallowMode = true;
             swallowTicks = 0;
             swallowClicks = 0;
@@ -667,6 +668,7 @@ public class GraspMouse extends ActionBase {
         if (devourQueued) {
             devourQueued = false;
             log.info("Devoured straight into swallow mode");
+            com.group_finity.mascot.sound.NigelSounds.playGulp();
             // The contact window (which normally hides the cursor) was skipped.
             hideCursor();
             swallowMode = true;
@@ -1074,6 +1076,7 @@ public class GraspMouse extends ActionBase {
             return;
         }
         final double knockback = getTackleKnockback();
+        com.group_finity.mascot.sound.NigelSounds.playBonk();
         getMascot().getAnchor().translate(
                 (int) Math.round(-dx / speed * knockback),
                 (int) Math.round(-dy / speed * knockback));
@@ -1408,6 +1411,8 @@ public class GraspMouse extends ActionBase {
             getMascot().setImage(ImagePairs.get(burpKey).getImage(getMascot().isLookRight()));
         }
         spawnDroplets(flingX, flingY, power);
+        com.group_finity.mascot.sound.NigelSounds.playBurp(power);
+        com.group_finity.mascot.sound.NigelSounds.playLaunch();
         log.info("Spit fling launched: power={}, bounces={}, v=({},{})", power, flingBounces, flingVX, flingVY);
     }
 

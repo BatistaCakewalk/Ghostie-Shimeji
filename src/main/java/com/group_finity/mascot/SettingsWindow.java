@@ -47,6 +47,7 @@ public class SettingsWindow extends JDialog implements Localizable {
     private boolean nigelGrabEnabled = true;
     private boolean nigelTelekinesisEnabled = true;
     private boolean nigelSwallowEnabled = true;
+    private boolean nigelSoundsEnabled = false;
     private boolean nigelSwallowBeforeGrabOff = true;
     private Filter filter = Filter.NEAREST_NEIGHBOUR;
     private double scaling = 1.0;
@@ -119,6 +120,7 @@ public class SettingsWindow extends JDialog implements Localizable {
         nigelTelekinesisEnabled = !nigelDisabled.contains("Telekinesis");
         nigelSwallowEnabled = settings.nigelSwallowEnabled;
         nigelSwallowBeforeGrabOff = nigelSwallowEnabled;
+        nigelSoundsEnabled = settings.nigelSoundsEnabled;
         chkNigelGrab.setSelected(nigelGrabEnabled);
         chkNigelTelekinesis.setSelected(nigelTelekinesisEnabled);
         chkNigelSwallow.setSelected(nigelSwallowEnabled);
@@ -790,6 +792,13 @@ public class SettingsWindow extends JDialog implements Localizable {
         chkNigelSwallow.setAlignmentX(0.0F);
         chkNigelSwallow.addItemListener(this::chkNigelSwallowItemStateChanged);
         pnlNigel.add(chkNigelSwallow);
+        pnlNigel.add(javax.swing.Box.createVerticalStrut(10));
+
+        chkNigelSounds = new javax.swing.JCheckBox();
+        chkNigelSounds.setText("Sound blips (gulp, burp, launch)");
+        chkNigelSounds.setAlignmentX(0.0F);
+        chkNigelSounds.addItemListener(this::chkNigelSoundsItemStateChanged);
+        pnlNigel.add(chkNigelSounds);
         pnlNigel.add(javax.swing.Box.createVerticalGlue());
 
         pnlTabs.addTab("Nigel Settings", pnlNigel);
@@ -860,6 +869,7 @@ public class SettingsWindow extends JDialog implements Localizable {
         settings.filter = filter;
         settings.drawShimejiBounds = drawShimejiBounds;
         settings.nigelSwallowEnabled = nigelSwallowEnabled;
+        settings.nigelSoundsEnabled = nigelSoundsEnabled;
         final java.util.List<String> nigelDisabled =
                 settings.disabledBehaviors.computeIfAbsent("NigelShimeji", k -> new java.util.ArrayList<>());
         setNigelBehaviorDisabled(nigelDisabled, "CatchMouse", !nigelGrabEnabled);
@@ -939,7 +949,8 @@ public class SettingsWindow extends JDialog implements Localizable {
             chkNigelSwallow.setSelected(false);
         } else {
             nigelSwallowEnabled = nigelSwallowBeforeGrabOff;
-            chkNigelSwallow.setSelected(nigelSwallowEnabled);
+        chkNigelSwallow.setSelected(nigelSwallowEnabled);
+        chkNigelSounds.setSelected(nigelSoundsEnabled);
         }
         applyNigelDependencies();
     }
@@ -950,6 +961,10 @@ public class SettingsWindow extends JDialog implements Localizable {
 
     private void chkNigelSwallowItemStateChanged(ItemEvent evt) {
         nigelSwallowEnabled = evt.getStateChange() == ItemEvent.SELECTED;
+    }
+
+    private void chkNigelSoundsItemStateChanged(ItemEvent evt) {
+        nigelSoundsEnabled = evt.getStateChange() == ItemEvent.SELECTED;
     }
 
     private static void setNigelBehaviorDisabled(java.util.List<String> disabled, String name, boolean off) {
@@ -1170,6 +1185,7 @@ public class SettingsWindow extends JDialog implements Localizable {
     private javax.swing.JCheckBox chkDrawShimejiBounds;
     private javax.swing.JCheckBox chkNigelGrab;
     private javax.swing.JCheckBox chkNigelSwallow;
+    private javax.swing.JCheckBox chkNigelSounds;
     private javax.swing.JCheckBox chkNigelTelekinesis;
     private javax.swing.JCheckBox chkShowTrayIcon;
     private javax.swing.JCheckBox chkWindowModeEnabled;

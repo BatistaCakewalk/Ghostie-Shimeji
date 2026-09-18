@@ -37,6 +37,7 @@ public class Settings {
     public boolean multiscreen = true;
 
     public boolean nigelSwallowEnabled = true;
+    public boolean nigelSoundsEnabled = false;
 
     public boolean showTrayIcon = true;
     public boolean alwaysShowShimejiChooser = false;
@@ -95,6 +96,7 @@ public class Settings {
         sounds = getBooleanProperty(properties, "Sounds", true);
         multiscreen = getBooleanProperty(properties, "Multiscreen", true);
         nigelSwallowEnabled = getBooleanProperty(properties, "NigelSwallowEnabled", true);
+        nigelSoundsEnabled = getBooleanProperty(properties, "NigelSoundsEnabled", false);
 
         // General settings
         showTrayIcon = getBooleanProperty(properties, "ShowTrayIcon", true);
@@ -223,6 +225,7 @@ public class Settings {
         properties.setProperty("Sounds", String.valueOf(sounds));
         properties.setProperty("Multiscreen", String.valueOf(multiscreen));
         properties.setProperty("NigelSwallowEnabled", String.valueOf(nigelSwallowEnabled));
+        properties.setProperty("NigelSoundsEnabled", String.valueOf(nigelSoundsEnabled));
 
         // General settings
         properties.setProperty("ShowTrayIcon", String.valueOf(showTrayIcon));
