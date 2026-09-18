@@ -110,6 +110,14 @@ public final class NigelSounds {
         play(tone(120.0, 60.0, 0.14, 0.4, false));
     }
 
+    public static void playTeleBreak() {
+        if (!isEnabled()) {
+            return;
+        }
+        // Grip lost: power-down whine, pitch falling out from under itself.
+        play(tone(800.0, 150.0, 0.45, 0.15, false));
+    }
+
     /**
      * Starts the telekinesis drone: a looping hum that lasts the whole hold.
      * Restart-safe (restarts cleanly) so re-pitching mid-pull and rapid

@@ -505,7 +505,7 @@ public class Telekinesis extends ActionBase {
         // The drop is unmarked: glow goes away the moment the hold breaks.
         disposeGlows();
         log.info("Telekinesis cancelled: dropping window at ({}, {})", (int) curX, (int) curY);
-        com.group_finity.mascot.sound.NigelSounds.playDropThud();
+        com.group_finity.mascot.sound.NigelSounds.playTeleBreak();
         final Timer timer = new Timer(40, null);
         timer.addActionListener(event -> {
             try {
@@ -519,6 +519,7 @@ public class Telekinesis extends ActionBase {
                 final double floorY = screen.getBottom() - winH;
                 if (curY >= floorY) {
                     curY = Math.max(screen.getTop(), floorY);
+                    com.group_finity.mascot.sound.NigelSounds.playDropThud();
                     finishFall(timer);
                     return;
                 }
@@ -634,10 +635,12 @@ public class Telekinesis extends ActionBase {
             }
             if (!getEnvironment().isWindowOpen(target)) {
                 log.info("Telekinesis cancelled: window closed mid-lift");
+                com.group_finity.mascot.sound.NigelSounds.playTeleBreak();
                 throw new LostGroundException("Window closed");
             }
             if (getEnvironment().isWindowMinimized(target)) {
                 log.info("Telekinesis cancelled: window minimized mid-lift");
+                com.group_finity.mascot.sound.NigelSounds.playTeleBreak();
                 throw new LostGroundException("Window minimized");
             }
             faceWindow();
