@@ -145,13 +145,15 @@ public class GraspMouse extends ActionBase {
      * alternating 4 cycles (~10s). Suspended in the air throughout; normal
      * sink/waddle resumes after.
      */
-    private static final int BIG_SWALLOW_TICKS = 40;
+    private static final int BIG_SWALLOW1_TICKS = 125;
+    private static final int BIG_SWALLOW2_TICKS = 125;
+    private static final int BIG_SWALLOW3_TICKS = 75;
     private static final int BIG_AFTER1_TICKS = 125;
     private static final int BIG_AFTER2_TICKS = 75;
     private static final int BIG_AFTER34_FRAME = 31;
     private static final int BIG_AFTER34_CYCLES = 4;
-    private static final int BIG_INTRO_END = BIG_SWALLOW_TICKS * 3 + BIG_AFTER1_TICKS + BIG_AFTER2_TICKS
-            + BIG_AFTER34_FRAME * 2 * BIG_AFTER34_CYCLES;
+    private static final int BIG_INTRO_END = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
+            + BIG_AFTER1_TICKS + BIG_AFTER2_TICKS + BIG_AFTER34_FRAME * 2 * BIG_AFTER34_CYCLES;
 
     /**
      * Closing speed (in px/tick) above which a catch counts as a head-on
@@ -779,7 +781,9 @@ public class GraspMouse extends ActionBase {
             final boolean bigIntro = isStuffedSwallow() && hasBigSwallowArt();
             // Glug marks the moment it's fully inside: SwallowAfter's first
             // frame normally, Big3's last frame for the stuffed intro.
-            final int gulpEnd = bigIntro ? BIG_SWALLOW_TICKS * 3 : getScaledSwallowGulpTicks();
+            final int gulpEnd = bigIntro
+                    ? BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
+                    : getScaledSwallowGulpTicks();
             if (swallowTicks == gulpEnd) {
                 com.group_finity.mascot.sound.NigelSounds.playGlug();
             }
@@ -830,7 +834,7 @@ public class GraspMouse extends ActionBase {
             // the forcing (shakes, chokes) stops once Big3 lands the mouse
             // inside: the After frames are calm aftermath.
             final boolean forcingDown = bigIntro
-                    ? swallowTicks < BIG_SWALLOW_TICKS * 3
+                    ? swallowTicks < BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
                     : swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
             final boolean gulping = forcingDown || (bigIntro && swallowTicks < BIG_INTRO_END);
             final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
@@ -1391,12 +1395,13 @@ public class GraspMouse extends ActionBase {
         final String key;
         if (inBigSwallowIntro()) {
             final int t = swallowTicks;
-            final int big3End = BIG_SWALLOW_TICKS * 3;
+            final int big2End = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS;
+            final int big3End = big2End + BIG_SWALLOW3_TICKS;
             final int after1End = big3End + BIG_AFTER1_TICKS;
             final int after2End = after1End + BIG_AFTER2_TICKS;
-            if (t < BIG_SWALLOW_TICKS) {
+            if (t < BIG_SWALLOW1_TICKS) {
                 key = bigSwallowKey1;
-            } else if (t < BIG_SWALLOW_TICKS * 2) {
+            } else if (t < big2End) {
                 key = bigSwallowKey2;
             } else if (t < big3End) {
                 key = bigSwallowKey3;
