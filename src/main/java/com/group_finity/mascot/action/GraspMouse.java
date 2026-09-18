@@ -158,8 +158,8 @@ public class GraspMouse extends ActionBase {
      * frame swaps to the look-back sprite for a blink below. Offset per
      * swallow so it never lands on a round beat.
      */
-    private static final int LOOKBACK_PERIOD = 700;
-    private static final int LOOKBACK_SHOW_TICKS = 45;    private static final int BIG_INTRO_END = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
+    private static final int LOOKBACK_PERIOD = 300;
+    private static final int LOOKBACK_SHOW_TICKS = 60;    private static final int BIG_INTRO_END = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
             + BIG_AFTER1_TICKS + BIG_AFTER2_TICKS + BIG_AFTER34_FRAME * 2 * BIG_AFTER34_CYCLES;
 
     /**
@@ -871,12 +871,16 @@ public class GraspMouse extends ActionBase {
                 getMascot().getAnchor().translate(sway, 3);
             } else {
                 // Waddle in bursts with idle pauses, like he's showing off his prize.
+                // Stuffed, he lumbers: shorter bursts, longer breathers.
+                final boolean lumbering = isStuffedSwallow();
                 if (swallowWander == 0) {
                     if (swallowDir == 0 || Math.random() < 0.6) {
                         swallowDir = Math.random() < 0.5 ? -1 : 1;
-                        swallowWander = 60 + (int) (Math.random() * 90);
+                        swallowWander = lumbering ? 30 + (int) (Math.random() * 45)
+                                : 60 + (int) (Math.random() * 90);
                     } else {
-                        swallowWander = -(40 + (int) (Math.random() * 60));
+                        swallowWander = lumbering ? -(80 + (int) (Math.random() * 100))
+                                : -(40 + (int) (Math.random() * 60));
                     }
                 }
                 if (swallowWander > 0) {
