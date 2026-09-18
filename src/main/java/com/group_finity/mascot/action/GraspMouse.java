@@ -264,6 +264,21 @@ public class GraspMouse extends ActionBase {
     // Swallow failsafe state: ticks since the last registered click
     private int swallowStuckTicks;
 
+    // Swallow size multiplier cached at swallow enter: scales the gulp
+    // length, click requirement, window and bleed-off together.
+    private double swallowSizeMult = 1.0;
+
+    /**
+     * Scaled gulp phase lengths: bigger cursors take longer to force down.
+     */
+    private int getScaledSwallowGulpTicks() {
+        return Math.max(1, (int) Math.round(SWALLOW_GULP_TICKS * swallowSizeMult));
+    }
+
+    private int getScaledSwallowAfterTicks() {
+        return Math.max(1, (int) Math.round(SWALLOW_AFTER_TICKS * swallowSizeMult));
+    }
+
     // Mega-burp state: floor bounces left on the current fling
     private int flingBounces;
 
@@ -624,6 +639,7 @@ public class GraspMouse extends ActionBase {
             swallowDir = 0;
             swallowWander = 0;
             swallowStuckTicks = 0;
+            swallowSizeMult = getSwallowSizeMultiplier();
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
@@ -712,6 +728,7 @@ public class GraspMouse extends ActionBase {
             swallowDir = 0;
             swallowWander = 0;
             swallowStuckTicks = 0;
+            swallowSizeMult = getSwallowSizeMultiplier();
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
@@ -738,7 +755,7 @@ public class GraspMouse extends ActionBase {
                 return;
             }
             swallowTicks++;
-            if (swallowTicks == SWALLOW_GULP_TICKS + 1) {
+            if (swallowTicks == getScaledSwallowGulpTicks() + 1) {
                 // Cursor fully inside (SwallowAfter sprite): deep GLUG-glug.
                 com.group_finity.mascot.sound.NigelSounds.playGlug();
             }
@@ -785,12 +802,20 @@ public class GraspMouse extends ActionBase {
             }
 
             // Fully trapped: HP frozen, cursor pinned hard.
-            final boolean gulping = swallowTicks <= SWALLOW_GULP_TICKS + SWALLOW_AFTER_TICKS;
+            final boolean gulping = swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
             final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
             boolean waddling = false;
             if (gulping) {
-                // Gulp in place where he caught it.
-                wrestle(0.0, false);
+                // Gulp in place where he caught it. Big cursors go down
+                // hard: the body shakes with size and he chokes on the way.
+                if (swallowSizeMult > 1.0) {
+                    if (swallowTicks % 30 == 0) {
+                        com.group_finity.mascot.sound.NigelSounds.playChoke();
+                    }
+                    wrestle(10.0 * (swallowSizeMult - 1.0), true);
+                } else {
+                    wrestle(0.0, false);
+                }
             } else if (!grounded) {
                 // Sway side to side on the way down instead of dropping like an elevator.
                 final int sway = (int) Math.round(Math.sin(swallowTicks * 0.15) * 2.0);
@@ -1323,15 +1348,15 @@ public class GraspMouse extends ActionBase {
         ensureSwallowImagesLoaded();
         final boolean stuffed = isStuffedSwallow();
         final String key;
-        if (swallowTicks < SWALLOW_GULP_TICKS) {
+        if (swallowTicks < getScaledSwallowGulpTicks()) {
             key = swallowKeyStart;
-        } else if (swallowTicks < SWALLOW_GULP_TICKS + SWALLOW_AFTER_TICKS) {
+        } else if (swallowTicks < getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks()) {
             key = swallowKeyAfter;
         } else if (waddling) {
-            key = ((swallowTicks - SWALLOW_GULP_TICKS - SWALLOW_AFTER_TICKS) / BLOAT_ANIM_INTERVAL) % 2 == 0
+            key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                     ? orElse(bloatBigWalkKey1, bloatWalkKey1, stuffed) : orElse(bloatBigWalkKey2, bloatWalkKey2, stuffed);
         } else {
-            key = ((swallowTicks - SWALLOW_GULP_TICKS - SWALLOW_AFTER_TICKS) / BLOAT_ANIM_INTERVAL) % 2 == 0
+            key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                     ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
         }
         if (key != null && ImagePairs.contains(key)) {
