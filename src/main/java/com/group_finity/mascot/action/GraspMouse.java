@@ -777,10 +777,10 @@ public class GraspMouse extends ActionBase {
             }
             swallowTicks++;
             final boolean bigIntro = isStuffedSwallow() && hasBigSwallowArt();
-            final int gulpEnd = bigIntro ? BIG_INTRO_END
-                    : getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
+            // Glug marks the moment it's fully inside: SwallowAfter's first
+            // frame normally, Big3's last frame for the stuffed intro.
+            final int gulpEnd = bigIntro ? BIG_SWALLOW_TICKS * 3 : getScaledSwallowGulpTicks();
             if (swallowTicks == gulpEnd) {
-                // Fully inside at the very end: the actual gulp.
                 com.group_finity.mascot.sound.NigelSounds.playGlug();
             }
 
@@ -826,17 +826,20 @@ public class GraspMouse extends ActionBase {
             }
 
             // Fully trapped: HP frozen, cursor pinned hard. The big-swallow
-            // intro suspends him in the air for its whole choreography.
-            final boolean gulping = swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks()
-                    || inBigSwallowIntro();
+            // intro suspends him in the air for its whole choreography, but
+            // the forcing (shakes, chokes) stops once Big3 lands the mouse
+            // inside: the After frames are calm aftermath.
+            final boolean forcingDown = bigIntro
+                    ? swallowTicks < BIG_SWALLOW_TICKS * 3
+                    : swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
+            final boolean gulping = forcingDown || (bigIntro && swallowTicks < BIG_INTRO_END);
             final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
             boolean waddling = false;
             if (gulping) {
-                // Gulp in place where he caught it. Big cursors go down
-                // hard: on choke ticks the body heaves once with the sound,
-                // otherwise he holds still and strains. The actual gulp
-                // lands at the very end, when it's fully inside.
-                if (swallowSizeMult > 1.0 && swallowTicks % 30 == 0) {
+                // Gulp in place where he caught it. While forcing down, the
+                // body heaves once with each choke; otherwise he holds still
+                // and strains. After Big3 the After frames are calm aftermath.
+                if (forcingDown && swallowSizeMult > 1.0 && swallowTicks % 30 == 0) {
                     com.group_finity.mascot.sound.NigelSounds.playChoke();
                     getMascot().getAnchor().translate(
                             (int) Math.round(Math.random() * 4.0 - 2.0),
