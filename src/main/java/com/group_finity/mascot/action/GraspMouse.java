@@ -836,10 +836,11 @@ public class GraspMouse extends ActionBase {
             final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
             boolean waddling = false;
             if (gulping) {
-                // Gulp in place where he caught it. While forcing down, the
-                // body heaves once with each choke; otherwise he holds still
-                // and strains. After Big3 the After frames are calm aftermath.
-                if (forcingDown && swallowSizeMult > 1.0 && swallowTicks % 30 == 0) {
+                // Gulp in place where he caught it. While forcing down a
+                // stuffed cursor, the body heaves once with each choke;
+                // otherwise he holds still and strains. Smaller cursors go
+                // down easy with no theatrics at all.
+                if (forcingDown && isStuffedSwallow() && swallowTicks % 30 == 0) {
                     com.group_finity.mascot.sound.NigelSounds.playChoke();
                     getMascot().getAnchor().translate(
                             (int) Math.round(Math.random() * 4.0 - 2.0),
