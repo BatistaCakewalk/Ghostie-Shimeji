@@ -1,0 +1,20 @@
+name: macOS compile check
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  compile:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 'Set up JDK 25'
+        uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: 25
+      - name: 'Compile (no tests, no packaging)'
+        run: mvn -B -DskipTests compile
