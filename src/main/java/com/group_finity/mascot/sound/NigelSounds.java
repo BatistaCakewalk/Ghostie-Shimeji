@@ -4,6 +4,7 @@ import com.group_finity.mascot.Main;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
 import javax.sound.sampled.SourceDataLine;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -101,20 +102,74 @@ public final class NigelSounds {
         play(wobble(160.0, 0.3, 9.0, 40.0, 0.0));
     }
 
-    public static void playTeleLift() {
-        if (!isEnabled()) {
-            return;
-        }
-        // Aura surge: a long evolving shimmer while the hold takes.
-        play(swell(660.0, 1320.0, 0.9));
-    }
-
     public static void playDropThud() {
         if (!isEnabled()) {
             return;
         }
         // Window dropped: dull low thud with grit.
         play(tone(120.0, 60.0, 0.14, 0.4, false));
+    }
+
+    /**
+     * Starts the telekinesis drone: a looping hum that lasts the whole hold.
+     * Restart-safe (restarts cleanly) so rapid re-lifts never stack drones.
+     */
+    public static synchronized void startHum() {
+        if (!isEnabled()) {
+            return;
+        }
+        stopHumLocked();
+        try {
+            final byte[] drone = drone();
+            final AudioFormat format = new AudioFormat(SAMPLE_RATE, 16, 1, true, false);
+            humClip = AudioSystem.getClip();
+            humClip.open(format, drone, 0, drone.length);
+            humClip.loop(Clip.LOOP_CONTINUOUSLY);
+        } catch (final Exception ignored) {
+            humClip = null;
+        }
+    }
+
+    /**
+     * Stops the telekinesis drone. Idempotent: safe from every hold exit
+     * path at once (endHold and disposeGlows both call it).
+     */
+    public static synchronized void stopHum() {
+        stopHumLocked();
+    }
+
+    private static Clip humClip;
+
+    private static void stopHumLocked() {
+        if (humClip != null) {
+            try {
+                humClip.stop();
+                humClip.close();
+            } catch (final Exception ignored) {
+            }
+            humClip = null;
+        }
+    }
+
+    private static byte[] drone() {
+        // Layered low hum with slow beating, quiet enough to sit under
+        // everything. Both ends sit at zero so the loop has no click.
+        final double seconds = 2.0;
+        final int samples = Math.max(1, (int) (SAMPLE_RATE * seconds));
+        final byte[] pcm = new byte[samples * 2];
+        for (int i = 0; i < samples; i++) {
+            final double time = i / (double) SAMPLE_RATE;
+            final double progress = i / (double) samples;
+            final double wave = Math.sin(2.0 * Math.PI * 110.0 * time) * 0.5
+                    + Math.sin(2.0 * Math.PI * 165.0 * time) * 0.3
+                    + Math.sin(2.0 * Math.PI * 220.0 * time) * 0.2;
+            final double beat = 0.7 + 0.3 * Math.sin(2.0 * Math.PI * 0.5 * time);
+            final double edge = Math.min(1.0, Math.min(progress, 1.0 - progress) * samples / (SAMPLE_RATE * 0.05));
+            final short value = (short) (wave * beat * edge * 0.22 * 32767);
+            pcm[i * 2] = (byte) (value & 0xFF);
+            pcm[i * 2 + 1] = (byte) ((value >> 8) & 0xFF);
+        }
+        return pcm;
     }
 
     public static void playGlug() {
@@ -221,24 +276,6 @@ public final class NigelSounds {
             final double attack = Math.min(1.0, i / (SAMPLE_RATE * 0.005));
             final double envelope = attack * Math.exp(-2.5 * progress);
             final short value = (short) (sample * envelope * VOLUME * 32767);
-            pcm[i * 2] = (byte) (value & 0xFF);
-            pcm[i * 2 + 1] = (byte) ((value >> 8) & 0xFF);
-        }
-        return pcm;
-    }
-
-    private static byte[] swell(final double freqFrom, final double freqTo, final double seconds) {
-        final int samples = Math.max(1, (int) (SAMPLE_RATE * seconds));
-        final byte[] pcm = new byte[samples * 2];
-        for (int i = 0; i < samples; i++) {
-            final double progress = i / (double) samples;
-            final double time = i / (double) SAMPLE_RATE;
-            final double phase = 2.0 * Math.PI
-                    * (freqFrom * time + (freqTo - freqFrom) * time * time / (2.0 * seconds));
-            // Swells in with a slow shimmer, then cuts: the opposite of the usual decay.
-            final double shimmer = 0.8 + 0.2 * Math.sin(2.0 * Math.PI * 6.0 * time);
-            final double envelope = Math.min(1.0, progress * 3.0) * (1.0 - Math.max(0.0, progress - 0.8) * 5.0);
-            final short value = (short) (Math.sin(phase) * envelope * shimmer * VOLUME * 32767);
             pcm[i * 2] = (byte) (value & 0xFF);
             pcm[i * 2 + 1] = (byte) ((value >> 8) & 0xFF);
         }

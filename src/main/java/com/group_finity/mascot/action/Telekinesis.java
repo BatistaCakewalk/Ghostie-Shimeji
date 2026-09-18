@@ -230,6 +230,7 @@ public class Telekinesis extends ActionBase {
                 HOLDS.put(mascot, this);
             }
             log.info("Telekinesis init: reeling the cursor in");
+            com.group_finity.mascot.sound.NigelSounds.startHum();
             return;
         }
         if (victim != null) {
@@ -269,7 +270,7 @@ public class Telekinesis extends ActionBase {
         faceWindow();
         log.info("Telekinesis init: holding window at ({}, {}) size {}x{}",
                 (int) startX, (int) startY, winW, winH);
-        com.group_finity.mascot.sound.NigelSounds.playTeleLift();
+        com.group_finity.mascot.sound.NigelSounds.startHum();
     }
 
     @Override
@@ -312,6 +313,7 @@ public class Telekinesis extends ActionBase {
             HOLDS.put(mascot, this);
         }
         log.info("Telekinesis init: lifting fellow mascot {}", victim);
+        com.group_finity.mascot.sound.NigelSounds.startHum();
     }
 
     private Mascot pickVictim(final Mascot mascot) {
@@ -867,6 +869,9 @@ public class Telekinesis extends ActionBase {
     }
 
     private void disposeGlows() {
+        // The drone lives exactly as long as the hold: every exit path
+        // (endHold, beginFall, finishFall, cancelFor) comes through here.
+        com.group_finity.mascot.sound.NigelSounds.stopHum();
         if (glow != null) {
             try {
                 glow.dispose();
