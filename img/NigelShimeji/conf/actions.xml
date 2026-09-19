@@ -30,7 +30,7 @@
                 <Pose Image="/frontstareblink.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
                 <Pose Image="/frontstare.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
                 <Pose Image="/frontstare.png" ImageAnchor="96,198" Velocity="0,0" Duration="4"/>
-                <Pose Image="/frontstare.png" ImageAnchor="96,200" Velocity="0,0" Duration="100"/>
+                <Pose Image="/frontstare.png" ImageAnchor="96,200" Velocity="0,0" Duration="30"/>
             </Animation>
         </Action>
 
