@@ -893,8 +893,14 @@ public class GraspMouse extends ActionBase {
                     getMascot().setLookRight(swallowDir > 0);
                     waddling = true;
                     swallowWander--;
+                    if (lumbering) {
+                        bobFloat(swallowTicks);
+                    }
                 } else {
                     swallowWander++;
+                    if (lumbering) {
+                        bobFloat(swallowTicks);
+                    }
                 }
             }
             // Fully trapped, pinned dead center on Nigel: clicks only
@@ -1440,11 +1446,15 @@ public class GraspMouse extends ActionBase {
         } else {
             // Stuffed idle glance-back: every so often the standing frame
             // swaps to the look-back for a while, then back to the bloat.
-            // A net-zero hover judder keeps it floating like the bob.
+            // Same up-and-down float as normal idle, telescoping so it
+            // can never drift.
             if (stuffed && lookBackKey != null && ImagePairs.contains(lookBackKey)
                     && (swallowTicks + lookBackPhase) % LOOKBACK_PERIOD < LOOKBACK_SHOW_TICKS) {
                 key = lookBackKey;
-                getMascot().getAnchor().translate(0, (swallowTicks / 10) % 2 == 0 ? 1 : -1);
+                final double lookPhase = (swallowTicks + lookBackPhase) * 2.0 * Math.PI / 40.0;
+                final double lookPrev = (swallowTicks + lookBackPhase - 1) * 2.0 * Math.PI / 40.0;
+                getMascot().getAnchor().translate(0,
+                        (int) Math.round(3.0 * (Math.sin(lookPhase) - Math.sin(lookPrev))));
             } else {
                 key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                         ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
@@ -1460,6 +1470,17 @@ public class GraspMouse extends ActionBase {
             return big;
         }
         return normal;
+    }
+
+    /**
+     * Hover-bob step: the discrete derivative of a sine, so the offsets
+     * telescope and the anchor can never wander off no matter how long it
+     * runs. Matches the normal idle's up-and-down float.
+     */
+    private void bobFloat(final int timeBase) {
+        final double phase = timeBase * 2.0 * Math.PI / 40.0;
+        final double prev = (timeBase - 1) * 2.0 * Math.PI / 40.0;
+        getMascot().getAnchor().translate(0, (int) Math.round(3.0 * (Math.sin(phase) - Math.sin(prev))));
     }
 
     private boolean hasBigSwallowArt() {

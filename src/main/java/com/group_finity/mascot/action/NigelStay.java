@@ -76,8 +76,12 @@ public class NigelStay extends Stay {
         if (glanceRemaining > 0) {
             glanceRemaining--;
             applyGlance(glanceKey);
-            // Net-zero hover judder, reverted next tick before the check.
-            lastJudder = (getTime() / 10) % 2 == 0 ? 1 : -1;
+            // Up-and-down float like the base bob: discrete sine derivative,
+            // so it telescopes and the anchor can never wander off. Reverted
+            // next tick (and on action end) before the border check.
+            final double phase = getTime() * 2.0 * Math.PI / 40.0;
+            final double prev = (getTime() - 1) * 2.0 * Math.PI / 40.0;
+            lastJudder = (int) Math.round(3.0 * (Math.sin(phase) - Math.sin(prev)));
             getMascot().getAnchor().translate(0, lastJudder);
         } else if (blinkRemaining > 0) {
             blinkRemaining--;
