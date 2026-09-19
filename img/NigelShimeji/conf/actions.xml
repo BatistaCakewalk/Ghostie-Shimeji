@@ -8,7 +8,7 @@
 
         <!-- Standing -->
 
-        <Action Name="Stand" Type="Stay" BorderType="Floor">
+        <Action Name="Stand" Type="Embedded" Class="com.group_finity.mascot.action.NigelStay" BorderType="Floor">
             <Animation>
                 <Pose Image="/stand.png" ImageAnchor="96,200" Velocity="0,0" Duration="8"/>
                 <Pose Image="/stand.png" ImageAnchor="96,198" Velocity="0,0" Duration="4"/>
