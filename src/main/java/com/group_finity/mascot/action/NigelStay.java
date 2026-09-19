@@ -99,7 +99,7 @@ public class NigelStay extends Stay {
             lookForwardKey = ImagePairs.load(Path.of(imageSet, "standlookforward.png"), null, 96, 200, scaling, filter, opacity);
             ImagePairs.addUsage(lookForwardKey, imageSet);
             try {
-                blinkKey = ImagePairs.load(Path.of(imageSet, "walk_blink.png"), null, 96, 200, scaling, filter, opacity);
+                blinkKey = ImagePairs.load(Path.of(imageSet, "stand2.png"), null, 96, 200, scaling, filter, opacity);
                 ImagePairs.addUsage(blinkKey, imageSet);
             } catch (final IOException | RuntimeException ignored) {
                 blinkKey = null;
