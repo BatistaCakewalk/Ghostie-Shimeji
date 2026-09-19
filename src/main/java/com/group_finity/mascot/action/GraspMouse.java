@@ -1464,6 +1464,10 @@ public class GraspMouse extends ActionBase {
         if (key != null && ImagePairs.contains(key)) {
             getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
         }
+        // TEMP-DEBUG: trace swallow sprite selection. Remove before merging.
+        if (swallowTicks % 10 == 0) {
+            log.info("SWALLOW-DEBUG t={} floating={} stuffed={} key={}", swallowTicks, floating, stuffed, key);
+        }
     }
 
     private static String orElse(final String big, final String normal, final boolean stuffed) {
