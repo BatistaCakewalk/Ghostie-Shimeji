@@ -894,10 +894,12 @@ public class GraspMouse extends ActionBase {
                     floating = true;
                     floatWander--;
                     // Fat bobs at normal pace, fatter lumbers slow and heavy.
-                    bobFloat(swallowTicks, lumbering ? 64 : 40, lumbering ? 4.0 : 3.0);
+                    // Fat bobs at normal pace and swing, fatter lumbers
+                    // slower and heavier.
+                    bobFloat(swallowTicks, lumbering ? 64 : 40, lumbering ? 10.0 : 8.0);
                 } else {
                     floatWander++;
-                    bobFloat(swallowTicks, lumbering ? 64 : 40, lumbering ? 4.0 : 3.0);
+                    bobFloat(swallowTicks, lumbering ? 64 : 40, lumbering ? 10.0 : 8.0);
                 }
             }
             // Fully trapped, pinned dead center on Nigel: clicks only
@@ -1453,7 +1455,7 @@ public class GraspMouse extends ActionBase {
                 final double lookPhase = (swallowTicks + lookBackPhase) * 2.0 * Math.PI / 64.0;
                 final double lookPrev = (swallowTicks + lookBackPhase - 1) * 2.0 * Math.PI / 64.0;
                 getMascot().getAnchor().translate(0,
-                        (int) Math.round(4.0 * (Math.sin(lookPhase) - Math.sin(lookPrev))));
+                        (int) Math.round(10.0 * (Math.sin(lookPhase) - Math.sin(lookPrev))));
             } else {
                 key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                         ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
@@ -1474,7 +1476,8 @@ public class GraspMouse extends ActionBase {
     /**
      * Hover-bob step: the discrete derivative of a sine, so the offsets
      * telescope and the anchor can never wander off no matter how long it
-     * runs. Period and amplitude set the pace: the fatter the slower.
+     * runs. Amplitude matches the normal idle's ~8px swing so it actually
+     * reads; the fatter the slower and heavier.
      */
     private void bobFloat(final int timeBase, final int periodTicks, final double amplitude) {
         final double phase = timeBase * 2.0 * Math.PI / periodTicks;

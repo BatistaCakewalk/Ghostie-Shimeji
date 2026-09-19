@@ -81,7 +81,7 @@ public class NigelStay extends Stay {
             // next tick (and on action end) before the border check.
             final double phase = getTime() * 2.0 * Math.PI / 40.0;
             final double prev = (getTime() - 1) * 2.0 * Math.PI / 40.0;
-            lastJudder = (int) Math.round(3.0 * (Math.sin(phase) - Math.sin(prev)));
+            lastJudder = (int) Math.round(8.0 * (Math.sin(phase) - Math.sin(prev)));
             getMascot().getAnchor().translate(0, lastJudder);
         } else if (blinkRemaining > 0) {
             blinkRemaining--;
