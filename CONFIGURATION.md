@@ -11,13 +11,14 @@ Each mascot resolves `img/[NAME]/conf/actions.xml` → `conf/actions.xml` fallba
 ```xml
 <Condition Condition="#{mascot.environment.floor.isOn(mascot.anchor)}">
   <Behavior Name="StandUp" Frequency="6"/>
+  <Behavior Name="Stare" Frequency="2"/>
   <Behavior Name="Walk" Frequency="7"/>
   <Behavior Name="ChaseMouse" Frequency="7"/>
   <Behavior Name="CatchMouse" Frequency="2"/>
   <Behavior Name="Telekinesis" Frequency="3"/>
 </Condition>
 ```
-<!-- 6+7+7+2+3=25: StandUp 24%, Walk 28%, ChaseMouse 28%, CatchMouse 8%, Telekinesis 12% -->
+<!-- 6+2+7+7+2+3=27: StandUp 22%, Stare 7%, Walk 26%, ChaseMouse 26%, CatchMouse 7%, Telekinesis 11% -->
 
 Raise `CatchMouse` to `10` → `10/33≈30%` of floor picks. `Grasp` itself is `Duration="20000"` — must be `> CuddleIdle+Duration (~18600)` to allow full cuddle.
 

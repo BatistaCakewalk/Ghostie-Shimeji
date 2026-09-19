@@ -22,6 +22,18 @@
             </Animation>
         </Action>
 
+        <Action Name="Stare" Type="Stay" BorderType="Floor">
+            <Animation>
+                <Pose Image="/frontstare.png" ImageAnchor="96,200" Velocity="0,0" Duration="8"/>
+                <Pose Image="/frontstare.png" ImageAnchor="96,198" Velocity="0,0" Duration="4"/>
+                <Pose Image="/frontstare.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
+                <Pose Image="/frontstareblink.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
+                <Pose Image="/frontstare.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
+                <Pose Image="/frontstare.png" ImageAnchor="96,198" Velocity="0,0" Duration="4"/>
+                <Pose Image="/frontstare.png" ImageAnchor="96,200" Velocity="0,0" Duration="100"/>
+            </Animation>
+        </Action>
+
         <Action Name="Walk" Type="Move" BorderType="Floor" TargetX="${Math.random() * mascot.environment.screen.width}">
             <Animation>
                 <Pose Image="/walk_2.png" ImageAnchor="96,200" Velocity="-6,0" Duration="4"/>
