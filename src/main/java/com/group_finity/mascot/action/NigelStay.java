@@ -40,7 +40,8 @@ public class NigelStay extends Stay {
     @Override
     public void init(final Mascot mascot) throws VariableException {
         super.init(mascot);
-        glanceCooldown = GLANCE_EVERY_MIN + (int) (Math.random() * GLANCE_EVERY_JITTER);
+        // First glance comes soon so short idle stretches still show one.
+        glanceCooldown = 80 + (int) (Math.random() * 120);
         glanceRemaining = 0;
     }
 

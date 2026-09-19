@@ -159,7 +159,7 @@ public class GraspMouse extends ActionBase {
      * swallow so it never lands on a round beat.
      */
     private static final int LOOKBACK_PERIOD = 300;
-    private static final int LOOKBACK_SHOW_TICKS = 60;    private static final int BIG_INTRO_END = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
+    private static final int LOOKBACK_SHOW_TICKS = 100;    private static final int BIG_INTRO_END = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
             + BIG_AFTER1_TICKS + BIG_AFTER2_TICKS + BIG_AFTER34_FRAME * 2 * BIG_AFTER34_CYCLES;
 
     /**
@@ -1439,10 +1439,12 @@ public class GraspMouse extends ActionBase {
                     ? orElse(bloatBigWalkKey1, bloatWalkKey1, stuffed) : orElse(bloatBigWalkKey2, bloatWalkKey2, stuffed);
         } else {
             // Stuffed idle glance-back: every so often the standing frame
-            // swaps to the look-back for a blink, then back to the bloat.
+            // swaps to the look-back for a while, then back to the bloat.
+            // A net-zero hover judder keeps it floating like the bob.
             if (stuffed && lookBackKey != null && ImagePairs.contains(lookBackKey)
                     && (swallowTicks + lookBackPhase) % LOOKBACK_PERIOD < LOOKBACK_SHOW_TICKS) {
                 key = lookBackKey;
+                getMascot().getAnchor().translate(0, (swallowTicks / 10) % 2 == 0 ? 1 : -1);
             } else {
                 key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                         ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
