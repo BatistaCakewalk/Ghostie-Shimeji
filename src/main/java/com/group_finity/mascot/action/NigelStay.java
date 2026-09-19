@@ -25,12 +25,15 @@ public class NigelStay extends Stay {
     private static final int GLANCE_EVERY_MIN = 400;
     private static final int GLANCE_EVERY_JITTER = 500;
     private static final int GLANCE_SHOW_TICKS = 40;
+    private static final int BLINK_SHOW_TICKS = 4;
 
     private String lookBackKey;
     private String lookForwardKey;
+    private String blinkKey;
     private boolean imagesLoaded;
     private int glanceCooldown = GLANCE_EVERY_MIN;
     private int glanceRemaining;
+    private int blinkRemaining;
     private String glanceKey;
 
     public NigelStay(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
@@ -43,6 +46,7 @@ public class NigelStay extends Stay {
         // First glance comes soon so short idle stretches still show one.
         glanceCooldown = 80 + (int) (Math.random() * 120);
         glanceRemaining = 0;
+        blinkRemaining = 0;
     }
 
     @Override
@@ -51,18 +55,31 @@ public class NigelStay extends Stay {
         ensureImagesLoaded();
         if (glanceRemaining > 0) {
             glanceRemaining--;
-            applyGlance();
+            applyGlance(glanceKey);
+            // Net-zero hover judder: the override frame pins its anchor,
+            // so float it by hand like the base bob does.
+            getMascot().getAnchor().translate(0, (getTime() / 10) % 2 == 0 ? 1 : -1);
+        } else if (blinkRemaining > 0) {
+            blinkRemaining--;
+            applyGlance(blinkKey);
+            if (blinkRemaining == 0) {
+                glanceRemaining = GLANCE_SHOW_TICKS;
+            }
         } else if (--glanceCooldown <= 0) {
             glanceKey = Math.random() < 0.5 ? lookBackKey : lookForwardKey;
-            glanceRemaining = GLANCE_SHOW_TICKS;
             glanceCooldown = GLANCE_EVERY_MIN + (int) (Math.random() * GLANCE_EVERY_JITTER);
-            applyGlance();
+            if (blinkKey != null && ImagePairs.contains(blinkKey)) {
+                blinkRemaining = BLINK_SHOW_TICKS;
+            } else {
+                glanceRemaining = GLANCE_SHOW_TICKS;
+            }
+            applyGlance(blinkRemaining > 0 ? blinkKey : glanceKey);
         }
     }
 
-    private void applyGlance() {
-        if (glanceKey != null && ImagePairs.contains(glanceKey)) {
-            getMascot().setImage(ImagePairs.get(glanceKey).getImage(getMascot().isLookRight()));
+    private void applyGlance(final String key) {
+        if (key != null && ImagePairs.contains(key)) {
+            getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
         }
     }
 
@@ -81,6 +98,12 @@ public class NigelStay extends Stay {
             ImagePairs.addUsage(lookBackKey, imageSet);
             lookForwardKey = ImagePairs.load(Path.of(imageSet, "standlookforward.png"), null, 96, 200, scaling, filter, opacity);
             ImagePairs.addUsage(lookForwardKey, imageSet);
+            try {
+                blinkKey = ImagePairs.load(Path.of(imageSet, "walk_blink.png"), null, 96, 200, scaling, filter, opacity);
+                ImagePairs.addUsage(blinkKey, imageSet);
+            } catch (final IOException | RuntimeException ignored) {
+                blinkKey = null;
+            }
             imagesLoaded = true;
         } catch (final IOException | RuntimeException e) {
             log.warn("Failed to load idle glance images for NigelStay", e);
