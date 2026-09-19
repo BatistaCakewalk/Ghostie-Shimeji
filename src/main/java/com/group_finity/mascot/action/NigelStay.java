@@ -35,7 +35,7 @@ public class NigelStay extends Stay {
     private int glanceRemaining;
     private int blinkRemaining;
     private String glanceKey;
-    private int lastJudder;
+    private int stareLift = 8;
 
     public NigelStay(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
         super(schema, animations, context);
@@ -48,44 +48,18 @@ public class NigelStay extends Stay {
         glanceCooldown = 80 + (int) (Math.random() * 120);
         glanceRemaining = 0;
         blinkRemaining = 0;
-        lastJudder = 0;
-    }
-
-    @Override
-    public boolean hasNext() throws VariableException {
-        final boolean more = super.hasNext();
-        // Action ending with a float applied: hand the next behavior a
-        // clean anchor, or it starts a pixel off the floor and falls.
-        if (!more && lastJudder != 0) {
-            getMascot().getAnchor().translate(0, -lastJudder);
-            lastJudder = 0;
-        }
-        return more;
     }
 
     @Override
     protected void tick() throws LostGroundException, VariableException {
-        // Revert last tick's float first: Stay's border check must see the
-        // true anchor, or a -1 step reads as off the floor and he falls.
-        if (lastJudder != 0) {
-            getMascot().getAnchor().translate(0, -lastJudder);
-            lastJudder = 0;
-        }
         super.tick();
         ensureImagesLoaded();
         if (glanceRemaining > 0) {
             glanceRemaining--;
-            applyGlance(glanceKey);
-            // Up-and-down float like the base bob: discrete sine derivative,
-            // so it telescopes and the anchor can never wander off. Reverted
-            // next tick (and on action end) before the border check.
-            final double phase = getTime() * 2.0 * Math.PI / 40.0;
-            final double prev = (getTime() - 1) * 2.0 * Math.PI / 40.0;
-            lastJudder = (int) Math.round(8.0 * (Math.sin(phase) - Math.sin(prev)));
-            getMascot().getAnchor().translate(0, lastJudder);
+            applyGlance(glanceKey, (getTime() / 20) % 2 == 0);
         } else if (blinkRemaining > 0) {
             blinkRemaining--;
-            applyGlance(blinkKey);
+            applyGlance(blinkKey, false);
             if (blinkRemaining == 0) {
                 glanceRemaining = GLANCE_SHOW_TICKS;
             }
@@ -97,14 +71,23 @@ public class NigelStay extends Stay {
             } else {
                 glanceRemaining = GLANCE_SHOW_TICKS;
             }
-            applyGlance(blinkRemaining > 0 ? blinkKey : glanceKey);
+            applyGlance(blinkRemaining > 0 ? blinkKey : glanceKey, false);
         }
     }
 
-    private void applyGlance(final String key) {
-        if (key != null && ImagePairs.contains(key)) {
-            getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
+    private void applyGlance(final String key, final boolean up) {
+        if (key == null || !ImagePairs.contains(key)) {
+            return;
         }
+        // Float lives in the frames (base/raised twins): the anchor is
+        // never touched, so Stay's border check always passes.
+        String show = key;
+        if (up) {
+            final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                    ? getMascot().getImageSet() : "NigelShimeji";
+            show = ImagePairs.raisedVariant(key, stareLift, imageSet);
+        }
+        getMascot().setImage(ImagePairs.get(show).getImage(getMascot().isLookRight()));
     }
 
     private void ensureImagesLoaded() {
@@ -128,6 +111,7 @@ public class NigelStay extends Stay {
             } catch (final IOException | RuntimeException ignored) {
                 blinkKey = null;
             }
+            stareLift = Math.max(2, (int) Math.round(8 * scaling));
             imagesLoaded = true;
         } catch (final IOException | RuntimeException e) {
             log.warn("Failed to load idle glance images for NigelStay", e);

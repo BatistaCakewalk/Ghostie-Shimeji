@@ -296,9 +296,8 @@ public class GraspMouse extends ActionBase {
     // Swallow failsafe state: ticks since the last registered click
     private int swallowStuckTicks;
 
-    // Cumulative bob offset: the floor check runs against the un-bobbed
-    // position, or a deep bob reads as airborne and sink/float flap.
-    private int bobOffsetY;
+    // Raised-frame bob lift in pixels, scaled with the image set.
+    private int bobLift = 8;
 
     // Swallow size multiplier cached at swallow enter: scales the gulp
     // length, click requirement, window and bleed-off together.
@@ -675,7 +674,6 @@ public class GraspMouse extends ActionBase {
             floatDir = 0;
             floatWander = 0;
             swallowStuckTicks = 0;
-            bobOffsetY = 0;
             lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
             swallowSizeMult = getSwallowSizeMultiplier();
             sickPhase = 0;
@@ -766,7 +764,6 @@ public class GraspMouse extends ActionBase {
             floatDir = 0;
             floatWander = 0;
             swallowStuckTicks = 0;
-            bobOffsetY = 0;
             lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
             swallowSizeMult = getSwallowSizeMultiplier();
             sickPhase = 0;
@@ -856,11 +853,7 @@ public class GraspMouse extends ActionBase {
                     ? swallowTicks < BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
                     : swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
             final boolean gulping = forcingDown || (bigIntro && swallowTicks < BIG_INTRO_END);
-            // Floor check against the un-bobbed position: the bob is visual,
-            // and a deep trough must not read as airborne.
-            final Point baseAnchor = getMascot().getAnchor();
-            final boolean grounded = getEnvironment().getFloor().isOn(
-                    new Point(baseAnchor.x, baseAnchor.y - bobOffsetY));
+            final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
             boolean floating = false;
             if (gulping) {
                 // Gulp in place where he caught it. While forcing down a
@@ -903,13 +896,8 @@ public class GraspMouse extends ActionBase {
                     getMascot().setLookRight(floatDir > 0);
                     floating = true;
                     floatWander--;
-                    // Fat bobs at normal pace, fatter lumbers slow and heavy.
-                    // Fat bobs at normal pace and swing, fatter lumbers
-                    // slower and heavier.
-                    bobFloat(swallowTicks, lumbering ? 64 : 40, lumbering ? 10.0 : 8.0);
                 } else {
                     floatWander++;
-                    bobFloat(swallowTicks, lumbering ? 64 : 40, lumbering ? 10.0 : 8.0);
                 }
             }
             // Fully trapped, pinned dead center on Nigel: clicks only
@@ -1396,6 +1384,7 @@ public class GraspMouse extends ActionBase {
             bloatBigWalkKey1 = loadOptionalSwallowImage(imageSet, "WalkBigBloated1.png", scaling, filter, opacity);
             bloatBigWalkKey2 = loadOptionalSwallowImage(imageSet, "WalkBigBloated2.png", scaling, filter, opacity);
             lookBackKey = loadOptionalSwallowImage(imageSet, "FatterStandLookBack.png", scaling, filter, opacity);
+            bobLift = Math.max(2, (int) Math.round(8 * scaling));
             // Stuffed intro set (SwallowBig1-3, SwallowAfter1-4): all or
             // nothing, the choreography needs every frame.
             bigSwallowKey1 = loadOptionalSwallowImage(imageSet, "SwallowBig1.png", scaling, filter, opacity);
@@ -1425,6 +1414,7 @@ public class GraspMouse extends ActionBase {
     private void applySwallowAnimation(final boolean floating, final boolean grounded) {
         ensureSwallowImagesLoaded();
         final boolean stuffed = isStuffedSwallow();
+        final boolean up = (swallowTicks / 20) % 2 == 0;
         final String key;
         if (inBigSwallowIntro()) {
             final int t = swallowTicks;
@@ -1450,26 +1440,21 @@ public class GraspMouse extends ActionBase {
         } else if (swallowTicks < getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks()) {
             key = swallowKeyAfter;
         } else if (floating) {
-            key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
+            final String walkBase = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                     ? orElse(bloatBigWalkKey1, bloatWalkKey1, stuffed) : orElse(bloatBigWalkKey2, bloatWalkKey2, stuffed);
+            key = floatKey(walkBase, up);
         } else {
             // Stuffed idle glance-back: every so often the standing frame
             // swaps to the look-back for a while, then back to the bloat.
             // Grounded only: the sinking descent sways sideways, which would
             // read as the glance itself drifting.
-            // Same up-and-down float as normal idle, telescoping so it
-            // can never drift.
             if (grounded && stuffed && lookBackKey != null && ImagePairs.contains(lookBackKey)
                     && (swallowTicks + lookBackPhase) % LOOKBACK_PERIOD < LOOKBACK_SHOW_TICKS) {
-                key = lookBackKey;
-                final double lookPhase = (swallowTicks + lookBackPhase) * 2.0 * Math.PI / 64.0;
-                final double lookPrev = (swallowTicks + lookBackPhase - 1) * 2.0 * Math.PI / 64.0;
-                final int lookDy = (int) Math.round(10.0 * (Math.sin(lookPhase) - Math.sin(lookPrev)));
-                getMascot().getAnchor().translate(0, lookDy);
-                bobOffsetY += lookDy;
+                key = floatKey(lookBackKey, up);
             } else {
-                key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
+                final String standBase = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                         ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
+                key = floatKey(standBase, up);
             }
         }
         if (key != null && ImagePairs.contains(key)) {
@@ -1485,17 +1470,17 @@ public class GraspMouse extends ActionBase {
     }
 
     /**
-     * Hover-bob step: the discrete derivative of a sine, so the offsets
-     * telescope and the anchor can never wander off no matter how long it
-     * runs. Amplitude matches the normal idle's ~8px swing so it actually
-     * reads; the fatter the slower and heavier.
+     * Float step: base frame or its raised twin, alternating every 20 ticks
+     * for the up-and-down hover. The anchor never moves for visuals, so
+     * physics (floor checks, pins) always reads the true position.
      */
-    private void bobFloat(final int timeBase, final int periodTicks, final double amplitude) {
-        final double phase = timeBase * 2.0 * Math.PI / periodTicks;
-        final double prev = (timeBase - 1) * 2.0 * Math.PI / periodTicks;
-        final int dy = (int) Math.round(amplitude * (Math.sin(phase) - Math.sin(prev)));
-        getMascot().getAnchor().translate(0, dy);
-        bobOffsetY += dy;
+    private String floatKey(final String baseKey, final boolean up) {
+        if (!up || baseKey == null) {
+            return baseKey;
+        }
+        final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                ? getMascot().getImageSet() : "NigelShimeji";
+        return ImagePairs.raisedVariant(baseKey, bobLift, imageSet);
     }
 
     private boolean hasBigSwallowArt() {

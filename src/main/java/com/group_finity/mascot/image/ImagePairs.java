@@ -113,9 +113,40 @@ public final class ImagePairs {
     }
 
     /**
+     * Gets (creating on first use) a raised variant of an image pair: same
+     * pixels, anchor lifted by the given amount. Lets callers bob purely
+     * visually, without ever moving the mascot anchor that physics
+     * (floor checks, pins) reads.
+     *
+     * @param baseKey the key of the image pair to raise
+     * @param lift pixels to lift the anchor by
+     * @param imageSet image set to attribute the variant to for cleanup
+     * @return the raised variant's key, or the base key when it cannot be built
+     */
+    public static String raisedVariant(final String baseKey, final int lift, final String imageSet) {
+        if (baseKey == null || lift == 0) {
+            return baseKey;
+        }
+        final String raised = baseKey + ":up" + lift;
+        if (imagePairs.containsKey(raised)) {
+            return raised;
+        }
+        final ImagePair pair = imagePairs.get(baseKey);
+        if (pair == null) {
+            return baseKey;
+        }
+        final MascotImage left = pair.leftImage();
+        final MascotImage right = pair.rightImage();
+        final int anchorX = left.getCenter().x;
+        final int anchorY = left.getCenter().y - lift;
+        loadRendered(raised, left.getImage(), right.getImage(), anchorX, anchorY);
+        addUsage(raised, imageSet);
+        return raised;
+    }
+
+    /**
      * Checks whether there is an image pair associated with the given key.
      *
-     * @param key the key whose presence is to be checked
      * @return whether the key has an associated image pair
      */
     public static boolean contains(String key) {
