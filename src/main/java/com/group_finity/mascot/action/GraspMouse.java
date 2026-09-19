@@ -143,7 +143,7 @@ public class GraspMouse extends ActionBase {
      * Stuffed-swallow intro choreography (big-cursor art): Big1/Big2/Big3,
      * then After1 (5s dizzy), After2 (3s looking down), then After3/After4
      * alternating 4 cycles (~10s). Suspended in the air throughout; normal
-     * sink/waddle resumes after.
+     * sink/float resumes after.
      */
     private static final int BIG_SWALLOW1_TICKS = 125;
     private static final int BIG_SWALLOW2_TICKS = 125;
@@ -247,8 +247,8 @@ public class GraspMouse extends ActionBase {
     private int swallowTicks;
     private int swallowClicks;
     private int swallowWindowRemaining;
-    private int swallowDir;
-    private int swallowWander;
+    private int floatDir;
+    private int floatWander;
     private String swallowKeyStart;
     private String swallowKeyAfter;
     private String bloatKey1;
@@ -502,8 +502,8 @@ public class GraspMouse extends ActionBase {
         swallowTicks = 0;
         swallowClicks = 0;
         swallowWindowRemaining = 0;
-        swallowDir = 0;
-        swallowWander = 0;
+        floatDir = 0;
+        floatWander = 0;
         sickPhase = 0;
         sickTicks = 0;
         sickClicks = 0;
@@ -668,8 +668,8 @@ public class GraspMouse extends ActionBase {
             swallowTicks = 0;
             swallowClicks = 0;
             swallowWindowRemaining = 0;
-            swallowDir = 0;
-            swallowWander = 0;
+            floatDir = 0;
+            floatWander = 0;
             swallowStuckTicks = 0;
             lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
             swallowSizeMult = getSwallowSizeMultiplier();
@@ -758,8 +758,8 @@ public class GraspMouse extends ActionBase {
             swallowTicks = 0;
             swallowClicks = 0;
             swallowWindowRemaining = 0;
-            swallowDir = 0;
-            swallowWander = 0;
+            floatDir = 0;
+            floatWander = 0;
             swallowStuckTicks = 0;
             lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
             swallowSizeMult = getSwallowSizeMultiplier();
@@ -806,7 +806,7 @@ public class GraspMouse extends ActionBase {
                 }
             }
             // No clicking out during the stuffed intro: the choreography
-            // plays first, escape starts once he's waddling with it.
+            // plays first, escape starts once he's floating with it.
             if (clicks > 0 && !inBigSwallowIntro()) {
                 if (swallowWindowRemaining == 0) {
                     swallowWindowRemaining = (int) Math.round(
@@ -851,7 +851,7 @@ public class GraspMouse extends ActionBase {
                     : swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
             final boolean gulping = forcingDown || (bigIntro && swallowTicks < BIG_INTRO_END);
             final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
-            boolean waddling = false;
+            boolean floating = false;
             if (gulping) {
                 // Gulp in place where he caught it. While forcing down a
                 // stuffed cursor, the body heaves once with each choke;
@@ -870,33 +870,33 @@ public class GraspMouse extends ActionBase {
                 final int sway = (int) Math.round(Math.sin(swallowTicks * 0.15) * 2.0);
                 getMascot().getAnchor().translate(sway, 3);
             } else {
-                // Waddle in bursts with idle pauses, like he's showing off his prize.
+                // Float in bursts with idle pauses, like he's showing off his prize.
                 // Stuffed, he lumbers: shorter bursts, longer breathers.
                 final boolean lumbering = isStuffedSwallow();
-                if (swallowWander == 0) {
-                    if (swallowDir == 0 || Math.random() < 0.6) {
-                        swallowDir = Math.random() < 0.5 ? -1 : 1;
-                        swallowWander = lumbering ? 30 + (int) (Math.random() * 45)
+                if (floatWander == 0) {
+                    if (floatDir == 0 || Math.random() < 0.6) {
+                        floatDir = Math.random() < 0.5 ? -1 : 1;
+                        floatWander = lumbering ? 30 + (int) (Math.random() * 45)
                                 : 60 + (int) (Math.random() * 90);
                     } else {
-                        swallowWander = lumbering ? -(80 + (int) (Math.random() * 100))
+                        floatWander = lumbering ? -(80 + (int) (Math.random() * 100))
                                 : -(40 + (int) (Math.random() * 60));
                     }
                 }
-                if (swallowWander > 0) {
-                    getMascot().getAnchor().translate(swallowDir * 2, 0);
+                if (floatWander > 0) {
+                    getMascot().getAnchor().translate(floatDir * 2, 0);
                     final Area screen = getEnvironment().getScreen();
                     final Point anchor = getMascot().getAnchor();
                     if (anchor.x <= screen.getLeft() + 2 || anchor.x >= screen.getRight() - 2) {
-                        swallowDir = -swallowDir;
+                        floatDir = -floatDir;
                     }
-                    getMascot().setLookRight(swallowDir > 0);
-                    waddling = true;
-                    swallowWander--;
+                    getMascot().setLookRight(floatDir > 0);
+                    floating = true;
+                    floatWander--;
                     // Fat bobs at normal pace, fatter lumbers slow and heavy.
                     bobFloat(swallowTicks, lumbering ? 64 : 40, lumbering ? 4.0 : 3.0);
                 } else {
-                    swallowWander++;
+                    floatWander++;
                     bobFloat(swallowTicks, lumbering ? 64 : 40, lumbering ? 4.0 : 3.0);
                 }
             }
@@ -905,7 +905,7 @@ public class GraspMouse extends ActionBase {
             clampAnchorToScreen();
             final Point hands = getGraspPoint();
             robot.mouseMove(hands.x, hands.y);
-            applySwallowAnimation(waddling, grounded);
+            applySwallowAnimation(floating, grounded);
             reassertCursorHidden();
             return;
         }
@@ -1410,7 +1410,7 @@ public class GraspMouse extends ActionBase {
         }
     }
 
-    private void applySwallowAnimation(final boolean waddling, final boolean grounded) {
+    private void applySwallowAnimation(final boolean floating, final boolean grounded) {
         ensureSwallowImagesLoaded();
         final boolean stuffed = isStuffedSwallow();
         final String key;
@@ -1437,7 +1437,7 @@ public class GraspMouse extends ActionBase {
             key = swallowKeyStart;
         } else if (swallowTicks < getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks()) {
             key = swallowKeyAfter;
-        } else if (waddling) {
+        } else if (floating) {
             key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                     ? orElse(bloatBigWalkKey1, bloatWalkKey1, stuffed) : orElse(bloatBigWalkKey2, bloatWalkKey2, stuffed);
         } else {
