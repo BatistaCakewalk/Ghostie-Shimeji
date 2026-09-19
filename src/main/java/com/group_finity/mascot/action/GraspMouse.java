@@ -1414,7 +1414,9 @@ public class GraspMouse extends ActionBase {
     private void applySwallowAnimation(final boolean floating, final boolean grounded) {
         ensureSwallowImagesLoaded();
         final boolean stuffed = isStuffedSwallow();
-        final boolean up = (swallowTicks / 20) % 2 == 0;
+        // Staircase hover, grounded only: mid-sink the descent already
+        // moves him, so the frames stay flat until touchdown.
+        final int stage = grounded ? (swallowTicks / 7) % 4 : 0;
         final String key;
         if (inBigSwallowIntro()) {
             final int t = swallowTicks;
@@ -1442,7 +1444,7 @@ public class GraspMouse extends ActionBase {
         } else if (floating) {
             final String walkBase = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                     ? orElse(bloatBigWalkKey1, bloatWalkKey1, stuffed) : orElse(bloatBigWalkKey2, bloatWalkKey2, stuffed);
-            key = floatKey(walkBase, up);
+            key = floatKey(walkBase, stage);
         } else {
             // Stuffed idle glance-back: every so often the standing frame
             // swaps to the look-back for a while, then back to the bloat.
@@ -1450,11 +1452,11 @@ public class GraspMouse extends ActionBase {
             // read as the glance itself drifting.
             if (grounded && stuffed && lookBackKey != null && ImagePairs.contains(lookBackKey)
                     && (swallowTicks + lookBackPhase) % LOOKBACK_PERIOD < LOOKBACK_SHOW_TICKS) {
-                key = floatKey(lookBackKey, up);
+                key = floatKey(lookBackKey, stage);
             } else {
                 final String standBase = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                         ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
-                key = floatKey(standBase, up);
+                key = floatKey(standBase, stage);
             }
         }
         if (key != null && ImagePairs.contains(key)) {
@@ -1470,17 +1472,18 @@ public class GraspMouse extends ActionBase {
     }
 
     /**
-     * Float step: base frame or its raised twin, alternating every 20 ticks
-     * for the up-and-down hover. The anchor never moves for visuals, so
-     * physics (floor checks, pins) always reads the true position.
+     * Float step: base frame or a raised twin, cycling base-mid-raised-mid
+     * for a smooth staircase hover instead of a binary flip. The anchor
+     * never moves for visuals, so physics always reads the true position.
      */
-    private String floatKey(final String baseKey, final boolean up) {
-        if (!up || baseKey == null) {
+    private String floatKey(final String baseKey, final int stage) {
+        if (baseKey == null || stage == 0) {
             return baseKey;
         }
         final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                 ? getMascot().getImageSet() : "NigelShimeji";
-        return ImagePairs.raisedVariant(baseKey, bobLift, imageSet);
+        final int lift = stage == 2 ? bobLift : Math.max(1, bobLift / 2);
+        return ImagePairs.raisedVariant(baseKey, lift, imageSet);
     }
 
     private boolean hasBigSwallowArt() {

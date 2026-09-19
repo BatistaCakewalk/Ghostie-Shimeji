@@ -56,10 +56,10 @@ public class NigelStay extends Stay {
         ensureImagesLoaded();
         if (glanceRemaining > 0) {
             glanceRemaining--;
-            applyGlance(glanceKey, (getTime() / 20) % 2 == 0);
+            applyGlance(glanceKey, (getTime() / 7) % 4);
         } else if (blinkRemaining > 0) {
             blinkRemaining--;
-            applyGlance(blinkKey, false);
+            applyGlance(blinkKey, 0);
             if (blinkRemaining == 0) {
                 glanceRemaining = GLANCE_SHOW_TICKS;
             }
@@ -71,21 +71,22 @@ public class NigelStay extends Stay {
             } else {
                 glanceRemaining = GLANCE_SHOW_TICKS;
             }
-            applyGlance(blinkRemaining > 0 ? blinkKey : glanceKey, false);
+            applyGlance(blinkRemaining > 0 ? blinkKey : glanceKey, 0);
         }
     }
 
-    private void applyGlance(final String key, final boolean up) {
+    private void applyGlance(final String key, final int stage) {
         if (key == null || !ImagePairs.contains(key)) {
             return;
         }
-        // Float lives in the frames (base/raised twins): the anchor is
-        // never touched, so Stay's border check always passes.
+        // Float lives in the frames (base-mid-raised staircase): the anchor
+        // is never touched, so Stay's border check always passes.
         String show = key;
-        if (up) {
+        if (stage != 0) {
             final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                     ? getMascot().getImageSet() : "NigelShimeji";
-            show = ImagePairs.raisedVariant(key, stareLift, imageSet);
+            final int lift = stage == 2 ? stareLift : Math.max(1, stareLift / 2);
+            show = ImagePairs.raisedVariant(key, lift, imageSet);
         }
         getMascot().setImage(ImagePairs.get(show).getImage(getMascot().isLookRight()));
     }
