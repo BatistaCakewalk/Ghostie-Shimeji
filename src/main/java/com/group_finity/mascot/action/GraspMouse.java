@@ -1416,7 +1416,7 @@ public class GraspMouse extends ActionBase {
         final boolean stuffed = isStuffedSwallow();
         // Staircase hover, grounded only: mid-sink the descent already
         // moves him, so the frames stay flat until touchdown.
-        final int stage = grounded ? (swallowTicks / 7) % 4 : 0;
+        final int stage = grounded ? (swallowTicks / 5) % 8 : 0;
         final String key;
         if (inBigSwallowIntro()) {
             final int t = swallowTicks;
@@ -1472,18 +1472,17 @@ public class GraspMouse extends ActionBase {
     }
 
     /**
-     * Float step: base frame or a raised twin, cycling base-mid-raised-mid
-     * for a smooth staircase hover instead of a binary flip. The anchor
-     * never moves for visuals, so physics always reads the true position.
+     * Float step: base frame or a raised twin from the 8-stage hover cycle.
+     * The anchor never moves for visuals, so physics always reads the true
+     * position.
      */
     private String floatKey(final String baseKey, final int stage) {
-        if (baseKey == null || stage == 0) {
-            return baseKey;
+        if (baseKey == null) {
+            return null;
         }
         final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                 ? getMascot().getImageSet() : "NigelShimeji";
-        final int lift = stage == 2 ? bobLift : Math.max(1, bobLift / 2);
-        return ImagePairs.raisedVariant(baseKey, lift, imageSet);
+        return ImagePairs.raisedVariant(baseKey, ImagePairs.hoverLift(stage, bobLift), imageSet);
     }
 
     private boolean hasBigSwallowArt() {

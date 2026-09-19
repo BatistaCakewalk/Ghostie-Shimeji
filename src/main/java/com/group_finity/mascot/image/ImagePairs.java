@@ -145,6 +145,19 @@ public final class ImagePairs {
     }
 
     /**
+     * Hover lift for an 8-stage staircase cycle (0-2-4-6-8-6-4-2 shaped):
+     * fine gradations like the XML pose bobs, instead of a binary flip.
+     *
+     * @param stage8 cycle position, 0-7
+     * @param maxLift peak lift in pixels
+     * @return lift for this stage, 0 at the bottom
+     */
+    public static int hoverLift(final int stage8, final int maxLift) {
+        final int[] steps = { 0, 2, 4, 6, 8, 6, 4, 2 };
+        return steps[Math.floorMod(stage8, steps.length)] * maxLift / 8;
+    }
+
+    /**
      * Checks whether there is an image pair associated with the given key.
      *
      * @return whether the key has an associated image pair
