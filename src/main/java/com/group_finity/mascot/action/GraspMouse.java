@@ -296,6 +296,10 @@ public class GraspMouse extends ActionBase {
     // Swallow failsafe state: ticks since the last registered click
     private int swallowStuckTicks;
 
+    // Cumulative bob offset: the floor check runs against the un-bobbed
+    // position, or a deep bob reads as airborne and sink/float flap.
+    private int bobOffsetY;
+
     // Swallow size multiplier cached at swallow enter: scales the gulp
     // length, click requirement, window and bleed-off together.
     private double swallowSizeMult = 1.0;
@@ -671,6 +675,7 @@ public class GraspMouse extends ActionBase {
             floatDir = 0;
             floatWander = 0;
             swallowStuckTicks = 0;
+            bobOffsetY = 0;
             lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
             swallowSizeMult = getSwallowSizeMultiplier();
             sickPhase = 0;
@@ -761,6 +766,7 @@ public class GraspMouse extends ActionBase {
             floatDir = 0;
             floatWander = 0;
             swallowStuckTicks = 0;
+            bobOffsetY = 0;
             lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
             swallowSizeMult = getSwallowSizeMultiplier();
             sickPhase = 0;
@@ -850,7 +856,11 @@ public class GraspMouse extends ActionBase {
                     ? swallowTicks < BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
                     : swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
             final boolean gulping = forcingDown || (bigIntro && swallowTicks < BIG_INTRO_END);
-            final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
+            // Floor check against the un-bobbed position: the bob is visual,
+            // and a deep trough must not read as airborne.
+            final Point baseAnchor = getMascot().getAnchor();
+            final boolean grounded = getEnvironment().getFloor().isOn(
+                    new Point(baseAnchor.x, baseAnchor.y - bobOffsetY));
             boolean floating = false;
             if (gulping) {
                 // Gulp in place where he caught it. While forcing down a
@@ -1454,8 +1464,9 @@ public class GraspMouse extends ActionBase {
                 key = lookBackKey;
                 final double lookPhase = (swallowTicks + lookBackPhase) * 2.0 * Math.PI / 64.0;
                 final double lookPrev = (swallowTicks + lookBackPhase - 1) * 2.0 * Math.PI / 64.0;
-                getMascot().getAnchor().translate(0,
-                        (int) Math.round(10.0 * (Math.sin(lookPhase) - Math.sin(lookPrev))));
+                final int lookDy = (int) Math.round(10.0 * (Math.sin(lookPhase) - Math.sin(lookPrev)));
+                getMascot().getAnchor().translate(0, lookDy);
+                bobOffsetY += lookDy;
             } else {
                 key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                         ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
@@ -1463,10 +1474,6 @@ public class GraspMouse extends ActionBase {
         }
         if (key != null && ImagePairs.contains(key)) {
             getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
-        }
-        // TEMP-DEBUG: trace swallow sprite selection. Remove before merging.
-        if (swallowTicks % 10 == 0) {
-            log.info("SWALLOW-DEBUG t={} floating={} stuffed={} key={}", swallowTicks, floating, stuffed, key);
         }
     }
 
@@ -1486,7 +1493,9 @@ public class GraspMouse extends ActionBase {
     private void bobFloat(final int timeBase, final int periodTicks, final double amplitude) {
         final double phase = timeBase * 2.0 * Math.PI / periodTicks;
         final double prev = (timeBase - 1) * 2.0 * Math.PI / periodTicks;
-        getMascot().getAnchor().translate(0, (int) Math.round(amplitude * (Math.sin(phase) - Math.sin(prev))));
+        final int dy = (int) Math.round(amplitude * (Math.sin(phase) - Math.sin(prev)));
+        getMascot().getAnchor().translate(0, dy);
+        bobOffsetY += dy;
     }
 
     private boolean hasBigSwallowArt() {
