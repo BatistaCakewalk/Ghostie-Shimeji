@@ -52,6 +52,18 @@ public class NigelStay extends Stay {
     }
 
     @Override
+    public boolean hasNext() throws VariableException {
+        final boolean more = super.hasNext();
+        // Action ending with a float applied: hand the next behavior a
+        // clean anchor, or it starts a pixel off the floor and falls.
+        if (!more && lastJudder != 0) {
+            getMascot().getAnchor().translate(0, -lastJudder);
+            lastJudder = 0;
+        }
+        return more;
+    }
+
+    @Override
     protected void tick() throws LostGroundException, VariableException {
         // Revert last tick's float first: Stay's border check must see the
         // true anchor, or a -1 step reads as off the floor and he falls.
