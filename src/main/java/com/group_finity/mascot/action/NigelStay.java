@@ -35,6 +35,7 @@ public class NigelStay extends Stay {
     private int glanceRemaining;
     private int blinkRemaining;
     private String glanceKey;
+    private int lastJudder;
 
     public NigelStay(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
         super(schema, animations, context);
@@ -47,18 +48,25 @@ public class NigelStay extends Stay {
         glanceCooldown = 80 + (int) (Math.random() * 120);
         glanceRemaining = 0;
         blinkRemaining = 0;
+        lastJudder = 0;
     }
 
     @Override
     protected void tick() throws LostGroundException, VariableException {
+        // Revert last tick's float first: Stay's border check must see the
+        // true anchor, or a -1 step reads as off the floor and he falls.
+        if (lastJudder != 0) {
+            getMascot().getAnchor().translate(0, -lastJudder);
+            lastJudder = 0;
+        }
         super.tick();
         ensureImagesLoaded();
         if (glanceRemaining > 0) {
             glanceRemaining--;
             applyGlance(glanceKey);
-            // Net-zero hover judder: the override frame pins its anchor,
-            // so float it by hand like the base bob does.
-            getMascot().getAnchor().translate(0, (getTime() / 10) % 2 == 0 ? 1 : -1);
+            // Net-zero hover judder, reverted next tick before the check.
+            lastJudder = (getTime() / 10) % 2 == 0 ? 1 : -1;
+            getMascot().getAnchor().translate(0, lastJudder);
         } else if (blinkRemaining > 0) {
             blinkRemaining--;
             applyGlance(blinkKey);
