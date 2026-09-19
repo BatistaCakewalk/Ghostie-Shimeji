@@ -22,7 +22,7 @@
             </Animation>
         </Action>
 
-        <Action Name="Stare" Type="Stay" BorderType="Floor">
+        <Action Name="Stare" Type="Stay" BorderType="Floor" Duration="${100+Math.random()*200}">
             <Animation>
                 <Pose Image="/frontstare.png" ImageAnchor="96,200" Velocity="0,0" Duration="8"/>
                 <Pose Image="/frontstare.png" ImageAnchor="96,198" Velocity="0,0" Duration="4"/>
