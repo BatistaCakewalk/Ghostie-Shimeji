@@ -908,7 +908,7 @@ public class GraspMouse extends ActionBase {
             clampAnchorToScreen();
             final Point hands = getGraspPoint();
             robot.mouseMove(hands.x, hands.y);
-            applySwallowAnimation(waddling);
+            applySwallowAnimation(waddling, grounded);
             reassertCursorHidden();
             return;
         }
@@ -1413,7 +1413,7 @@ public class GraspMouse extends ActionBase {
         }
     }
 
-    private void applySwallowAnimation(final boolean waddling) {
+    private void applySwallowAnimation(final boolean waddling, final boolean grounded) {
         ensureSwallowImagesLoaded();
         final boolean stuffed = isStuffedSwallow();
         final String key;
@@ -1446,9 +1446,11 @@ public class GraspMouse extends ActionBase {
         } else {
             // Stuffed idle glance-back: every so often the standing frame
             // swaps to the look-back for a while, then back to the bloat.
+            // Grounded only: the sinking descent sways sideways, which would
+            // read as the glance itself drifting.
             // Same up-and-down float as normal idle, telescoping so it
             // can never drift.
-            if (stuffed && lookBackKey != null && ImagePairs.contains(lookBackKey)
+            if (grounded && stuffed && lookBackKey != null && ImagePairs.contains(lookBackKey)
                     && (swallowTicks + lookBackPhase) % LOOKBACK_PERIOD < LOOKBACK_SHOW_TICKS) {
                 key = lookBackKey;
                 final double lookPhase = (swallowTicks + lookBackPhase) * 2.0 * Math.PI / 40.0;
