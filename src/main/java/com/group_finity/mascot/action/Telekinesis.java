@@ -560,7 +560,10 @@ public class Telekinesis extends ActionBase {
                 pullCursorTowardsMascot();
                 shakeBody();
                 getAnimation().apply(getMascot(), getTime());
-                // Full strength pose once the ramp completes.
+                // Full strength pose once the ramp completes, with two earlier
+                // steps: hard shake, then the slowly-fading-in final strength.
+                final int third = PULL_RAMP_TICKS / 3;
+                final int twoThird = PULL_RAMP_TICKS * 2 / 3;
                 if (pullTicks >= PULL_RAMP_TICKS) {
                     ensureTeleFullImageLoaded();
                     if (teleFullKey != null
@@ -568,18 +571,22 @@ public class Telekinesis extends ActionBase {
                         getMascot().setImage(com.group_finity.mascot.image.ImagePairs.get(teleFullKey)
                                 .getImage(getMascot().isLookRight()));
                     }
-                } else if (pullTicks >= PULL_RAMP_TICKS * 2 / 3) {
+                } else if (pullTicks >= twoThird) {
+                    final double fade = Math.min(1.0, (pullTicks - twoThird) / (double) third);
+                    ensureTeleFullImageLoaded();
+                    if (teleSlowKey != null
+                            && com.group_finity.mascot.image.ImagePairs.contains(teleSlowKey)) {
+                        // Don't use the cached blend yet: it ramps with fade
+                        // and is cheaper done fresh until full strength.
+                        getMascot().setImage(com.group_finity.mascot.image.ImagePairs
+                                .blendMascotImages(teleSlowKey, teleStrongerKey,
+                                fade).getImage(getMascot().isLookRight()));
+                    }
+                } else if (pullTicks >= third) {
                     ensureTeleFullImageLoaded();
                     if (teleStrongerKey != null
                             && com.group_finity.mascot.image.ImagePairs.contains(teleStrongerKey)) {
                         getMascot().setImage(com.group_finity.mascot.image.ImagePairs.get(teleStrongerKey)
-                                .getImage(getMascot().isLookRight()));
-                    }
-                } else if (pullTicks >= PULL_RAMP_TICKS / 3) {
-                    ensureTeleFullImageLoaded();
-                    if (teleSlowKey != null
-                            && com.group_finity.mascot.image.ImagePairs.contains(teleSlowKey)) {
-                        getMascot().setImage(com.group_finity.mascot.image.ImagePairs.get(teleSlowKey)
                                 .getImage(getMascot().isLookRight()));
                     }
                 }

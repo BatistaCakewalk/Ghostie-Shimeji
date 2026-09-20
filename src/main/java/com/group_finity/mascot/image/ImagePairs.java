@@ -158,6 +158,45 @@ public final class ImagePairs {
     }
 
     /**
+     * Composites two mascot images with the given foreground fraction.
+     *
+     * @param fgKey foreground key
+     * @param bgKey background key
+     * @param alpha foreground share
+     * @return the composited ImagePair
+     */
+    public static ImagePair blendMascotImages(final String fgKey, final String bgKey, final double alpha) {
+        final ImagePair fg = imagePairs.get(fgKey);
+        final ImagePair bg = imagePairs.get(bgKey);
+        if (fg == null) {
+            return bg;
+        }
+        if (bg == null) {
+            return fg;
+        }
+        final BufferedImage left = new BufferedImage(
+                fg.leftImage().getImage().getWidth(), fg.leftImage().getImage().getHeight(),
+                BufferedImage.TYPE_INT_ARGB);
+        final java.awt.Graphics2D g = left.createGraphics();
+        g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER));
+        g.drawImage(bg.leftImage().getImage(), 0, 0, null);
+        g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, (float) Math.max(0.0, Math.min(1.0, alpha))));
+        g.drawImage(fg.leftImage().getImage(), 0, 0, null);
+        g.dispose();
+        final BufferedImage right = new BufferedImage(
+                fg.rightImage().getImage().getWidth(), fg.rightImage().getImage().getHeight(),
+                BufferedImage.TYPE_INT_ARGB);
+        final java.awt.Graphics2D g2 = right.createGraphics();
+        g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER));
+        g2.drawImage(bg.rightImage().getImage(), 0, 0, null);
+        g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, (float) Math.max(0.0, Math.min(1.0, alpha))));
+        g2.drawImage(fg.rightImage().getImage(), 0, 0, null);
+        g2.dispose();
+        return new ImagePair(new MascotImage(left, fg.leftImage().getCenter()),
+                new MascotImage(right, fg.rightImage().getCenter()));
+    }
+
+    /**
      * Checks whether there is an image pair associated with the given key.
      *
      * @return whether the key has an associated image pair
