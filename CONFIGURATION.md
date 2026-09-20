@@ -11,13 +11,14 @@ Each mascot resolves `img/[NAME]/conf/actions.xml` → `conf/actions.xml` fallba
 ```xml
 <Condition Condition="#{mascot.environment.floor.isOn(mascot.anchor)}">
   <Behavior Name="StandUp" Frequency="6"/>
+  <Behavior Name="Stare" Frequency="2"/>
   <Behavior Name="Walk" Frequency="7"/>
   <Behavior Name="ChaseMouse" Frequency="7"/>
   <Behavior Name="CatchMouse" Frequency="2"/>
   <Behavior Name="Telekinesis" Frequency="3"/>
 </Condition>
 ```
-<!-- 6+7+7+2+3=25: StandUp 24%, Walk 28%, ChaseMouse 28%, CatchMouse 8%, Telekinesis 12% -->
+<!-- 6+2+7+7+2+3=27: StandUp 22%, Stare 7%, Walk 26%, ChaseMouse 26%, CatchMouse 7%, Telekinesis 11% -->
 
 Raise `CatchMouse` to `10` → `10/33≈30%` of floor picks. `Grasp` itself is `Duration="20000"` — must be `> CuddleIdle+Duration (~18600)` to allow full cuddle.
 
@@ -29,7 +30,7 @@ On `<Action Name="Grasp" ...>`:
 
 While swallowed the cursor stays pinned dead center on Nigel (escape clicks only register on his window); an hour with zero registered clicks forces sickness as an anti-softlock. The spit-fling leaves a fading saliva-droplet trail and floor-bounces while it has bounces banked from sick clicks.
 
-Big cursors: past `MaxCatchableCursorSize` (default 96px) Nigel won't pounce or hold at all (he'll still chase). Below that, swallowing scales: 32px needs the base `SwallowClickCount`, up to quadruple at 96px, with the click window and bleed-off stretched to match. Over 64px he shows the stuffed sprites when the set provides them (`FatterStand.png`, `FatterStand2.png` for standing, `WalkBigBloated1.png`, `WalkBigBloated2.png` for waddling — 192x192, anchor 96,200, optional, falls back per file). Tele-mouse reels slow down with cursor size (full speed at 32px, quarter floor).
+Big cursors: past `MaxCatchableCursorSize` (default 96px) Nigel won't pounce or hold at all (he'll still chase). Below that, swallowing scales: 32px needs the base `SwallowClickCount`, up to quadruple at 96px, with the click window and bleed-off stretched to match. Over 64px he shows the stuffed sprites when the set provides them (`FatterStand.png`, `FatterStand2.png` for standing, `WalkBigBloated1.png`, `WalkBigBloated2.png` for floating — 192x192, anchor 96,200, optional, falls back per file). Tele-mouse reels slow down with cursor size (full speed at 32px, quarter floor).
 
 ## Telekinesis attributes
 

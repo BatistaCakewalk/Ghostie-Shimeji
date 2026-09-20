@@ -143,7 +143,7 @@ public class GraspMouse extends ActionBase {
      * Stuffed-swallow intro choreography (big-cursor art): Big1/Big2/Big3,
      * then After1 (5s dizzy), After2 (3s looking down), then After3/After4
      * alternating 4 cycles (~10s). Suspended in the air throughout; normal
-     * sink/waddle resumes after.
+     * sink/float resumes after.
      */
     private static final int BIG_SWALLOW1_TICKS = 125;
     private static final int BIG_SWALLOW2_TICKS = 125;
@@ -159,7 +159,7 @@ public class GraspMouse extends ActionBase {
      * swallow so it never lands on a round beat.
      */
     private static final int LOOKBACK_PERIOD = 300;
-    private static final int LOOKBACK_SHOW_TICKS = 60;    private static final int BIG_INTRO_END = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
+    private static final int LOOKBACK_SHOW_TICKS = 100;    private static final int BIG_INTRO_END = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
             + BIG_AFTER1_TICKS + BIG_AFTER2_TICKS + BIG_AFTER34_FRAME * 2 * BIG_AFTER34_CYCLES;
 
     /**
@@ -247,8 +247,8 @@ public class GraspMouse extends ActionBase {
     private int swallowTicks;
     private int swallowClicks;
     private int swallowWindowRemaining;
-    private int swallowDir;
-    private int swallowWander;
+    private int floatDir;
+    private int floatWander;
     private String swallowKeyStart;
     private String swallowKeyAfter;
     private String bloatKey1;
@@ -296,6 +296,9 @@ public class GraspMouse extends ActionBase {
     // Swallow failsafe state: ticks since the last registered click
     private int swallowStuckTicks;
 
+    // Raised-frame bob lift in pixels, scaled with the image set.
+    private int bobLift = 8;
+
     // Swallow size multiplier cached at swallow enter: scales the gulp
     // length, click requirement, window and bleed-off together.
     private double swallowSizeMult = 1.0;
@@ -328,6 +331,10 @@ public class GraspMouse extends ActionBase {
     private String cuddleImageKey1;
     private String cuddleImageKey2;
     private boolean cuddleImagesLoaded;
+    private String cuddleBigKey1;
+    private String cuddleBigKey2;
+    private String bigStruggleKey;
+    private boolean bigCatchImagesLoaded;
 
     private static final class CursorSample {
         private final int x;
@@ -502,8 +509,8 @@ public class GraspMouse extends ActionBase {
         swallowTicks = 0;
         swallowClicks = 0;
         swallowWindowRemaining = 0;
-        swallowDir = 0;
-        swallowWander = 0;
+        floatDir = 0;
+        floatWander = 0;
         sickPhase = 0;
         sickTicks = 0;
         sickClicks = 0;
@@ -668,8 +675,8 @@ public class GraspMouse extends ActionBase {
             swallowTicks = 0;
             swallowClicks = 0;
             swallowWindowRemaining = 0;
-            swallowDir = 0;
-            swallowWander = 0;
+            floatDir = 0;
+            floatWander = 0;
             swallowStuckTicks = 0;
             lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
             swallowSizeMult = getSwallowSizeMultiplier();
@@ -758,8 +765,8 @@ public class GraspMouse extends ActionBase {
             swallowTicks = 0;
             swallowClicks = 0;
             swallowWindowRemaining = 0;
-            swallowDir = 0;
-            swallowWander = 0;
+            floatDir = 0;
+            floatWander = 0;
             swallowStuckTicks = 0;
             lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
             swallowSizeMult = getSwallowSizeMultiplier();
@@ -806,7 +813,7 @@ public class GraspMouse extends ActionBase {
                 }
             }
             // No clicking out during the stuffed intro: the choreography
-            // plays first, escape starts once he's waddling with it.
+            // plays first, escape starts once he's floating with it.
             if (clicks > 0 && !inBigSwallowIntro()) {
                 if (swallowWindowRemaining == 0) {
                     swallowWindowRemaining = (int) Math.round(
@@ -851,7 +858,7 @@ public class GraspMouse extends ActionBase {
                     : swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
             final boolean gulping = forcingDown || (bigIntro && swallowTicks < BIG_INTRO_END);
             final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
-            boolean waddling = false;
+            boolean floating = false;
             if (gulping) {
                 // Gulp in place where he caught it. While forcing down a
                 // stuffed cursor, the body heaves once with each choke;
@@ -870,31 +877,31 @@ public class GraspMouse extends ActionBase {
                 final int sway = (int) Math.round(Math.sin(swallowTicks * 0.15) * 2.0);
                 getMascot().getAnchor().translate(sway, 3);
             } else {
-                // Waddle in bursts with idle pauses, like he's showing off his prize.
+                // Float in bursts with idle pauses, like he's showing off his prize.
                 // Stuffed, he lumbers: shorter bursts, longer breathers.
                 final boolean lumbering = isStuffedSwallow();
-                if (swallowWander == 0) {
-                    if (swallowDir == 0 || Math.random() < 0.6) {
-                        swallowDir = Math.random() < 0.5 ? -1 : 1;
-                        swallowWander = lumbering ? 30 + (int) (Math.random() * 45)
+                if (floatWander == 0) {
+                    if (floatDir == 0 || Math.random() < 0.6) {
+                        floatDir = Math.random() < 0.5 ? -1 : 1;
+                        floatWander = lumbering ? 30 + (int) (Math.random() * 45)
                                 : 60 + (int) (Math.random() * 90);
                     } else {
-                        swallowWander = lumbering ? -(80 + (int) (Math.random() * 100))
+                        floatWander = lumbering ? -(80 + (int) (Math.random() * 100))
                                 : -(40 + (int) (Math.random() * 60));
                     }
                 }
-                if (swallowWander > 0) {
-                    getMascot().getAnchor().translate(swallowDir * 2, 0);
+                if (floatWander > 0) {
+                    getMascot().getAnchor().translate(floatDir * 2, 0);
                     final Area screen = getEnvironment().getScreen();
                     final Point anchor = getMascot().getAnchor();
                     if (anchor.x <= screen.getLeft() + 2 || anchor.x >= screen.getRight() - 2) {
-                        swallowDir = -swallowDir;
+                        floatDir = -floatDir;
                     }
-                    getMascot().setLookRight(swallowDir > 0);
-                    waddling = true;
-                    swallowWander--;
+                    getMascot().setLookRight(floatDir > 0);
+                    floating = true;
+                    floatWander--;
                 } else {
-                    swallowWander++;
+                    floatWander++;
                 }
             }
             // Fully trapped, pinned dead center on Nigel: clicks only
@@ -902,7 +909,7 @@ public class GraspMouse extends ActionBase {
             clampAnchorToScreen();
             final Point hands = getGraspPoint();
             robot.mouseMove(hands.x, hands.y);
-            applySwallowAnimation(waddling);
+            applySwallowAnimation(floating, grounded);
             reassertCursorHidden();
             return;
         }
@@ -1030,6 +1037,11 @@ public class GraspMouse extends ActionBase {
 
         // Look like we're holding on.
         getAnimation().apply(getMascot(), getTime());
+        // Big cursor, big struggle frame.
+        ensureBigCatchImagesLoaded();
+        if (isStuffedSwallow() && bigStruggleKey != null && ImagePairs.contains(bigStruggleKey)) {
+            getMascot().setImage(ImagePairs.get(bigStruggleKey).getImage(getMascot().isLookRight()));
+        }
 
         // The mascot's own hover logic resets its window cursor on every
         // mouse motion event, which our yanks trigger constantly, so
@@ -1345,9 +1357,37 @@ public class GraspMouse extends ActionBase {
 
     private void applyCuddleAnimation() {
         ensureCuddleImagesLoaded();
-        final String key = (cuddleTicks / CUDDLE_ANIM_INTERVAL) % 2 == 0 ? cuddleImageKey1 : cuddleImageKey2;
+        ensureBigCatchImagesLoaded();
+        final boolean big = isStuffedSwallow();
+        final String key = (cuddleTicks / CUDDLE_ANIM_INTERVAL) % 2 == 0
+                ? orElse(cuddleBigKey1, cuddleImageKey1, big)
+                : orElse(cuddleBigKey2, cuddleImageKey2, big);
         if (key != null && ImagePairs.contains(key)) {
             getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
+        }
+    }
+
+    /**
+     * Big-catch sprites (struggle + cuddle variants for oversized cursors).
+     * Optional per file: anything missing falls back to the normal sprites.
+     */
+    private void ensureBigCatchImagesLoaded() {
+        if (bigCatchImagesLoaded) {
+            return;
+        }
+        bigCatchImagesLoaded = true;
+        try {
+            final double scaling = Main.getInstance().getSettings().scaling;
+            final Filter filter = Main.getInstance().getSettings().filter;
+            final double opacity = Main.getInstance().getSettings().opacity;
+            final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                    ? getMascot().getImageSet() : "NigelShimeji";
+            // All 192x192 with anchor 96,200 matching the struggle pose
+            bigStruggleKey = loadOptionalSwallowImage(imageSet, "StruggleBiggerMouse.png", scaling, filter, opacity);
+            cuddleBigKey1 = loadOptionalSwallowImage(imageSet, "cuddlebiggermouse1.png", scaling, filter, opacity);
+            cuddleBigKey2 = loadOptionalSwallowImage(imageSet, "cuddlebiggermouse2.png", scaling, filter, opacity);
+        } catch (final RuntimeException e) {
+            log.warn("Failed to load big-catch images for GraspMouse", e);
         }
     }
 
@@ -1381,6 +1421,7 @@ public class GraspMouse extends ActionBase {
             bloatBigWalkKey1 = loadOptionalSwallowImage(imageSet, "WalkBigBloated1.png", scaling, filter, opacity);
             bloatBigWalkKey2 = loadOptionalSwallowImage(imageSet, "WalkBigBloated2.png", scaling, filter, opacity);
             lookBackKey = loadOptionalSwallowImage(imageSet, "FatterStandLookBack.png", scaling, filter, opacity);
+            bobLift = Math.max(2, (int) Math.round(8 * scaling));
             // Stuffed intro set (SwallowBig1-3, SwallowAfter1-4): all or
             // nothing, the choreography needs every frame.
             bigSwallowKey1 = loadOptionalSwallowImage(imageSet, "SwallowBig1.png", scaling, filter, opacity);
@@ -1407,9 +1448,12 @@ public class GraspMouse extends ActionBase {
         }
     }
 
-    private void applySwallowAnimation(final boolean waddling) {
+    private void applySwallowAnimation(final boolean floating, final boolean grounded) {
         ensureSwallowImagesLoaded();
         final boolean stuffed = isStuffedSwallow();
+        // Staircase hover, grounded only: mid-sink the descent already
+        // moves him, so the frames stay flat until touchdown.
+        final int stage = grounded ? (swallowTicks / 5) % 8 : 0;
         final String key;
         if (inBigSwallowIntro()) {
             final int t = swallowTicks;
@@ -1434,18 +1478,22 @@ public class GraspMouse extends ActionBase {
             key = swallowKeyStart;
         } else if (swallowTicks < getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks()) {
             key = swallowKeyAfter;
-        } else if (waddling) {
-            key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
+        } else if (floating) {
+            final String walkBase = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                     ? orElse(bloatBigWalkKey1, bloatWalkKey1, stuffed) : orElse(bloatBigWalkKey2, bloatWalkKey2, stuffed);
+            key = floatKey(walkBase, stage);
         } else {
             // Stuffed idle glance-back: every so often the standing frame
-            // swaps to the look-back for a blink, then back to the bloat.
-            if (stuffed && lookBackKey != null && ImagePairs.contains(lookBackKey)
+            // swaps to the look-back for a while, then back to the bloat.
+            // Grounded only: the sinking descent sways sideways, which would
+            // read as the glance itself drifting.
+            if (grounded && stuffed && lookBackKey != null && ImagePairs.contains(lookBackKey)
                     && (swallowTicks + lookBackPhase) % LOOKBACK_PERIOD < LOOKBACK_SHOW_TICKS) {
-                key = lookBackKey;
+                key = floatKey(lookBackKey, stage);
             } else {
-                key = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
+                final String standBase = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
                         ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
+                key = floatKey(standBase, stage);
             }
         }
         if (key != null && ImagePairs.contains(key)) {
@@ -1458,6 +1506,20 @@ public class GraspMouse extends ActionBase {
             return big;
         }
         return normal;
+    }
+
+    /**
+     * Float step: base frame or a raised twin from the 8-stage hover cycle.
+     * The anchor never moves for visuals, so physics always reads the true
+     * position.
+     */
+    private String floatKey(final String baseKey, final int stage) {
+        if (baseKey == null) {
+            return null;
+        }
+        final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                ? getMascot().getImageSet() : "NigelShimeji";
+        return ImagePairs.raisedVariant(baseKey, ImagePairs.hoverLift(stage, bobLift), imageSet);
     }
 
     private boolean hasBigSwallowArt() {
