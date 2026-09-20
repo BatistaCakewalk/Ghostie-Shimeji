@@ -288,11 +288,11 @@
 
         <Action Name="Splat" Type="Animate" BorderType="Floor">
             <Animation>
-                <Pose Image="/splat.png" ImageAnchor="165,200" Velocity="0,0" Duration="30"/>
-                <Pose Image="/splatdizzy1.png" ImageAnchor="165,200" Velocity="0,0" Duration="15"/>
-                <Pose Image="/splatdizzy2.png" ImageAnchor="165,200" Velocity="0,0" Duration="15"/>
-                <Pose Image="/splatdizzy1.png" ImageAnchor="165,200" Velocity="0,0" Duration="15"/>
-                <Pose Image="/splatdizzy2.png" ImageAnchor="165,200" Velocity="0,0" Duration="15"/>
+                <Pose Image="/splat.png" ImageAnchor="165,200" Velocity="0,0" Duration="15"/>
+                <Pose Image="/splatdizzy1.png" ImageAnchor="165,200" Velocity="0,0" Duration="25"/>
+                <Pose Image="/splatdizzy2.png" ImageAnchor="165,200" Velocity="0,0" Duration="25"/>
+                <Pose Image="/splatdizzy1.png" ImageAnchor="165,200" Velocity="0,0" Duration="25"/>
+                <Pose Image="/splatdizzy2.png" ImageAnchor="165,200" Velocity="0,0" Duration="25"/>
             </Animation>
         </Action>
 
@@ -374,7 +374,7 @@
         <Action Name="Fall" Type="Sequence" Loop="false">
             <ActionReference Name="Falling"/>
             <Action Type="Select">
-                <Action Type="Sequence" Condition="${mascot.lastFallHeight >= 350}">
+                <Action Type="Sequence" Condition="${mascot.lastFallHeight >= 200}">
                     <ActionReference Name="Splat"/>
                     <ActionReference Name="Stand" Duration="${100+Math.random()*100}"/>
                 </Action>
@@ -397,7 +397,7 @@
             <ActionReference Name="Falling" InitialVX="${mascot.environment.cursor.dx}"
                              InitialVY="${mascot.environment.cursor.dy}"/>
             <Action Type="Select">
-                <Action Type="Sequence" Condition="${mascot.lastFallHeight >= 350}">
+                <Action Type="Sequence" Condition="${mascot.lastFallHeight >= 200}">
                     <ActionReference Name="Splat"/>
                     <ActionReference Name="Stand" Duration="${100+Math.random()*100}"/>
                 </Action>
