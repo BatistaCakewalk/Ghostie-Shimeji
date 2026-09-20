@@ -95,6 +95,8 @@ public class Telekinesis extends ActionBase {
     private int shakeBaseY;
     private boolean shaking;
     private String teleFullKey;
+    private String teleStrongerKey;
+    private String teleSlowKey;
     private boolean teleFullLoaded;
 
     /**
@@ -566,6 +568,20 @@ public class Telekinesis extends ActionBase {
                         getMascot().setImage(com.group_finity.mascot.image.ImagePairs.get(teleFullKey)
                                 .getImage(getMascot().isLookRight()));
                     }
+                } else if (pullTicks >= PULL_RAMP_TICKS * 2 / 3) {
+                    ensureTeleFullImageLoaded();
+                    if (teleStrongerKey != null
+                            && com.group_finity.mascot.image.ImagePairs.contains(teleStrongerKey)) {
+                        getMascot().setImage(com.group_finity.mascot.image.ImagePairs.get(teleStrongerKey)
+                                .getImage(getMascot().isLookRight()));
+                    }
+                } else if (pullTicks >= PULL_RAMP_TICKS / 3) {
+                    ensureTeleFullImageLoaded();
+                    if (teleSlowKey != null
+                            && com.group_finity.mascot.image.ImagePairs.contains(teleSlowKey)) {
+                        getMascot().setImage(com.group_finity.mascot.image.ImagePairs.get(teleSlowKey)
+                                .getImage(getMascot().isLookRight()));
+                    }
                 }
                 return;
             }
@@ -718,9 +734,14 @@ public class Telekinesis extends ActionBase {
             final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                     ? getMascot().getImageSet() : "NigelShimeji";
             teleFullKey = com.group_finity.mascot.image.ImagePairs.load(
-                    java.nio.file.Path.of(imageSet, "telefullstrength.png"), null, 96, 200,
-                    scaling, filter, opacity);
+                    java.nio.file.Path.of(imageSet, "telefullstrength.png"), null, 96, 200, scaling, filter, opacity);
             com.group_finity.mascot.image.ImagePairs.addUsage(teleFullKey, imageSet);
+            teleStrongerKey = com.group_finity.mascot.image.ImagePairs.load(
+                    java.nio.file.Path.of(imageSet, "telestronger.png"), null, 96, 200, scaling, filter, opacity);
+            com.group_finity.mascot.image.ImagePairs.addUsage(teleStrongerKey, imageSet);
+            teleSlowKey = com.group_finity.mascot.image.ImagePairs.load(
+                    java.nio.file.Path.of(imageSet, "teleslowlyfadetofullstrength.png"), null, 96, 200, scaling, filter, opacity);
+            com.group_finity.mascot.image.ImagePairs.addUsage(teleSlowKey, imageSet);
             teleFullLoaded = true;
         } catch (final java.io.IOException | RuntimeException e) {
             log.warn("Failed to load telefullstrength image for Telekinesis", e);
