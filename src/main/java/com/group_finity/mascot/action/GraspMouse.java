@@ -331,6 +331,10 @@ public class GraspMouse extends ActionBase {
     private String cuddleImageKey1;
     private String cuddleImageKey2;
     private boolean cuddleImagesLoaded;
+    private String cuddleBigKey1;
+    private String cuddleBigKey2;
+    private String bigStruggleKey;
+    private boolean bigCatchImagesLoaded;
 
     private static final class CursorSample {
         private final int x;
@@ -1033,6 +1037,11 @@ public class GraspMouse extends ActionBase {
 
         // Look like we're holding on.
         getAnimation().apply(getMascot(), getTime());
+        // Big cursor, big struggle frame.
+        ensureBigCatchImagesLoaded();
+        if (isStuffedSwallow() && bigStruggleKey != null && ImagePairs.contains(bigStruggleKey)) {
+            getMascot().setImage(ImagePairs.get(bigStruggleKey).getImage(getMascot().isLookRight()));
+        }
 
         // The mascot's own hover logic resets its window cursor on every
         // mouse motion event, which our yanks trigger constantly, so
@@ -1348,9 +1357,37 @@ public class GraspMouse extends ActionBase {
 
     private void applyCuddleAnimation() {
         ensureCuddleImagesLoaded();
-        final String key = (cuddleTicks / CUDDLE_ANIM_INTERVAL) % 2 == 0 ? cuddleImageKey1 : cuddleImageKey2;
+        ensureBigCatchImagesLoaded();
+        final boolean big = isStuffedSwallow();
+        final String key = (cuddleTicks / CUDDLE_ANIM_INTERVAL) % 2 == 0
+                ? orElse(cuddleBigKey1, cuddleImageKey1, big)
+                : orElse(cuddleBigKey2, cuddleImageKey2, big);
         if (key != null && ImagePairs.contains(key)) {
             getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
+        }
+    }
+
+    /**
+     * Big-catch sprites (struggle + cuddle variants for oversized cursors).
+     * Optional per file: anything missing falls back to the normal sprites.
+     */
+    private void ensureBigCatchImagesLoaded() {
+        if (bigCatchImagesLoaded) {
+            return;
+        }
+        bigCatchImagesLoaded = true;
+        try {
+            final double scaling = Main.getInstance().getSettings().scaling;
+            final Filter filter = Main.getInstance().getSettings().filter;
+            final double opacity = Main.getInstance().getSettings().opacity;
+            final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                    ? getMascot().getImageSet() : "NigelShimeji";
+            // All 192x192 with anchor 96,200 matching the struggle pose
+            bigStruggleKey = loadOptionalSwallowImage(imageSet, "StruggleBiggerMouse.png", scaling, filter, opacity);
+            cuddleBigKey1 = loadOptionalSwallowImage(imageSet, "cuddlebiggermouse1.png", scaling, filter, opacity);
+            cuddleBigKey2 = loadOptionalSwallowImage(imageSet, "cuddlebiggermouse2.png", scaling, filter, opacity);
+        } catch (final RuntimeException e) {
+            log.warn("Failed to load big-catch images for GraspMouse", e);
         }
     }
 
