@@ -850,9 +850,6 @@ public class GraspMouse extends ActionBase {
             }
 
             // Fully trapped: HP frozen, cursor pinned hard. The big-swallow
-            // intro suspends him in the air for its whole choreography, but
-            // the forcing (shakes, chokes) stops once Big3 lands the mouse
-            // inside: the After frames are calm aftermath.
             final boolean forcingDown = bigIntro
                     ? swallowTicks < BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
                     : swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
@@ -1540,7 +1537,8 @@ public class GraspMouse extends ActionBase {
     }
 
     private boolean inBigSwallowIntro() {
-        return isStuffedSwallow() && hasBigSwallowArt() && swallowTicks < BIG_INTRO_END;
+        return isStuffedSwallow() && hasBigSwallowArt() && swallowTicks < BIG_INTRO_END
+                && !getEnvironment().getFloor().isOn(getMascot().getAnchor());
     }
 
     /**
