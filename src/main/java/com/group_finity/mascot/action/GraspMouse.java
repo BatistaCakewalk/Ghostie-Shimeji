@@ -856,7 +856,8 @@ public class GraspMouse extends ActionBase {
             final boolean forcingDown = bigIntro
                     ? swallowTicks < BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
                     : swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
-            final boolean gulping = forcingDown || (bigIntro && swallowTicks < BIG_INTRO_END);
+            final boolean inIntro = bigIntro && swallowTicks < BIG_INTRO_END;
+            final boolean gulping = forcingDown || inIntro;
             final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
             boolean floating = false;
             if (gulping) {
@@ -872,7 +873,7 @@ public class GraspMouse extends ActionBase {
                 } else {
                     wrestle(0.0, false);
                 }
-            } else if (!grounded) {
+            } else if (!grounded && !inIntro) {
                 // Sway side to side on the way down instead of dropping like an elevator.
                 final int sway = (int) Math.round(Math.sin(swallowTicks * 0.15) * 2.0);
                 getMascot().getAnchor().translate(sway, 3);
