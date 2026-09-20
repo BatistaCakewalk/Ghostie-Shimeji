@@ -1260,8 +1260,14 @@ public class GraspMouse extends ActionBase {
         try {
             final Area screen = getEnvironment().getScreen();
             final Point anchor = getMascot().getAnchor();
-            anchor.x = Math.max(screen.getLeft(), Math.min(screen.getRight(), anchor.x));
-            anchor.y = Math.max(screen.getTop(), Math.min(screen.getBottom(), anchor.y));
+            // Inset by one from every edge. The floor check is an inclusive
+            // X/Y match against the desktop area: at exactly screen.left or
+            // screen.right it flips off between pixels, and a 2px burst step
+            // then lands past the edge and triggers a fall + re-clamp loop
+            // that reads as a corner teleport. Staying one pixel inside
+            // stabilizes the corners and the horizontal float.
+            anchor.x = Math.max(screen.getLeft() + 1, Math.min(screen.getRight() - 1, anchor.x));
+            anchor.y = Math.max(screen.getTop() + 1, Math.min(screen.getBottom() - 1, anchor.y));
         } catch (final RuntimeException e) {
             log.warn("Could not clamp Nigel to the screen during grasp", e);
         }
