@@ -288,7 +288,7 @@
 
         <Action Name="Splat" Type="Animate" BorderType="Floor">
             <Animation>
-                <Pose Image="/splat.png" ImageAnchor="165,200" Velocity="0,0" Duration="15"/>
+                <Pose Image="/splat.png" ImageAnchor="165,200" Velocity="0,0" Duration="8"/>
                 <Pose Image="/splatdizzy1.png" ImageAnchor="165,200" Velocity="0,0" Duration="25"/>
                 <Pose Image="/splatdizzy2.png" ImageAnchor="165,200" Velocity="0,0" Duration="25"/>
                 <Pose Image="/splatdizzy1.png" ImageAnchor="165,200" Velocity="0,0" Duration="25"/>
