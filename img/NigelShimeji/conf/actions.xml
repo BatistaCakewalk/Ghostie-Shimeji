@@ -272,7 +272,7 @@
             </Animation>
         </Action>
 
-        <Action Name="Falling" Type="Embedded" Class="com.group_finity.mascot.action.Fall"
+        <Action Name="Falling" Type="Embedded" Class="com.group_finity.mascot.action.NigelFall"
                 RegistanceX="0.05" RegistanceY="0.1" Gravity="2">
             <Animation>
                 <Pose Image="/fall.png" ImageAnchor="96,200" Velocity="0,0" Duration="250"/>
@@ -283,6 +283,16 @@
             <Animation>
                 <Pose Image="/bounce.png" ImageAnchor="96,200" Velocity="0,0" Duration="4"/>
                 <Pose Image="/trip.png" ImageAnchor="96,200" Velocity="0,0" Duration="4"/>
+            </Animation>
+        </Action>
+
+        <Action Name="Splat" Type="Animate" BorderType="Floor">
+            <Animation>
+                <Pose Image="/splat.png" ImageAnchor="165,200" Velocity="0,0" Duration="30"/>
+                <Pose Image="/splatdizzy1.png" ImageAnchor="165,200" Velocity="0,0" Duration="15"/>
+                <Pose Image="/splatdizzy2.png" ImageAnchor="165,200" Velocity="0,0" Duration="15"/>
+                <Pose Image="/splatdizzy1.png" ImageAnchor="165,200" Velocity="0,0" Duration="15"/>
+                <Pose Image="/splatdizzy2.png" ImageAnchor="165,200" Velocity="0,0" Duration="15"/>
             </Animation>
         </Action>
 
@@ -364,6 +374,10 @@
         <Action Name="Fall" Type="Sequence" Loop="false">
             <ActionReference Name="Falling"/>
             <Action Type="Select">
+                <Action Type="Sequence" Condition="${mascot.lastFallHeight >= 350}">
+                    <ActionReference Name="Splat"/>
+                    <ActionReference Name="Stand" Duration="${100+Math.random()*100}"/>
+                </Action>
                 <Action Type="Sequence" Condition="${mascot.environment.floor.isOn(mascot.anchor)}">
                     <ActionReference Name="Bouncing"/>
                     <ActionReference Name="Stand" Duration="${100+Math.random()*100}"/>
@@ -383,6 +397,10 @@
             <ActionReference Name="Falling" InitialVX="${mascot.environment.cursor.dx}"
                              InitialVY="${mascot.environment.cursor.dy}"/>
             <Action Type="Select">
+                <Action Type="Sequence" Condition="${mascot.lastFallHeight >= 350}">
+                    <ActionReference Name="Splat"/>
+                    <ActionReference Name="Stand" Duration="${100+Math.random()*100}"/>
+                </Action>
                 <Action Type="Sequence" Condition="${mascot.environment.floor.isOn(mascot.anchor)}">
                     <ActionReference Name="Bouncing"/>
                     <ActionReference Name="Stand" Duration="${100+Math.random()*100}"/>

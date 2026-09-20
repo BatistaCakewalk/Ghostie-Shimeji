@@ -1548,6 +1548,33 @@ public class Mascot {
     }
 
     /**
+     * How far the most recent fall dropped in pixels, as recorded by the
+     * {@code NigelFall} action. The landing Select routes high falls to the
+     * splat show; small ones bounce like always.
+     */
+    private volatile int lastFallHeight = 0;
+
+    /**
+     * Gets the drop distance of the most recent fall in pixels.
+     *
+     * @return the last fall height in pixels
+     * @see #setLastFallHeight(int)
+     */
+    public int getLastFallHeight() {
+        return lastFallHeight;
+    }
+
+    /**
+     * Sets the drop distance of the most recent fall in pixels.
+     *
+     * @param lastFallHeight the last fall height in pixels
+     * @see #getLastFallHeight()
+     */
+    public void setLastFallHeight(final int lastFallHeight) {
+        this.lastFallHeight = lastFallHeight;
+    }
+
+    /**
      * Gets whether any hotspots are being clicked on this {@code Mascot}.
      *
      * @return {@code true} if any hotspots are being clicked on this {@code Mascot}; {@code false} otherwise
