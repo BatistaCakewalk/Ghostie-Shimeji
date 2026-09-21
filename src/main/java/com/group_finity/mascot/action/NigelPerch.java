@@ -26,10 +26,20 @@ public class NigelPerch extends ActionBase {
     private static final int PERCH_DURATION_MIN = 120;
     private static final int PERCH_DURATION_JITTER = 180;
 
-    private Area targetWindow;
+    // Fly speed in px/tick. ~8px feels similar to CatchMouse approach speed.
+    private static final double FLY_SPEED = 8.0;
+
     private int targetX;
     private int targetY;
-    private int perchDuration;
+    private int startX;
+    private int startY;
+    private int flyTicks;       // ticks to reach the perch
+    private int perchDuration;  // total ticks (fly + perch)
+    // Remembered window size so we can re-find it each tick via getGrabbableWindows()
+    private int windowWidth;
+    private int windowHeight;
+    private int windowLostCount; // consecutive tracking misses before LostGround
+
     private String perchKey;
     private String flyWalk1;
     private String flyWalk2;
@@ -43,12 +53,23 @@ public class NigelPerch extends ActionBase {
     @Override
     public void init(final Mascot mascot) throws VariableException {
         super.init(mascot);
-        targetWindow = pickWindow();
-        if (targetWindow != null) {
-            targetX = targetWindow.getLeft() + targetWindow.getWidth() / 2;
-            targetY = targetWindow.getTop();
+        startX = mascot.getAnchor().x;
+        startY = mascot.getAnchor().y;
+
+        final Area win = pickWindow();
+        if (win != null) {
+            targetX = win.getLeft() + win.getWidth() / 2;
+            targetY = win.getTop();
+            windowWidth  = win.getWidth();
+            windowHeight = win.getHeight();
         }
-        perchDuration = PERCH_DURATION_MIN + (int) (Math.random() * PERCH_DURATION_JITTER);
+
+        final double dist = Math.sqrt(Math.pow(targetX - startX, 2) + Math.pow(targetY - startY, 2));
+        flyTicks = Math.max(20, (int) Math.ceil(dist / FLY_SPEED));
+
+        final int perchTime = PERCH_DURATION_MIN + (int) (Math.random() * PERCH_DURATION_JITTER);
+        perchDuration = flyTicks + perchTime;
+
         ensureImagesLoaded();
     }
 
@@ -56,14 +77,12 @@ public class NigelPerch extends ActionBase {
         try {
             final List<Area> candidates = getEnvironment().getGrabbableWindows();
             if (candidates.isEmpty()) {
-                // Fallback to any visible window's area (active window).
                 final Area active = getEnvironment().getActiveIE();
                 if (active != null && active.isVisible() && active.getWidth() > 100) {
                     return active;
                 }
                 return null;
             }
-            // Pick nearest window top to mascot.
             Area best = null;
             double bestDist = Double.MAX_VALUE;
             for (final Area area : candidates) {
@@ -83,14 +102,32 @@ public class NigelPerch extends ActionBase {
         }
     }
 
+    /** Re-query grabbable windows and find the one we're perching on by size + proximity. */
+    private Area findCurrentWindow() {
+        try {
+            Area best = null;
+            double bestDist = 300; // max pixels the window centre can drift before we give up
+            for (final Area w : getEnvironment().getGrabbableWindows()) {
+                if (Math.abs(w.getWidth()  - windowWidth)  > 6) continue;
+                if (Math.abs(w.getHeight() - windowHeight) > 6) continue;
+                final int cx = w.getLeft() + w.getWidth() / 2;
+                final int cy = w.getTop();
+                final double dist = Math.sqrt(Math.pow(cx - targetX, 2) + Math.pow(cy - targetY, 2));
+                if (dist < bestDist) {
+                    best = w;
+                    bestDist = dist;
+                }
+            }
+            return best;
+        } catch (final RuntimeException e) {
+            return null;
+        }
+    }
+
     @Override
     public boolean hasNext() throws VariableException {
-        if (!super.hasNext()) {
-            return false;
-        }
-        if (targetWindow == null) {
-            return false;
-        }
+        if (!super.hasNext()) return false;
+        if (windowWidth == 0) return false; // no window was picked
         return getTime() < perchDuration;
     }
 
@@ -99,17 +136,20 @@ public class NigelPerch extends ActionBase {
         final Mascot mascot = getMascot();
         final int t = getTime();
 
-        // Fly toward perch — slower, walk sprites while moving.
-        if (t < 45) {
+        // ── Fly phase ──────────────────────────────────────────────────────
+        if (t < flyTicks) {
+            // Linear constant-speed movement (feels like CatchMouse approach).
+            final double frac = (double)(t + 1) / flyTicks;
             final int prevX = mascot.getAnchor().x;
-            mascot.getAnchor().x += (int) Math.round((targetX - mascot.getAnchor().x) * 0.15);
-            mascot.getAnchor().y += (int) Math.round((targetY - mascot.getAnchor().y) * 0.15) - 1;
+            mascot.getAnchor().x = startX + (int) Math.round((targetX - startX) * frac);
+            mascot.getAnchor().y = startY + (int) Math.round((targetY - startY) * frac);
+            // Small sine bob so it doesn't look like a straight laser line.
+            mascot.getAnchor().y += (int) Math.round(Math.sin(t * 0.35) * 2.0);
+
             final int dx = mascot.getAnchor().x - prevX;
-            if (dx != 0) {
-                mascot.setLookRight(dx > 0);
-            }
-            // Walk sprites while floating up.
-            final int walkPhase = (t / 4) % 4;
+            if (dx != 0) mascot.setLookRight(dx > 0);
+
+            final int walkPhase = (t / 5) % 4;
             String walkKey = null;
             if (walkPhase == 2 && flyWalkBlink != null && ImagePairs.contains(flyWalkBlink)) {
                 walkKey = flyWalkBlink;
@@ -118,40 +158,37 @@ public class NigelPerch extends ActionBase {
             } else if (flyWalk2 != null && ImagePairs.contains(flyWalk2)) {
                 walkKey = flyWalk2;
             }
-            if (walkKey != null) {
-                mascot.setImage(ImagePairs.get(walkKey).getImage(mascot.isLookRight()));
-            }
+            if (walkKey != null) mascot.setImage(ImagePairs.get(walkKey).getImage(mascot.isLookRight()));
             return;
-        } else {
-            // Window moved — fall instead of teleporting with it.
-            if (targetWindow != null) {
-                try {
-                    if (!targetWindow.isVisible()) {
-                        throw new LostGroundException("Window gone");
-                    }
-                    final int newX = targetWindow.getLeft() + targetWindow.getWidth() / 2;
-                    final int newY = targetWindow.getTop();
-                    if (newX != targetX || newY != targetY) {
-                        throw new LostGroundException("Window moved");
-                    }
-                } catch (final RuntimeException e) {
-                    throw new LostGroundException("Window moved");
+        }
+
+        // ── Perch phase ────────────────────────────────────────────────────
+
+        // Every 5 ticks, re-find the window so we follow it if it moves.
+        if ((t - flyTicks) % 5 == 0) {
+            final Area current = findCurrentWindow();
+            if (current != null) {
+                windowLostCount = 0;
+                targetX = current.getLeft() + current.getWidth() / 2;
+                targetY = current.getTop();
+            } else {
+                windowLostCount++;
+                if (windowLostCount > 6) { // ~30 ticks / 1.2 s of no window → fall
+                    throw new LostGroundException("Window gone");
                 }
             }
-            mascot.getAnchor().x = targetX;
-            mascot.getAnchor().y = targetY;
         }
 
-        // Face center of window.
-        if (targetWindow != null) {
-            final int centerX = targetWindow.getLeft() + targetWindow.getWidth() / 2;
-            mascot.setLookRight(centerX > mascot.getAnchor().x);
-        }
+        mascot.getAnchor().x = targetX;
+        mascot.getAnchor().y = targetY; // anchor Y=189 in image → feet exactly on title bar
 
-        // Clamp X, Y exact for floor check? Perch is not on floor, so keep Y as is.
-        final int left = getEnvironment().getScreen().getLeft() + 1;
+        final int left  = getEnvironment().getScreen().getLeft() + 1;
         final int right = getEnvironment().getScreen().getRight() - 1;
         mascot.getAnchor().x = Math.max(left, Math.min(right, mascot.getAnchor().x));
+
+        // Face window centre.
+        mascot.setLookRight(targetX < (getEnvironment().getScreen().getLeft()
+                + getEnvironment().getScreen().getRight()) / 2);
 
         if (perchKey != null && ImagePairs.contains(perchKey)) {
             mascot.setImage(ImagePairs.get(perchKey).getImage(mascot.isLookRight()));
@@ -159,8 +196,9 @@ public class NigelPerch extends ActionBase {
             getAnimation().apply(mascot, getTime());
         }
 
-        // Dive chance from perch too.
-        if (t > 30 && Math.random() < 0.008) {
+        // Rare dive toward cursor (~0.04 % / tick ≈ once per ~70 s if cursor in range).
+        final int perchT = t - flyTicks;
+        if (perchT > 20 && perchT % 10 == 0 && Math.random() < 0.004) {
             try {
                 final com.group_finity.mascot.environment.Location cursor = getEnvironment().getCursor();
                 final int dx = cursor.getX() - mascot.getAnchor().x;
@@ -181,16 +219,16 @@ public class NigelPerch extends ActionBase {
     }
 
     private void ensureImagesLoaded() {
-        if (imagesLoaded) {
-            return;
-        }
+        if (imagesLoaded) return;
         try {
             final double scaling = Main.getInstance().getSettings().scaling;
-            final Filter filter = Main.getInstance().getSettings().filter;
+            final Filter filter  = Main.getInstance().getSettings().filter;
             final double opacity = Main.getInstance().getSettings().opacity;
             final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                     ? getMascot().getImageSet() : "NigelShimeji";
-            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 192, scaling, filter, opacity);
+            // Anchor Y=189: last non-transparent row of Perching.png (192×192),
+            // so feet land exactly on window.getTop().
+            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 189, scaling, filter, opacity);
             ImagePairs.addUsage(perchKey, imageSet);
             flyWalk1 = ImagePairs.load(Path.of(imageSet, "walk_2.png"), null, 96, 200, scaling, filter, opacity);
             ImagePairs.addUsage(flyWalk1, imageSet);
