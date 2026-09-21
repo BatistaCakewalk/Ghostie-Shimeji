@@ -79,18 +79,18 @@ public class NigelHanging extends BorderedAction {
         ensureImagesLoaded();
 
         if (t < MOVE_TO_CEILING_TICKS) {
-            // Fly up visibly to the ceiling.
+            // Fly up visibly to the ceiling — keep a floor-anchored sprite
+            // until we reach the top, otherwise the hanging image (anchor
+            // at top) sits with its feet at the floor and reads as off-screen.
             final double p = t / (double) MOVE_TO_CEILING_TICKS;
             final double eased = 1 - Math.pow(1 - p, 3);
             mascot.getAnchor().x = startX + (int) Math.round((targetX - startX) * eased);
             mascot.getAnchor().y = startY + (int) Math.round((targetY - startY) * eased);
             mascot.getAnchor().y += (int) Math.round(Math.sin(t * 0.4) * 1.5);
-            // Blink while flying too.
-            if (t % BLINK_INTERVAL < BLINK_TICKS && blinkKey != null && ImagePairs.contains(blinkKey)) {
-                mascot.setImage(ImagePairs.get(blinkKey).getImage(mascot.isLookRight()));
-            } else if (idleKey != null && ImagePairs.contains(idleKey)) {
-                mascot.setImage(ImagePairs.get(idleKey).getImage(mascot.isLookRight()));
-            }
+            // Don't switch to hanging frames until we arrive.
+            getAnimation().apply(mascot, getTime());
+            return;
+        } else if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS) {
         } else if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS) {
             mascot.getAnchor().x = targetX;
             mascot.getAnchor().y = targetY;
