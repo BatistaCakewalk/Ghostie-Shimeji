@@ -34,6 +34,12 @@
             </Animation>
         </Action>
 
+        <Action Name="Hanging" Type="Embedded" Class="com.group_finity.mascot.action.NigelHanging" BorderType="Ceiling">
+            <Animation>
+                <Pose Image="/HangingIdle.png" ImageAnchor="96,0" Velocity="0,0" Duration="8"/>
+            </Animation>
+        </Action>
+
         <Action Name="Floating" Type="Embedded" Class="com.group_finity.mascot.action.NigelFloat">
             <Animation>
                 <Pose Image="/walk_2.png" ImageAnchor="96,200" Velocity="-6,0" Duration="4"/>
