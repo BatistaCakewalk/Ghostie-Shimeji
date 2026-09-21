@@ -57,8 +57,9 @@ public class NigelHanging extends BorderedAction {
         final int screenRight = getEnvironment().getScreen().getRight();
         final int screenTop = getEnvironment().getScreen().getTop();
         targetX = screenLeft + 80 + (int) (Math.random() * Math.max(1, screenRight - screenLeft - 160));
-        // Anchor for hanging: image anchor 96,0 at top, so anchor at top.
-        targetY = screenTop + 2;
+        // Anchor for hanging: image anchor 96,0 at top, so anchor just below top.
+        // Keep well inside screen so out-of-screen teleport doesn't fire.
+        targetY = screenTop + 96;
     }
 
     @Override
