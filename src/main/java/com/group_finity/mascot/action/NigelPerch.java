@@ -99,11 +99,11 @@ public class NigelPerch extends ActionBase {
         final Mascot mascot = getMascot();
         final int t = getTime();
 
-        // Fly toward perch — catch-like leap, walk sprites while moving.
-        if (t < 30) {
+        // Fly toward perch — slower, walk sprites while moving.
+        if (t < 45) {
             final int prevX = mascot.getAnchor().x;
-            mascot.getAnchor().x += (int) Math.round((targetX - mascot.getAnchor().x) * 0.25);
-            mascot.getAnchor().y += (int) Math.round((targetY - mascot.getAnchor().y) * 0.25) - 2;
+            mascot.getAnchor().x += (int) Math.round((targetX - mascot.getAnchor().x) * 0.15);
+            mascot.getAnchor().y += (int) Math.round((targetY - mascot.getAnchor().y) * 0.15) - 1;
             final int dx = mascot.getAnchor().x - prevX;
             if (dx != 0) {
                 mascot.setLookRight(dx > 0);
@@ -131,7 +131,7 @@ public class NigelPerch extends ActionBase {
                     }
                     final int newX = targetWindow.getLeft() + targetWindow.getWidth() / 2;
                     final int newY = targetWindow.getTop();
-                    if (Math.abs(newX - targetX) > 3 || Math.abs(newY - targetY) > 3) {
+                    if (newX != targetX || newY != targetY) {
                         throw new LostGroundException("Window moved");
                     }
                 } catch (final RuntimeException e) {
@@ -190,7 +190,7 @@ public class NigelPerch extends ActionBase {
             final double opacity = Main.getInstance().getSettings().opacity;
             final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                     ? getMascot().getImageSet() : "NigelShimeji";
-            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 195, scaling, filter, opacity);
+            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 192, scaling, filter, opacity);
             ImagePairs.addUsage(perchKey, imageSet);
             flyWalk1 = ImagePairs.load(Path.of(imageSet, "walk_2.png"), null, 96, 200, scaling, filter, opacity);
             ImagePairs.addUsage(flyWalk1, imageSet);
