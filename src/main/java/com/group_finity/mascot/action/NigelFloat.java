@@ -20,8 +20,8 @@ public class NigelFloat extends ActionBase {
     private int driftTicks;
     private int totalTicks;
 
-    private static final int RISE_HEIGHT_MIN = 140;
-    private static final int RISE_HEIGHT_MAX = 280;
+    private static final int RISE_HEIGHT_MIN = 300;
+    private static final int RISE_HEIGHT_MAX = 600;
     private static final int DRIFT_SPEED = 2;
 
     private int startY;
