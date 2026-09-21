@@ -805,6 +805,13 @@ public class GraspMouse extends ActionBase {
             if (swallowTicks == gulpEnd) {
                 com.group_finity.mascot.sound.NigelSounds.playGlug();
             }
+            final boolean forcingDown = bigIntro
+                    ? swallowTicks < BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
+                    : swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
+            final boolean inIntro = bigIntro && swallowTicks < BIG_INTRO_END;
+            final boolean gulping = forcingDown || inIntro;
+            final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
+            boolean floating = false;
 
             if (swallowWindowRemaining > 0) {
                 swallowWindowRemaining--;
@@ -849,14 +856,7 @@ public class GraspMouse extends ActionBase {
                 sickExtraTicks = 0;
             }
 
-            // Fully trapped: HP frozen, cursor pinned hard. The big-swallow
-            final boolean forcingDown = bigIntro
-                    ? swallowTicks < BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
-                    : swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
-            final boolean inIntro = bigIntro && swallowTicks < BIG_INTRO_END;
-            final boolean gulping = forcingDown || inIntro;
-            final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
-            boolean floating = false;
+            // Fully trapped: HP frozen, cursor pinned hard.
             if (gulping) {
                 // Gulp in place where he caught it. While forcing down a
                 // stuffed cursor, the body heaves once with each choke;
