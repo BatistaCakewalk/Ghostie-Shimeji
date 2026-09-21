@@ -137,15 +137,30 @@ public class FollowLeader extends BorderedAction {
         final int curX = getMascot().getAnchor().x;
         final int curY = getMascot().getAnchor().y;
 
-        // Turn to face direction of travel.
-        if (targetX != curX) {
-            getMascot().setLookRight(targetX > curX);
+        // Keep leader walking while being followed — otherwise the line stalls
+        // and the follower seizures left/right at the end of the leader's Walk.
+        try {
+            if (leader.getBehavior() instanceof com.group_finity.mascot.behavior.UserBehavior ub) {
+                final String n = ub.getName().toLowerCase();
+                final boolean leaderWalking = n.contains("walk") || n.contains("follow");
+                if (!leaderWalking) {
+                    final String imageSet = leader.getImageSet();
+                    final com.group_finity.mascot.config.Configuration cfg =
+                            Main.getInstance().getConfiguration(imageSet);
+                    leader.setBehavior(cfg.buildBehavior("Walk", leader));
+                }
+            }
+        } catch (final RuntimeException | com.group_finity.mascot.config.BehaviorInstantiationException
+                | com.group_finity.mascot.behavior.BehaviorExecutionException ignored) {
         }
 
-        // Move toward target, capped speed.
+        // Move toward target, capped speed — only turn when actually moving.
         int dx = 0;
         if (Math.abs(targetX - curX) > 5) {
             dx = targetX > curX ? Math.min(SPEED, targetX - curX) : Math.max(-SPEED, targetX - curX);
+        }
+        if (dx != 0) {
+            getMascot().setLookRight(dx > 0);
         }
         int dy = 0;
         if (Math.abs(targetY - curY) > 2) {
