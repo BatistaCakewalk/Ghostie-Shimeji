@@ -23,12 +23,12 @@ import java.util.ResourceBundle;
 public class NigelHanging extends BorderedAction {
     private static final Logger log = LoggerFactory.getLogger(NigelHanging.class);
 
-    private static final int MOVE_TO_CEILING_TICKS = 30;
+    private static final int MOVE_TO_CEILING_TICKS = 60;
     private static final int IDLE_TICKS = 750;
     private static final int TIRED1_TICKS = 250;
     private static final int TIRED2_TICKS = 250;
     private static final int BLINK_TICKS = 4;
-    private static final int BLINK_INTERVAL = 120;
+    private static final int BLINK_INTERVAL = 90;
     private static final int SNORE_INTERVAL = 30;
 
     private String idleKey;
@@ -79,30 +79,40 @@ public class NigelHanging extends BorderedAction {
         ensureImagesLoaded();
 
         if (t < MOVE_TO_CEILING_TICKS) {
-            // Move to ceiling.
+            // Fly up visibly to the ceiling.
             final double p = t / (double) MOVE_TO_CEILING_TICKS;
             final double eased = 1 - Math.pow(1 - p, 3);
             mascot.getAnchor().x = startX + (int) Math.round((targetX - startX) * eased);
             mascot.getAnchor().y = startY + (int) Math.round((targetY - startY) * eased);
-            if (idleKey != null && ImagePairs.contains(idleKey)) {
+            mascot.getAnchor().y += (int) Math.round(Math.sin(t * 0.4) * 1.5);
+            // Blink while flying too.
+            if (t % BLINK_INTERVAL < BLINK_TICKS && blinkKey != null && ImagePairs.contains(blinkKey)) {
+                mascot.setImage(ImagePairs.get(blinkKey).getImage(mascot.isLookRight()));
+            } else if (idleKey != null && ImagePairs.contains(idleKey)) {
                 mascot.setImage(ImagePairs.get(idleKey).getImage(mascot.isLookRight()));
             }
         } else if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS) {
             mascot.getAnchor().x = targetX;
             mascot.getAnchor().y = targetY;
-            if (idleKey != null && ImagePairs.contains(idleKey)) {
+            if (t % BLINK_INTERVAL < BLINK_TICKS && blinkKey != null && ImagePairs.contains(blinkKey)) {
+                mascot.setImage(ImagePairs.get(blinkKey).getImage(mascot.isLookRight()));
+            } else if (idleKey != null && ImagePairs.contains(idleKey)) {
                 mascot.setImage(ImagePairs.get(idleKey).getImage(mascot.isLookRight()));
             }
         } else if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS + TIRED1_TICKS) {
             mascot.getAnchor().x = targetX;
             mascot.getAnchor().y = targetY;
-            if (tired1Key != null && ImagePairs.contains(tired1Key)) {
+            if (t % BLINK_INTERVAL < BLINK_TICKS && blinkKey != null && ImagePairs.contains(blinkKey)) {
+                mascot.setImage(ImagePairs.get(blinkKey).getImage(mascot.isLookRight()));
+            } else if (tired1Key != null && ImagePairs.contains(tired1Key)) {
                 mascot.setImage(ImagePairs.get(tired1Key).getImage(mascot.isLookRight()));
             }
         } else if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS + TIRED1_TICKS + TIRED2_TICKS) {
             mascot.getAnchor().x = targetX;
             mascot.getAnchor().y = targetY;
-            if (tired2Key != null && ImagePairs.contains(tired2Key)) {
+            if (t % BLINK_INTERVAL < BLINK_TICKS && blinkKey != null && ImagePairs.contains(blinkKey)) {
+                mascot.setImage(ImagePairs.get(blinkKey).getImage(mascot.isLookRight()));
+            } else if (tired2Key != null && ImagePairs.contains(tired2Key)) {
                 mascot.setImage(ImagePairs.get(tired2Key).getImage(mascot.isLookRight()));
             }
         } else {
