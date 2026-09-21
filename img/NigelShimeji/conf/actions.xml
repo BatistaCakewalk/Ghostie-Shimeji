@@ -34,6 +34,20 @@
             </Animation>
         </Action>
 
+        <Action Name="Floating" Type="Embedded" Class="com.group_finity.mascot.action.NigelFloat">
+            <Animation>
+                <Pose Image="/stand.png" ImageAnchor="96,200" Velocity="0,0" Duration="8"/>
+                <Pose Image="/stand.png" ImageAnchor="96,198" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,194" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand2.png" ImageAnchor="96,192" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,194" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,196" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,198" Velocity="0,0" Duration="4"/>
+                <Pose Image="/stand.png" ImageAnchor="96,200" Velocity="0,0" Duration="4"/>
+            </Animation>
+        </Action>
+
         <Action Name="FollowLeader" Type="Embedded" Class="com.group_finity.mascot.action.FollowLeader" BorderType="Floor">
             <Animation>
                 <Pose Image="/walk_2.png" ImageAnchor="96,200" Velocity="-6,0" Duration="4"/>
