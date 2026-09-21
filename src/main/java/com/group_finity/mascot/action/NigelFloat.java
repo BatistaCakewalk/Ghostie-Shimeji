@@ -101,13 +101,14 @@ public class NigelFloat extends ActionBase {
             mascot.getAnchor().x += driftDir * (1.0 + Math.sin(descendT * 0.2) * 0.3);
         }
 
-        // Clamp to screen.
+        // Clamp to screen — X inset 1px for corners, Y exact so
+        // floor isOn() reads true and the next behavior isn't Fall.
         final int left = getEnvironment().getScreen().getLeft();
         final int right = getEnvironment().getScreen().getRight();
         final int top = getEnvironment().getScreen().getTop();
         final int bottom = getEnvironment().getScreen().getBottom();
         mascot.getAnchor().x = Math.max(left + 1, Math.min(right - 1, mascot.getAnchor().x));
-        mascot.getAnchor().y = Math.max(top + 1, Math.min(bottom - 1, mascot.getAnchor().y));
+        mascot.getAnchor().y = Math.max(top, Math.min(bottom, mascot.getAnchor().y));
 
         getAnimation().apply(mascot, getTime());
     }
