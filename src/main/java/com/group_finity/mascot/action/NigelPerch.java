@@ -26,8 +26,8 @@ public class NigelPerch extends ActionBase {
     private static final int PERCH_DURATION_MIN = 120;
     private static final int PERCH_DURATION_JITTER = 180;
 
-    // Fly speed in px/tick. ~8px feels similar to CatchMouse approach speed.
-    private static final double FLY_SPEED = 8.0;
+    // Fly speed in px/tick. Bumped to feel snappy.
+    private static final double FLY_SPEED = 12.0;
 
     private int targetX;
     private int targetY;
@@ -180,7 +180,7 @@ public class NigelPerch extends ActionBase {
         }
 
         mascot.getAnchor().x = targetX;
-        mascot.getAnchor().y = targetY; // anchor Y=189 in image → feet exactly on title bar
+        mascot.getAnchor().y = targetY; // anchor Y=185 in image → sits a touch lower
 
         final int left  = getEnvironment().getScreen().getLeft() + 1;
         final int right = getEnvironment().getScreen().getRight() - 1;
@@ -226,9 +226,8 @@ public class NigelPerch extends ActionBase {
             final double opacity = Main.getInstance().getSettings().opacity;
             final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                     ? getMascot().getImageSet() : "NigelShimeji";
-            // Anchor Y=189: last non-transparent row of Perching.png (192×192),
-            // so feet land exactly on window.getTop().
-            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 189, scaling, filter, opacity);
+            // Anchor Y=185: a touch lower so he sits into the bar.
+            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 185, scaling, filter, opacity);
             ImagePairs.addUsage(perchKey, imageSet);
             flyWalk1 = ImagePairs.load(Path.of(imageSet, "walk_2.png"), null, 96, 200, scaling, filter, opacity);
             ImagePairs.addUsage(flyWalk1, imageSet);
