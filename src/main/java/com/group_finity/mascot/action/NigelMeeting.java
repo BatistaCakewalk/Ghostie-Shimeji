@@ -1,6 +1,5 @@
 package com.group_finity.mascot.action;
 
-import com.group_finity.mascot.Main;
 import com.group_finity.mascot.Mascot;
 import com.group_finity.mascot.animation.Animation;
 import com.group_finity.mascot.script.VariableException;
@@ -62,16 +61,10 @@ public class NigelMeeting extends BorderedAction {
 
     @Override
     public boolean hasNext() throws VariableException {
-        if (!super.hasNext()) {
-            return false;
-        }
-        if (getTime() >= MEETING_DURATION_TICKS) {
-            return false;
-        }
-        if (partner == null || partner.getManager() == null) {
-            return false;
-        }
-        return true;
+        return super.hasNext()
+                && getTime() < MEETING_DURATION_TICKS
+                && partner != null
+                && partner.getManager() != null;
     }
 
     @Override
