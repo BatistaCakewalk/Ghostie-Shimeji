@@ -36,8 +36,31 @@ public class FollowLeader extends BorderedAction {
         super.init(mascot);
         leader = pickLeader(mascot);
         if (leader != null) {
-            // Behind the leader: left if leader looks right, right otherwise.
-            offsetX = leader.isLookRight() ? -FOLLOW_DISTANCE : FOLLOW_DISTANCE;
+            // Spread followers behind the leader so they don't stack.
+            int followers = 0;
+            try {
+                final List<Mascot> all = mascot.getManager() != null ? mascot.getManager().getMascots() : List.of();
+                for (final Mascot m : all) {
+                    if (m != leader && m != mascot) {
+                        final double ddx = m.getAnchor().x - leader.getAnchor().x;
+                        final double ddy = m.getAnchor().y - leader.getAnchor().y;
+                        if (Math.sqrt(ddx * ddx + ddy * ddy) < FOLLOW_DISTANCE * 2.5) {
+                            // Count those already trailing this leader (other followers).
+                            try {
+                                if (m.getBehavior() instanceof com.group_finity.mascot.behavior.UserBehavior ub) {
+                                    if (ub.getName().equals("FollowLeader")) {
+                                        followers++;
+                                    }
+                                }
+                            } catch (final RuntimeException ignored) {
+                            }
+                        }
+                    }
+                }
+            } catch (final RuntimeException ignored) {
+            }
+            final int trailGap = FOLLOW_DISTANCE + followers * 60;
+            offsetX = leader.isLookRight() ? -trailGap : trailGap;
         }
         // If no leader, hasNext will be false and behavior ends gracefully — no error dialog.
     }
@@ -130,7 +153,10 @@ public class FollowLeader extends BorderedAction {
         if (leader == null) {
             throw new LostGroundException("Leader gone");
         }
-        // Target: behind the leader.
+        // Target: behind the leader — update offset direction if leader turned.
+        final int dir = leader.isLookRight() ? -1 : 1;
+        final int absOffset = Math.abs(offsetX);
+        offsetX = dir * absOffset;
         final int targetX = leader.getAnchor().x + offsetX;
         final int targetY = leader.getAnchor().y;
 
