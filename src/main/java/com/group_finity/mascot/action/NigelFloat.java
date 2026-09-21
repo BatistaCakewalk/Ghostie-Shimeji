@@ -77,6 +77,25 @@ public class NigelFloat extends ActionBase {
             final double bobY = Math.sin(driftT * 0.08) * 3.0 + Math.cos(driftT * 0.04) * 1.5;
             mascot.getAnchor().x += (int) Math.round(driftDir * (1.2 + swayX * 0.3));
             mascot.getAnchor().y = targetRiseY + (int) Math.round(bobY);
+            // Dive-bomb: spot cursor below and drop.
+            if (driftT > 20 && Math.random() < 0.015) {
+                try {
+                    final com.group_finity.mascot.environment.Location cursor = getEnvironment().getCursor();
+                    final int dx = cursor.getX() - mascot.getAnchor().x;
+                    final int dy = cursor.getY() - mascot.getAnchor().y;
+                    if (dy > 50 && dy < 600 && Math.abs(dx) < 500
+                            && !mascot.isMouseOwnedByOther()
+                            && !getEnvironment().isFullscreen()
+                            && !getEnvironment().isMouseLocked()) {
+                        final String imageSet = mascot.getImageSet();
+                        final com.group_finity.mascot.config.Configuration cfg =
+                                com.group_finity.mascot.Main.getInstance().getConfiguration(imageSet);
+                        mascot.setBehavior(cfg.buildBehavior("CatchMouse", mascot));
+                        return;
+                    }
+                } catch (final Exception ignored) {
+                }
+            }
             // Soft bounce off edges.
             final int left = getEnvironment().getScreen().getLeft() + 20;
             final int right = getEnvironment().getScreen().getRight() - 20;
