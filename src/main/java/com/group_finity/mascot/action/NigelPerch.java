@@ -44,11 +44,10 @@ public class NigelPerch extends ActionBase {
     public void init(final Mascot mascot) throws VariableException {
         super.init(mascot);
         targetWindow = pickWindow();
-        if (targetWindow == null) {
-            throw new VariableException("No window to perch on");
+        if (targetWindow != null) {
+            targetX = targetWindow.getLeft() + targetWindow.getWidth() / 2;
+            targetY = targetWindow.getTop();
         }
-        targetX = targetWindow.getLeft() + targetWindow.getWidth() / 2;
-        targetY = targetWindow.getTop();
         perchDuration = PERCH_DURATION_MIN + (int) (Math.random() * PERCH_DURATION_JITTER);
         ensureImagesLoaded();
     }
@@ -87,6 +86,9 @@ public class NigelPerch extends ActionBase {
     @Override
     public boolean hasNext() throws VariableException {
         if (!super.hasNext()) {
+            return false;
+        }
+        if (targetWindow == null) {
             return false;
         }
         return getTime() < perchDuration;
