@@ -57,44 +57,44 @@ public class NigelFloat extends ActionBase {
         final int t = getTime();
 
         if (t < RISE_TICKS) {
-            // Smooth rise.
-            final double progress = t / (double) RISE_TICKS;
-            final int y = startY + (int) Math.round((targetRiseY - startY) * progress);
-            mascot.getAnchor().y = y;
-            // Slight horizontal nudge.
-            mascot.getAnchor().x += driftDir;
+            // Ease-out rise — starts quick, slows as he reaches height.
+            final double p = t / (double) RISE_TICKS;
+            final double eased = 1 - Math.pow(1 - p, 3);
+            mascot.getAnchor().y = startY + (int) Math.round((targetRiseY - startY) * eased);
+            mascot.getAnchor().x += driftDir * (0.5 + p * 0.5);
+            // Wobble slightly on the way up.
+            mascot.getAnchor().y += (int) Math.round(Math.sin(t * 0.3) * 0.5);
         } else if (t < RISE_TICKS + DRIFT_TICKS) {
-            // Drift with gentle bob.
+            // Ghostly drift: figure-8 with varying speed, never robotic.
             final int driftT = t - RISE_TICKS;
-            mascot.getAnchor().x += driftDir * DRIFT_SPEED;
-            // Bob 4px up/down.
-            final double bob = Math.sin(driftT * 0.15) * 2;
-            mascot.getAnchor().y = targetRiseY + (int) Math.round(bob);
-            // Bounce off screen edges.
+            final double swayX = Math.sin(driftT * 0.03) * 1.2 + Math.sin(driftT * 0.07) * 0.6;
+            final double bobY = Math.sin(driftT * 0.08) * 3.0 + Math.cos(driftT * 0.04) * 1.5;
+            mascot.getAnchor().x += (int) Math.round(driftDir * (1.2 + swayX * 0.3));
+            mascot.getAnchor().y = targetRiseY + (int) Math.round(bobY);
+            // Soft bounce off edges.
             final int left = getEnvironment().getScreen().getLeft() + 20;
             final int right = getEnvironment().getScreen().getRight() - 20;
             if (mascot.getAnchor().x <= left || mascot.getAnchor().x >= right) {
                 driftDir = -driftDir;
                 mascot.setLookRight(driftDir > 0);
             }
-            // Occasionally flip drift direction.
-            if (Math.random() < 0.01) {
+            // Gentle direction change, not snap.
+            if (Math.random() < 0.008) {
                 driftDir = -driftDir;
                 mascot.setLookRight(driftDir > 0);
             }
         } else {
-            // Descend back toward start.
+            // Ease-in descent — lingers up top, then drops with weight.
             final int descendT = t - RISE_TICKS - DRIFT_TICKS;
-            final double progress = descendT / (double) DESCEND_TICKS;
-            // Current drift Y to startY.
+            final double p = descendT / (double) DESCEND_TICKS;
+            final double eased = p * p * p;
             final int curY = mascot.getAnchor().y;
-            final int targetY = startY;
-            mascot.getAnchor().y = curY + (int) Math.round((targetY - curY) * 0.15) + 1;
-            if (Math.abs(mascot.getAnchor().y - startY) < 3) {
+            // Blend from current drift height back to startY.
+            mascot.getAnchor().y = curY + (int) Math.round((startY - curY) * (0.08 + eased * 0.12));
+            if (descendT > DESCEND_TICKS - 5) {
                 mascot.getAnchor().y = startY;
             }
-            // Keep drifting a little while descending.
-            mascot.getAnchor().x += driftDir;
+            mascot.getAnchor().x += driftDir * (1.0 + Math.sin(descendT * 0.2) * 0.3);
         }
 
         // Clamp to screen.
