@@ -115,7 +115,6 @@ public class NigelHanging extends BorderedAction {
             mascot.getAnchor().y = targetY;
         }
         if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS) {
-        } else if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS) {
             mascot.getAnchor().x = targetX;
             mascot.getAnchor().y = targetY;
             if (t % BLINK_INTERVAL < BLINK_TICKS && blinkKey != null && ImagePairs.contains(blinkKey)) {
