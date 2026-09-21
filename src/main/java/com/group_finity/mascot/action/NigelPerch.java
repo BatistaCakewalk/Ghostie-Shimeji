@@ -26,8 +26,8 @@ public class NigelPerch extends ActionBase {
     private static final int PERCH_DURATION_MIN = 120;
     private static final int PERCH_DURATION_JITTER = 180;
 
-    // Fly speed in px/tick. Snappy.
-    private static final double FLY_SPEED = 16.0;
+    // Fly speed in px/tick.
+    private static final double FLY_SPEED = 20.0;
 
     private int targetX;
     private int targetY;
@@ -226,8 +226,8 @@ public class NigelPerch extends ActionBase {
             final double opacity = Main.getInstance().getSettings().opacity;
             final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                     ? getMascot().getImageSet() : "NigelShimeji";
-            // Anchor Y=180: sits a bit lower into the bar.
-            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 180, scaling, filter, opacity);
+            // Anchor Y=175: sits lower into the bar.
+            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 175, scaling, filter, opacity);
             ImagePairs.addUsage(perchKey, imageSet);
             flyWalk1 = ImagePairs.load(Path.of(imageSet, "walk_2.png"), null, 96, 200, scaling, filter, opacity);
             ImagePairs.addUsage(flyWalk1, imageSet);
