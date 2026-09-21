@@ -155,9 +155,9 @@ public class NigelHanging extends BorderedAction {
             if (snoreKey != null && ImagePairs.contains(snoreKey)) {
                 mascot.setImage(ImagePairs.get(snoreKey).getImage(mascot.isLookRight()));
             }
-            // Every 10 minutes, roll to fall: 0.5% base, +0.5% per interval.
-            if (snoreT > 0 && snoreT % 15000 == 0) {
-                final int intervals = snoreT / 15000;
+            // Every 20 minutes, roll to fall: 0.5% base, +0.5% per interval.
+            if (snoreT > 0 && snoreT % 30000 == 0) {
+                final int intervals = snoreT / 30000;
                 final double chance = 0.005 + intervals * 0.005;
                 if (Math.random() < chance) {
                     throw new LostGroundException("Fell off ceiling");
