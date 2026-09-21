@@ -67,14 +67,22 @@ public class NigelHanging extends BorderedAction {
         // (Stored in targetY for hang; fly uses targetY+200.)
     }
 
+    private static final int MAX_HANG_TICKS = 24 * 60 * 60 * 1000 / 40;
+
     @Override
     public boolean hasNext() throws VariableException {
         if (!super.hasNext()) {
             return false;
         }
-        // Hang for a while, then wake or fall.
-        final int total = MOVE_TO_CEILING_TICKS + IDLE_TICKS + TIRED1_TICKS + TIRED2_TICKS + 1200;
-        return getTime() < total;
+        final int total = MOVE_TO_CEILING_TICKS + IDLE_TICKS + TIRED1_TICKS + TIRED2_TICKS + MAX_HANG_TICKS;
+        if (getTime() >= total) {
+            try {
+                getMascot().getAnchor().translate(0, 200);
+            } catch (final RuntimeException ignored) {
+            }
+            return false;
+        }
+        return true;
     }
 
     @Override
@@ -139,20 +147,13 @@ public class NigelHanging extends BorderedAction {
                 mascot.setImage(ImagePairs.get(tired2Key).getImage(mascot.isLookRight()));
             }
         } else {
-            // Snore loop with occasional blinks, stays hanging.
+            // Snore loop — no blinks, just snores.
             mascot.getAnchor().x = targetX;
             mascot.getAnchor().y = targetY;
             final int snoreT = t - (MOVE_TO_CEILING_TICKS + IDLE_TICKS + TIRED1_TICKS + TIRED2_TICKS);
-            // Blink every ~5 seconds.
-            if (snoreT % BLINK_INTERVAL < BLINK_TICKS) {
-                if (blinkKey != null && ImagePairs.contains(blinkKey)) {
-                    mascot.setImage(ImagePairs.get(blinkKey).getImage(mascot.isLookRight()));
-                }
-            } else {
-                final String snoreKey = (snoreT / SNORE_INTERVAL) % 2 == 0 ? snore1Key : snore2Key;
-                if (snoreKey != null && ImagePairs.contains(snoreKey)) {
-                    mascot.setImage(ImagePairs.get(snoreKey).getImage(mascot.isLookRight()));
-                }
+            final String snoreKey = (snoreT / SNORE_INTERVAL) % 2 == 0 ? snore1Key : snore2Key;
+            if (snoreKey != null && ImagePairs.contains(snoreKey)) {
+                mascot.setImage(ImagePairs.get(snoreKey).getImage(mascot.isLookRight()));
             }
             // Every 10 minutes, roll to fall: 0.5% base, +0.5% per interval.
             if (snoreT > 0 && snoreT % 15000 == 0) {
