@@ -34,6 +34,30 @@
             </Animation>
         </Action>
 
+        <Action Name="Perching" Type="Embedded" Class="com.group_finity.mascot.action.NigelPerch">
+            <Animation>
+                <Pose Image="/Perching.png" ImageAnchor="96,200" Velocity="0,0" Duration="8"/>
+            </Animation>
+        </Action>
+
+        <Action Name="Hanging" Type="Embedded" Class="com.group_finity.mascot.action.NigelHanging" BorderType="Ceiling">
+            <Animation>
+                <Pose Image="/HangingIdle.png" ImageAnchor="96,0" Velocity="0,0" Duration="8"/>
+            </Animation>
+        </Action>
+
+        <Action Name="Floating" Type="Embedded" Class="com.group_finity.mascot.action.NigelFloat">
+            <Animation>
+                <Pose Image="/walk_2.png" ImageAnchor="96,200" Velocity="-6,0" Duration="4"/>
+                <Pose Image="/walk_3.png" ImageAnchor="96,198" Velocity="-6,0" Duration="4"/>
+                <Pose Image="/walk_2.png" ImageAnchor="96,196" Velocity="-6,0" Duration="4"/>
+                <Pose Image="/walk_blink.png" ImageAnchor="96,194" Velocity="-6,0" Duration="4"/>
+                <Pose Image="/walk_2.png" ImageAnchor="96,196" Velocity="-6,0" Duration="4"/>
+                <Pose Image="/walk_2.png" ImageAnchor="96,198" Velocity="-6,0" Duration="4"/>
+                <Pose Image="/walk_2.png" ImageAnchor="96,200" Velocity="-6,0" Duration="4"/>
+            </Animation>
+        </Action>
+
         <Action Name="FollowLeader" Type="Embedded" Class="com.group_finity.mascot.action.FollowLeader" BorderType="Floor">
             <Animation>
                 <Pose Image="/walk_2.png" ImageAnchor="96,200" Velocity="-6,0" Duration="4"/>
