@@ -99,11 +99,14 @@ public class NigelPerch extends ActionBase {
 
         // Fly toward perch — catch-like leap, walk sprites while moving.
         if (t < 30) {
-            final double p = t / 30.0;
-            final double eased = 1 - Math.pow(1 - p, 2);
+            final int prevX = mascot.getAnchor().x;
             mascot.getAnchor().x += (int) Math.round((targetX - mascot.getAnchor().x) * 0.25);
             mascot.getAnchor().y += (int) Math.round((targetY - mascot.getAnchor().y) * 0.25) - 2;
-            // Walk sprites while flying — catch-like.
+            final int dx = mascot.getAnchor().x - prevX;
+            if (dx != 0) {
+                mascot.setLookRight(dx > 0);
+            }
+            // Walk sprites while floating up.
             final int walkPhase = (t / 4) % 4;
             String walkKey = null;
             if (walkPhase == 2 && flyWalkBlink != null && ImagePairs.contains(flyWalkBlink)) {
@@ -118,23 +121,23 @@ public class NigelPerch extends ActionBase {
             }
             return;
         } else {
-            mascot.getAnchor().x = targetX;
-            mascot.getAnchor().y = targetY;
-            // Window may have moved — follow its top.
+            // Window moved — fall instead of teleporting with it.
             if (targetWindow != null) {
                 try {
-                    if (targetWindow.isVisible()) {
-                        targetX = targetWindow.getLeft() + targetWindow.getWidth() / 2;
-                        targetY = targetWindow.getTop();
-                        mascot.getAnchor().x = targetX;
-                        mascot.getAnchor().y = targetY;
-                    } else {
+                    if (!targetWindow.isVisible()) {
                         throw new LostGroundException("Window gone");
                     }
+                    final int newX = targetWindow.getLeft() + targetWindow.getWidth() / 2;
+                    final int newY = targetWindow.getTop();
+                    if (Math.abs(newX - targetX) > 3 || Math.abs(newY - targetY) > 3) {
+                        throw new LostGroundException("Window moved");
+                    }
                 } catch (final RuntimeException e) {
-                    throw new LostGroundException("Window gone");
+                    throw new LostGroundException("Window moved");
                 }
             }
+            mascot.getAnchor().x = targetX;
+            mascot.getAnchor().y = targetY;
         }
 
         // Face center of window.

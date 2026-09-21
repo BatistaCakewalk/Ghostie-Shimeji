@@ -98,10 +98,15 @@ public class NigelHanging extends BorderedAction {
             // Fly anchor is 200px below hang anchor so visual top stays put.
             final double p = t / (double) MOVE_TO_CEILING_TICKS;
             final double eased = 1 - Math.pow(1 - p, 3);
-            final int flyTargetY = targetY + 200;
+            final int prevX = mascot.getAnchor().x;
             mascot.getAnchor().x = startX + (int) Math.round((targetX - startX) * eased);
-            mascot.getAnchor().y = startY + (int) Math.round((flyTargetY - startY) * eased);
+            mascot.getAnchor().y = startY + (int) Math.round(((targetY + 200) - startY) * eased);
             mascot.getAnchor().y += (int) Math.round(Math.sin(t * 0.4) * 1.5);
+            // Face direction of travel.
+            final int dx = mascot.getAnchor().x - prevX;
+            if (dx != 0) {
+                mascot.setLookRight(dx > 0);
+            }
             // Walk sprites while floating up.
             final int walkPhase = (t / 4) % 4;
             String flyKey = null;
