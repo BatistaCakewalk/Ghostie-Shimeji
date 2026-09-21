@@ -42,6 +42,8 @@ public class FollowLeader extends BorderedAction {
         // If no leader, hasNext will be false and behavior ends gracefully — no error dialog.
     }
 
+    private static final int MAX_FOLLOW_TICKS = 350;
+
     private Mascot pickLeader(final Mascot self) {
         try {
             final List<Mascot> all = self.getManager() != null ? self.getManager().getMascots() : List.of();
@@ -51,17 +53,24 @@ public class FollowLeader extends BorderedAction {
                 if (candidate == self || candidate.isPaused()) {
                     continue;
                 }
-                // Don't follow someone who's already following (avoid chain loops).
-                // We can't inspect candidate behavior easily, so use distance + moving check.
                 final double dx = candidate.getAnchor().x - self.getAnchor().x;
                 final double dy = candidate.getAnchor().y - self.getAnchor().y;
                 final double dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist > SEARCH_RADIUS || dist < 30) {
                     continue;
                 }
-                // Prefer nearer leaders.
-                if (dist < bestDist) {
-                    // Rough cap: count how many others are already close to this candidate.
+                // Prefer moving leaders (Walk) so the line actually travels.
+                boolean isMoving = false;
+                try {
+                    if (candidate.getBehavior() instanceof com.group_finity.mascot.behavior.UserBehavior ub) {
+                        final String n = ub.getName().toLowerCase();
+                        isMoving = n.contains("walk") || n.contains("follow");
+                    }
+                } catch (final RuntimeException ignored) {
+                }
+                // Score: nearer is better, moving is bonus.
+                double score = dist - (isMoving ? 100 : 0);
+                if (score < bestDist) {
                     int followers = 0;
                     for (final Mascot m : all) {
                         if (m != candidate && m != self) {
@@ -76,7 +85,7 @@ public class FollowLeader extends BorderedAction {
                         continue;
                     }
                     best = candidate;
-                    bestDist = dist;
+                    bestDist = score;
                 }
             }
             return best;
@@ -93,7 +102,10 @@ public class FollowLeader extends BorderedAction {
         if (leader == null) {
             return false;
         }
-        // Leader disposed or too far.
+        if (getTime() >= MAX_FOLLOW_TICKS) {
+            return false;
+        }
+        // Leader disposed or too far — that's the break.
         try {
             if (leader.getManager() == null) {
                 return false;
