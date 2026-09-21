@@ -31,6 +31,9 @@ public class NigelPerch extends ActionBase {
     private int targetY;
     private int perchDuration;
     private String perchKey;
+    private String flyWalk1;
+    private String flyWalk2;
+    private String flyWalkBlink;
     private boolean imagesLoaded;
 
     public NigelPerch(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
@@ -94,12 +97,26 @@ public class NigelPerch extends ActionBase {
         final Mascot mascot = getMascot();
         final int t = getTime();
 
-        // Fly toward perch quickly.
+        // Fly toward perch — catch-like leap, walk sprites while moving.
         if (t < 30) {
             final double p = t / 30.0;
-            final double eased = 1 - Math.pow(1 - p, 3);
-            mascot.getAnchor().x = (int) Math.round(mascot.getAnchor().x + (targetX - mascot.getAnchor().x) * eased * 0.3);
-            mascot.getAnchor().y = (int) Math.round(mascot.getAnchor().y + (targetY - mascot.getAnchor().y) * eased * 0.3);
+            final double eased = 1 - Math.pow(1 - p, 2);
+            mascot.getAnchor().x += (int) Math.round((targetX - mascot.getAnchor().x) * 0.25);
+            mascot.getAnchor().y += (int) Math.round((targetY - mascot.getAnchor().y) * 0.25) - 2;
+            // Walk sprites while flying — catch-like.
+            final int walkPhase = (t / 4) % 4;
+            String walkKey = null;
+            if (walkPhase == 2 && flyWalkBlink != null && ImagePairs.contains(flyWalkBlink)) {
+                walkKey = flyWalkBlink;
+            } else if (walkPhase % 2 == 0 && flyWalk1 != null && ImagePairs.contains(flyWalk1)) {
+                walkKey = flyWalk1;
+            } else if (flyWalk2 != null && ImagePairs.contains(flyWalk2)) {
+                walkKey = flyWalk2;
+            }
+            if (walkKey != null) {
+                mascot.setImage(ImagePairs.get(walkKey).getImage(mascot.isLookRight()));
+            }
+            return;
         } else {
             mascot.getAnchor().x = targetX;
             mascot.getAnchor().y = targetY;
@@ -168,8 +185,14 @@ public class NigelPerch extends ActionBase {
             final double opacity = Main.getInstance().getSettings().opacity;
             final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                     ? getMascot().getImageSet() : "NigelShimeji";
-            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 200, scaling, filter, opacity);
+            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 205, scaling, filter, opacity);
             ImagePairs.addUsage(perchKey, imageSet);
+            flyWalk1 = ImagePairs.load(Path.of(imageSet, "walk_2.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(flyWalk1, imageSet);
+            flyWalk2 = ImagePairs.load(Path.of(imageSet, "walk_3.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(flyWalk2, imageSet);
+            flyWalkBlink = ImagePairs.load(Path.of(imageSet, "walk_blink.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(flyWalkBlink, imageSet);
             imagesLoaded = true;
         } catch (final IOException | RuntimeException e) {
             log.warn("Failed to load perching image", e);
