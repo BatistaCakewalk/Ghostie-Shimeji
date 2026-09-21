@@ -27,6 +27,7 @@ public class NigelFloat extends ActionBase {
     private int startY;
     private int targetRiseY;
     private int driftDir;
+    private boolean goToCeiling;
 
     public NigelFloat(ResourceBundle schema, final List<Animation> animations, final VariableMap context) {
         super(schema, animations, context);
@@ -45,6 +46,7 @@ public class NigelFloat extends ActionBase {
         // Short to medium float — its own stand/walk window, not a full patrol.
         driftTicks = 80 + (int) (Math.random() * 120);
         totalTicks = RISE_TICKS + driftTicks + DESCEND_TICKS;
+        goToCeiling = Math.random() < 0.25;
     }
 
     @Override
@@ -88,6 +90,17 @@ public class NigelFloat extends ActionBase {
                 mascot.setLookRight(driftDir > 0);
             }
         } else {
+            // Chance to head to ceiling for a bat nap instead of landing.
+            if (goToCeiling && t == RISE_TICKS + driftTicks) {
+                try {
+                    final String imageSet = mascot.getImageSet();
+                    final com.group_finity.mascot.config.Configuration cfg =
+                            com.group_finity.mascot.Main.getInstance().getConfiguration(imageSet);
+                    mascot.setBehavior(cfg.buildBehavior("Hanging", mascot));
+                    return;
+                } catch (final Exception ignored) {
+                }
+            }
             // Ease-in descent — lingers up top, then drops with weight.
             final int descendT = t - RISE_TICKS - driftTicks;
             final double p = descendT / (double) DESCEND_TICKS;
