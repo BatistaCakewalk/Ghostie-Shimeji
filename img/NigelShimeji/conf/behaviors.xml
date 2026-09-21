@@ -28,8 +28,8 @@
         <Condition Condition="#{mascot.environment.floor.isOn(mascot.anchor)}">
             <Behavior Name="StandUp" Frequency="6" Hidden="true"/>
             <Behavior Name="Stare" Frequency="2"/>
-            <Behavior Name="FollowLeader" Frequency="1" Hidden="true"/>
-            <Behavior Name="Meeting" Frequency="1" Hidden="true"/>
+            <Behavior Name="FollowLeader" Frequency="1"/>
+            <Behavior Name="Meeting" Frequency="1"/>
             <Behavior Name="Walk" Frequency="7" Hidden="true"/>
             <Behavior Name="ChaseMouse" Frequency="7" Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
             <Behavior Name="CatchMouse" Frequency="2" Toggleable="true" Condition="#{!mascot.isMouseOwnedByOther() &amp;&amp; !mascot.environment.isFullscreen() &amp;&amp; !mascot.environment.isMouseLocked()}"/>
