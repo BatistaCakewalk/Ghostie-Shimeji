@@ -37,6 +37,7 @@ public class NigelHanging extends BorderedAction {
     private String blinkKey;
     private String snore1Key;
     private String snore2Key;
+    private String flyKey;
     private boolean imagesLoaded;
 
     private int targetX;
@@ -87,8 +88,9 @@ public class NigelHanging extends BorderedAction {
             mascot.getAnchor().x = startX + (int) Math.round((targetX - startX) * eased);
             mascot.getAnchor().y = startY + (int) Math.round((targetY - startY) * eased);
             mascot.getAnchor().y += (int) Math.round(Math.sin(t * 0.4) * 1.5);
-            // Don't switch to hanging frames until we arrive.
-            getAnimation().apply(mascot, getTime());
+            if (flyKey != null && ImagePairs.contains(flyKey)) {
+                mascot.setImage(ImagePairs.get(flyKey).getImage(mascot.isLookRight()));
+            }
             return;
         } else if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS) {
         } else if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS) {
@@ -153,6 +155,8 @@ public class NigelHanging extends BorderedAction {
             final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                     ? getMascot().getImageSet() : "NigelShimeji";
             // Hanging images anchor at top (96,0) so they hang down from ceiling.
+            flyKey = ImagePairs.load(Path.of(imageSet, "stand.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(flyKey, imageSet);
             idleKey = ImagePairs.load(Path.of(imageSet, "HangingIdle.png"), null, 96, 0, scaling, filter, opacity);
             ImagePairs.addUsage(idleKey, imageSet);
             tired1Key = ImagePairs.load(Path.of(imageSet, "HangingTired.png"), null, 96, 0, scaling, filter, opacity);
