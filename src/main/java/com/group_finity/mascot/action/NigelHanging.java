@@ -37,7 +37,9 @@ public class NigelHanging extends BorderedAction {
     private String blinkKey;
     private String snore1Key;
     private String snore2Key;
-    private String flyKey;
+    private String flyKey1;
+    private String flyKey2;
+    private String flyKeyBlink;
     private boolean imagesLoaded;
 
     private int targetX;
@@ -58,9 +60,8 @@ public class NigelHanging extends BorderedAction {
         final int screenRight = getEnvironment().getScreen().getRight();
         final int screenTop = getEnvironment().getScreen().getTop();
         targetX = screenLeft + 80 + (int) (Math.random() * Math.max(1, screenRight - screenLeft - 160));
-        // Anchor for hanging: image anchor 96,0 at top, so anchor just below top.
-        // Keep well inside screen so out-of-screen teleport doesn't fire.
-        targetY = screenTop + 96;
+        // Anchor for hanging: image anchor 96,0 at top, so anchor at top.
+        targetY = screenTop + 2;
     }
 
     @Override
@@ -88,7 +89,17 @@ public class NigelHanging extends BorderedAction {
             mascot.getAnchor().x = startX + (int) Math.round((targetX - startX) * eased);
             mascot.getAnchor().y = startY + (int) Math.round((targetY - startY) * eased);
             mascot.getAnchor().y += (int) Math.round(Math.sin(t * 0.4) * 1.5);
-            if (flyKey != null && ImagePairs.contains(flyKey)) {
+            // Walk sprites while floating up.
+            final int walkPhase = (t / 4) % 4;
+            String flyKey = null;
+            if (walkPhase == 2 && flyKeyBlink != null && ImagePairs.contains(flyKeyBlink)) {
+                flyKey = flyKeyBlink;
+            } else if (walkPhase % 2 == 0 && flyKey1 != null && ImagePairs.contains(flyKey1)) {
+                flyKey = flyKey1;
+            } else if (flyKey2 != null && ImagePairs.contains(flyKey2)) {
+                flyKey = flyKey2;
+            }
+            if (flyKey != null) {
                 mascot.setImage(ImagePairs.get(flyKey).getImage(mascot.isLookRight()));
             }
             return;
@@ -155,8 +166,12 @@ public class NigelHanging extends BorderedAction {
             final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                     ? getMascot().getImageSet() : "NigelShimeji";
             // Hanging images anchor at top (96,0) so they hang down from ceiling.
-            flyKey = ImagePairs.load(Path.of(imageSet, "stand.png"), null, 96, 200, scaling, filter, opacity);
-            ImagePairs.addUsage(flyKey, imageSet);
+            flyKey1 = ImagePairs.load(Path.of(imageSet, "walk_2.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(flyKey1, imageSet);
+            flyKey2 = ImagePairs.load(Path.of(imageSet, "walk_3.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(flyKey2, imageSet);
+            flyKeyBlink = ImagePairs.load(Path.of(imageSet, "walk_blink.png"), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(flyKeyBlink, imageSet);
             idleKey = ImagePairs.load(Path.of(imageSet, "HangingIdle.png"), null, 96, 0, scaling, filter, opacity);
             ImagePairs.addUsage(idleKey, imageSet);
             tired1Key = ImagePairs.load(Path.of(imageSet, "HangingTired.png"), null, 96, 0, scaling, filter, opacity);
