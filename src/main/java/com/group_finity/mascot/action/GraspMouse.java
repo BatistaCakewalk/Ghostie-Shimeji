@@ -872,8 +872,12 @@ public class GraspMouse extends ActionBase {
                 }
             } else if (!grounded && !inIntro) {
                 // Sway side to side on the way down instead of dropping like an elevator.
+                // Clamp the sink to not overshoot the floor: isOn() is an exact Y match,
+                // so a 3px step that lands past floor Y means grounded never becomes true.
                 final int sway = (int) Math.round(Math.sin(swallowTicks * 0.15) * 2.0);
-                getMascot().getAnchor().translate(sway, 3);
+                final int floorY = getEnvironment().getWorkArea().getBottom();
+                final int sinkDy = Math.min(3, Math.max(0, floorY - getMascot().getAnchor().y));
+                getMascot().getAnchor().translate(sway, sinkDy);
             } else {
                 // Float in bursts with idle pauses, like he's showing off his prize.
                 // Stuffed, he lumbers: shorter bursts, longer breathers.
@@ -1697,7 +1701,13 @@ public class GraspMouse extends ActionBase {
         final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
         if (!grounded) {
             final int sway = (int) Math.round(Math.sin(getTime() * 0.15) * 2.0);
-            getMascot().getAnchor().translate(sway, 3);
+            // Clamp the sink so we never overshoot the floor Y by more than
+            // one step. isOn() requires an exact Y match, so a 3px step that
+            // lands past the floor means grounded never becomes true and Nigel
+            // gets stuck in the floating-down animation indefinitely.
+            final int floorY = getEnvironment().getWorkArea().getBottom();
+            final int dy = Math.min(3, Math.max(0, floorY - getMascot().getAnchor().y));
+            getMascot().getAnchor().translate(sway, dy);
             clampAnchorToScreen();
             if (burpAftermathKey != null && ImagePairs.contains(burpAftermathKey)) {
                 getMascot().setImage(ImagePairs.get(burpAftermathKey).getImage(getMascot().isLookRight()));
