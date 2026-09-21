@@ -61,7 +61,10 @@ public class NigelHanging extends BorderedAction {
         final int screenTop = getEnvironment().getScreen().getTop();
         targetX = screenLeft + 80 + (int) (Math.random() * Math.max(1, screenRight - screenLeft - 160));
         // Anchor for hanging: image anchor 96,0 at top, so anchor at top.
+        // Fly target is 200px higher (center diff) so visual top stays put when switching.
         targetY = screenTop + 2;
+        // Keep fly target separate to avoid 200px jump when swapping anchors.
+        // (Stored in targetY for hang; fly uses targetY+200.)
     }
 
     @Override
@@ -84,10 +87,12 @@ public class NigelHanging extends BorderedAction {
             // Fly up visibly to the ceiling — keep a floor-anchored sprite
             // until we reach the top, otherwise the hanging image (anchor
             // at top) sits with its feet at the floor and reads as off-screen.
+            // Fly anchor is 200px below hang anchor so visual top stays put.
             final double p = t / (double) MOVE_TO_CEILING_TICKS;
             final double eased = 1 - Math.pow(1 - p, 3);
+            final int flyTargetY = targetY + 200;
             mascot.getAnchor().x = startX + (int) Math.round((targetX - startX) * eased);
-            mascot.getAnchor().y = startY + (int) Math.round((targetY - startY) * eased);
+            mascot.getAnchor().y = startY + (int) Math.round((flyTargetY - startY) * eased);
             mascot.getAnchor().y += (int) Math.round(Math.sin(t * 0.4) * 1.5);
             // Walk sprites while floating up.
             final int walkPhase = (t / 4) % 4;
@@ -103,7 +108,13 @@ public class NigelHanging extends BorderedAction {
                 mascot.setImage(ImagePairs.get(flyKey).getImage(mascot.isLookRight()));
             }
             return;
-        } else if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS) {
+        }
+        if (t == MOVE_TO_CEILING_TICKS) {
+            // Snap anchor to hang position so top doesn't jump 200px.
+            mascot.getAnchor().x = targetX;
+            mascot.getAnchor().y = targetY;
+        }
+        if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS) {
         } else if (t < MOVE_TO_CEILING_TICKS + IDLE_TICKS) {
             mascot.getAnchor().x = targetX;
             mascot.getAnchor().y = targetY;
@@ -144,9 +155,13 @@ public class NigelHanging extends BorderedAction {
                     mascot.setImage(ImagePairs.get(snoreKey).getImage(mascot.isLookRight()));
                 }
             }
-            // Chance to fall off.
-            if (Math.random() < 0.002) {
-                throw new LostGroundException("Fell off ceiling");
+            // Every 10 minutes, roll to fall: 0.5% base, +0.5% per interval.
+            if (snoreT > 0 && snoreT % 15000 == 0) {
+                final int intervals = snoreT / 15000;
+                final double chance = 0.005 + intervals * 0.005;
+                if (Math.random() < chance) {
+                    throw new LostGroundException("Fell off ceiling");
+                }
             }
         }
 
