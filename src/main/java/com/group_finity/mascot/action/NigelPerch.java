@@ -188,7 +188,7 @@ public class NigelPerch extends ActionBase {
             final double opacity = Main.getInstance().getSettings().opacity;
             final String imageSet = getMascot() != null && getMascot().getImageSet() != null
                     ? getMascot().getImageSet() : "NigelShimeji";
-            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 205, scaling, filter, opacity);
+            perchKey = ImagePairs.load(Path.of(imageSet, "Perching.png"), null, 96, 195, scaling, filter, opacity);
             ImagePairs.addUsage(perchKey, imageSet);
             flyWalk1 = ImagePairs.load(Path.of(imageSet, "walk_2.png"), null, 96, 200, scaling, filter, opacity);
             ImagePairs.addUsage(flyWalk1, imageSet);
