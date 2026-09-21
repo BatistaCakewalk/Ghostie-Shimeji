@@ -35,12 +35,11 @@ public class FollowLeader extends BorderedAction {
     public void init(final Mascot mascot) throws VariableException {
         super.init(mascot);
         leader = pickLeader(mascot);
-        if (leader == null) {
-            throw new VariableException("No leader to follow");
+        if (leader != null) {
+            // Behind the leader: left if leader looks right, right otherwise.
+            offsetX = leader.isLookRight() ? -FOLLOW_DISTANCE : FOLLOW_DISTANCE;
         }
-        // Behind the leader: left if leader looks right, right otherwise.
-        offsetX = leader.isLookRight() ? -FOLLOW_DISTANCE : FOLLOW_DISTANCE;
-        // Count followers for cap (best-effort, not synchronized).
+        // If no leader, hasNext will be false and behavior ends gracefully — no error dialog.
     }
 
     private Mascot pickLeader(final Mascot self) {

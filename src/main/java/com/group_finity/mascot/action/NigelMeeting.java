@@ -27,11 +27,11 @@ public class NigelMeeting extends BorderedAction {
     public void init(final Mascot mascot) throws VariableException {
         super.init(mascot);
         partner = pickPartner(mascot);
-        if (partner == null) {
-            throw new VariableException("No partner to meet");
+        if (partner != null) {
+            // Face each other.
+            getMascot().setLookRight(partner.getAnchor().x > getMascot().getAnchor().x);
         }
-        // Face each other.
-        getMascot().setLookRight(partner.getAnchor().x > getMascot().getAnchor().x);
+        // If no partner, hasNext will be false and behavior ends gracefully — no error dialog.
     }
 
     private Mascot pickPartner(final Mascot self) {
