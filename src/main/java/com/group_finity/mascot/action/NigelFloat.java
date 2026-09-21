@@ -15,9 +15,10 @@ import java.util.ResourceBundle;
  */
 public class NigelFloat extends ActionBase {
     private static final int RISE_TICKS = 35;
-    private static final int DRIFT_TICKS = 180;
     private static final int DESCEND_TICKS = 35;
-    private static final int TOTAL_TICKS = RISE_TICKS + DRIFT_TICKS + DESCEND_TICKS;
+
+    private int driftTicks;
+    private int totalTicks;
 
     private static final int RISE_HEIGHT_MIN = 140;
     private static final int RISE_HEIGHT_MAX = 280;
@@ -41,6 +42,9 @@ public class NigelFloat extends ActionBase {
         targetRiseY = Math.max(top, startY - rise);
         driftDir = Math.random() < 0.5 ? -1 : 1;
         mascot.setLookRight(driftDir > 0);
+        // Short to medium float — its own stand/walk window, not a full patrol.
+        driftTicks = 80 + (int) (Math.random() * 120);
+        totalTicks = RISE_TICKS + driftTicks + DESCEND_TICKS;
     }
 
     @Override
@@ -48,7 +52,7 @@ public class NigelFloat extends ActionBase {
         if (!super.hasNext()) {
             return false;
         }
-        return getTime() < TOTAL_TICKS;
+        return getTime() < totalTicks;
     }
 
     @Override
@@ -64,7 +68,7 @@ public class NigelFloat extends ActionBase {
             mascot.getAnchor().x += driftDir * (0.5 + p * 0.5);
             // Wobble slightly on the way up.
             mascot.getAnchor().y += (int) Math.round(Math.sin(t * 0.3) * 0.5);
-        } else if (t < RISE_TICKS + DRIFT_TICKS) {
+        } else if (t < RISE_TICKS + driftTicks) {
             // Ghostly drift: figure-8 with varying speed, never robotic.
             final int driftT = t - RISE_TICKS;
             final double swayX = Math.sin(driftT * 0.03) * 1.2 + Math.sin(driftT * 0.07) * 0.6;
@@ -85,7 +89,7 @@ public class NigelFloat extends ActionBase {
             }
         } else {
             // Ease-in descent — lingers up top, then drops with weight.
-            final int descendT = t - RISE_TICKS - DRIFT_TICKS;
+            final int descendT = t - RISE_TICKS - driftTicks;
             final double p = descendT / (double) DESCEND_TICKS;
             final double eased = p * p * p;
             final int curY = mascot.getAnchor().y;
