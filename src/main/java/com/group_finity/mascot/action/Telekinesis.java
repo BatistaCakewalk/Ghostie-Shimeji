@@ -547,6 +547,11 @@ public class Telekinesis extends ActionBase {
      */
     private void initVictimMode(final Mascot mascot) {
         target = null;
+        // Drop whatever the victim was holding first: a paused holder would
+        // freeze its prize mid-air inside a hold that never ticks or ends.
+        // Windows fall with physics, reels just stop, held victims go free,
+        // and a tugging victim forfeits to its partner.
+        cancelFor(victim);
         ownsVictim = true;
         HELD_VICTIMS.add(victim);
         // Freeze the victim's own ticking: we become the sole writer of its
@@ -1402,6 +1407,9 @@ public class Telekinesis extends ActionBase {
         }
         target = null;
         victim = steal;
+        // Same drop-first as a solo lift: the prize may hold a frozen prize
+        // of its own (a chain), which would never tick or end while paused.
+        cancelFor(steal);
         ownsVictim = false;
         startX = attempt.contest.centerX;
         startY = attempt.contest.centerY;
@@ -1477,6 +1485,24 @@ public class Telekinesis extends ActionBase {
             winner.startY = contest.lastY;
             winner.curX = contest.lastX;
             winner.curY = contest.lastY;
+            if (winner.victim != null) {
+                // Adopt the hover center, not the origin: solo hover rides
+                // 270px above start, so adopting the handover spot raw would
+                // fling the victim skyward on the next tick. Backing out the
+                // hover offset and sine phase lands the next solo target
+                // exactly on the handover spot: no climb, no snap.
+                final int elapsed = Math.max(winner.getTime(), VICTIM_ASCENT_TICKS);
+                winner.setTime(elapsed);
+                double sineX = 0.0;
+                double sineY = 0.0;
+                try {
+                    sineX = Math.sin(elapsed * 0.05) * winner.getRadiusX();
+                    sineY = Math.sin(elapsed * 0.07) * winner.getRadiusY();
+                } catch (final VariableException ignored) {
+                }
+                winner.startX = contest.lastX - sineX;
+                winner.startY = contest.lastY + VICTIM_ASCENT_SPEED * VICTIM_ASCENT_TICKS - sineY;
+            }
             com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
             log.info("Tug-of-war settled: one Nigel wins the yoink");
         }
