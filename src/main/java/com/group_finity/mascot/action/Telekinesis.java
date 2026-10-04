@@ -127,11 +127,167 @@ public class Telekinesis extends ActionBase {
             Collections.synchronizedMap(new IdentityHashMap<>());
 
     /**
-     * Victims currently held, so a second attacker can never take a paused
-     * or already-lifted Nigel and freeze it permanently on interleaved release.
+     * Victims currently held. A second attacker latches a held victim into a
+     * tug-of-war instead of a solo lift, and only the pause owner (solo
+     * holder or tug winner) may release it, so interleaved exits can never
+     * freeze a Nigel paused with no holder.
      */
     private static final java.util.Set<Mascot> HELD_VICTIMS =
             Collections.synchronizedSet(java.util.Collections.newSetFromMap(new IdentityHashMap<>()));
+
+    /**
+     * Tug-of-war contests by prize. When a second Nigel grabs whatever a
+     * live hold already has (same window handle, same victim, or the same
+     * cursor), the holds share one contest instead of fighting over it: the
+     * prize shakes between them for a few seconds, then a coin flip picks
+     * the winner and the loser drops out.
+     */
+    private static final Map<TugKey, TugContest> TUGS =
+            Collections.synchronizedMap(new java.util.HashMap<>());
+
+    /**
+     * How long a tug lasts before the coin flip, in milliseconds. Well
+     * under the behavior Duration (400 ticks ~= 16 s) so the winner still
+     * gets a solo hold afterwards.
+     */
+    private static final long TUG_DURATION_MILLIS = 6000;
+
+    /** Tug shake amplitude in pixels around the contest center. */
+    private static final double TUG_SHAKE_PX = 12.0;
+
+    /** Prize fighters per contest. A third challenger picks another prize. */
+    private static final int TUG_MAX_MEMBERS = 2;
+
+    /** This hold's contest, or null while lifting solo. */
+    private volatile TugContest tug;
+
+    /** Set when this hold lost its tug: drop out on the next tick. */
+    private volatile boolean tugLost;
+
+    /**
+     * Whether this hold owns the victim's pause (solo lifters and tug
+     * winners do; tug joiners and losers never touch it). Only the owner
+     * may pause or release the victim, so interleaved exits can never
+     * unpause a prize someone else still holds.
+     */
+    private volatile boolean ownsVictim;
+
+    /**
+     * Identifies a tug prize: a window by native handle, a victim Nigel by
+     * identity, or the one shared OS cursor.
+     */
+    private static final class TugKey {
+        private static final int KIND_WINDOW = 0;
+        private static final int KIND_VICTIM = 1;
+        private static final int KIND_MOUSE = 2;
+
+        private static final TugKey MOUSE = new TugKey(KIND_MOUSE, 0, null);
+
+        private final int kind;
+        private final long handle;
+        private final Mascot victim;
+
+        private TugKey(final int kind, final long handle, final Mascot victim) {
+            this.kind = kind;
+            this.handle = handle;
+            this.victim = victim;
+        }
+
+        private static TugKey forWindow(final long handle) {
+            return new TugKey(KIND_WINDOW, handle, null);
+        }
+
+        private static TugKey forVictim(final Mascot victim) {
+            return new TugKey(KIND_VICTIM, 0, victim);
+        }
+
+        private static TugKey forMouse() {
+            return MOUSE;
+        }
+
+        @Override
+        public boolean equals(final Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof TugKey)) {
+                return false;
+            }
+            final TugKey key = (TugKey) other;
+            if (kind != key.kind) {
+                return false;
+            }
+            if (kind == KIND_WINDOW) {
+                return handle == key.handle;
+            }
+            if (kind == KIND_VICTIM) {
+                return victim == key.victim;
+            }
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            if (kind == KIND_WINDOW) {
+                return 31 * kind + Long.hashCode(handle);
+            }
+            if (kind == KIND_VICTIM) {
+                return 31 * kind + System.identityHashCode(victim);
+            }
+            return kind;
+        }
+    }
+
+    /**
+     * One tug-of-war over a single prize. Members shake the prize around
+     * the center until the timer runs out (coin flip) or one side forfeits
+     * by exiting early (last one standing wins now).
+     */
+    private static final class TugContest {
+        private final TugKey key;
+        private final java.util.List<Telekinesis> members = new java.util.ArrayList<>(TUG_MAX_MEMBERS);
+        private final long startNanos = System.nanoTime();
+        private final double centerX;
+        private final double centerY;
+        private double lastX;
+        private double lastY;
+        private boolean resolved;
+        private Telekinesis pauseOwner;
+
+        private TugContest(final TugKey key, final double centerX, final double centerY) {
+            this.key = key;
+            this.centerX = centerX;
+            this.centerY = centerY;
+            this.lastX = centerX;
+            this.lastY = centerY;
+        }
+    }
+
+    /**
+     * Outcome of the tug handshake: a contest to tug in, a solo lift when
+     * nobody holds the prize, or a full contest to walk away from.
+     */
+    private static final class TugTry {
+        private final TugContest contest;
+        private final boolean full;
+
+        private TugTry(final TugContest contest, final boolean full) {
+            this.contest = contest;
+            this.full = full;
+        }
+
+        private static TugTry solo() {
+            return new TugTry(null, false);
+        }
+
+        private static TugTry joined(final TugContest contest) {
+            return new TugTry(contest, false);
+        }
+
+        private static TugTry full() {
+            return new TugTry(null, true);
+        }
+    }
 
     private volatile boolean live;
 
@@ -156,8 +312,25 @@ public class Telekinesis extends ActionBase {
         if (action == null) {
             return;
         }
+        final boolean wasLive = action.live;
+        action.live = false;
+        if (action.tug != null) {
+            // Grabbed mid-tug: the partner still holds the prize, so hand it
+            // over instead of dropping it with physics.
+            if (action.shaking) {
+                action.shaking = false;
+                mascot.getAnchor().setLocation(action.shakeBaseX, action.shakeBaseY);
+            }
+            if (!action.leaveTugEarly() && wasLive && action.target != null) {
+                // Last one out: nobody left to hold the window.
+                action.beginFall();
+                return;
+            }
+            action.disposeGlows();
+            return;
+        }
         action.releaseVictim();
-        if (action.live && action.target != null) {
+        if (wasLive && action.target != null) {
             action.beginFall();
         } else {
             action.disposeGlows();
@@ -166,13 +339,15 @@ public class Telekinesis extends ActionBase {
 
     /**
      * Hands the victim back to its own engine: unpauses (restoring prior
-     * paused state) so it drops and recovers by itself. Safe to call with no
-     * victim.
+     * paused state) so it drops and recovers by itself. Only the pause
+     * owner may release; tug joiners and losers never touch a prize someone
+     * else still holds. Safe to call with no victim.
      */
     private void releaseVictim() {
-        if (victim == null) {
+        if (victim == null || !ownsVictim) {
             return;
         }
+        ownsVictim = false;
         try {
             victim.setPaused(victimWasPaused);
         } catch (final RuntimeException ignored) {
@@ -200,6 +375,11 @@ public class Telekinesis extends ActionBase {
         } else if ("nigel".equalsIgnoreCase(mode)) {
             pullMouse = false;
             victim = pickVictim(mascot);
+            final Mascot steal = pickHeldVictim(mascot);
+            if (steal != null && (victim == null || Math.random() < 0.5)
+                    && joinVictimTug(mascot, steal)) {
+                return;
+            }
             if (victim != null) {
                 initVictimMode(mascot);
                 return;
@@ -211,6 +391,11 @@ public class Telekinesis extends ActionBase {
             final double roll = Math.random();
             if (roll < NIGEL_CHANCE) {
                 victim = pickVictim(mascot);
+                final Mascot steal = pickHeldVictim(mascot);
+                if (steal != null && (victim == null || Math.random() < 0.5)
+                        && joinVictimTug(mascot, steal)) {
+                    return;
+                }
             }
             if (victim == null) {
                 pullMouse = Math.random() < 0.5;
@@ -227,20 +412,32 @@ public class Telekinesis extends ActionBase {
             }
         }
         if (pullMouse) {
-            target = null;
-            cursorGlow = new GlowOverlay(true);
-            pullTicks = 0;
-            warnedForcing = false;
-            shakeBaseX = mascot.getAnchor().x;
-            shakeBaseY = mascot.getAnchor().y;
-            shaking = false;
-            live = true;
-            synchronized (HOLDS) {
-                HOLDS.put(mascot, this);
+            final Telekinesis mouseHolder = findHolderHold(TugKey.forMouse());
+            final TugTry mouseTry = tugHandshake(TugKey.forMouse(), mouseHolder,
+                    mascot.getAnchor().x, mascot.getAnchor().y + PULL_OFFSET_Y);
+            if (mouseTry.full) {
+                // Both cursor-tug slots are taken: fall through to windows.
+                pullMouse = false;
+            } else {
+                target = null;
+                cursorGlow = new GlowOverlay(true);
+                pullTicks = 0;
+                warnedForcing = false;
+                shakeBaseX = mascot.getAnchor().x;
+                shakeBaseY = mascot.getAnchor().y;
+                shaking = false;
+                live = true;
+                synchronized (HOLDS) {
+                    HOLDS.put(mascot, this);
+                }
+                if (mouseTry.contest != null) {
+                    log.info("Telekinesis init: tugging the cursor with another Nigel");
+                } else {
+                    log.info("Telekinesis init: reeling the cursor in");
+                }
+                com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
+                return;
             }
-            log.info("Telekinesis init: reeling the cursor in");
-            com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
-            return;
         }
         if (victim != null) {
             initVictimMode(mascot);
@@ -249,20 +446,58 @@ public class Telekinesis extends ActionBase {
 
 
         // Yoink any grabbable window (fullscreen/maximized excluded by the
-        // environment), not just the active one.
+        // environment), not just the active one. Held windows sit out the
+        // grab cooldown, so re-add them: latching onto a held window starts
+        // a tug-of-war instead of a second solo lift fighting over it.
         final List<Area> candidates = new java.util.ArrayList<>();
         for (final Area area : getEnvironment().getGrabbableWindows()) {
             if (area.isVisible()) {
                 candidates.add(area);
             }
         }
-        if (candidates.isEmpty()) {
+        addHeldWindowTargets(candidates);
+        Area pick = null;
+        TugContest windowTug = null;
+        while (!candidates.isEmpty() && pick == null) {
+            final Area candidate = candidates.remove((int) (Math.random() * candidates.size()));
+            final TugKey key = TugKey.forWindow(getEnvironment().getNativeWindowHandle(candidate));
+            final Telekinesis holder = findHolderHold(key);
+            final TugTry attempt = tugHandshake(key, holder,
+                    holder == null ? 0 : holder.curX, holder == null ? 0 : holder.curY);
+            if (attempt.contest != null) {
+                pick = candidate;
+                windowTug = attempt.contest;
+            } else if (!attempt.full) {
+                pick = candidate;
+            }
+            // Full contest: try another window.
+        }
+        if (pick == null) {
             target = null;
             log.info("Telekinesis init: no grabbable window, skipping");
             return;
         }
-        target = candidates.get((int) (Math.random() * candidates.size()));
+        target = pick;
         getEnvironment().markWindowGrabbed(target);
+        if (windowTug != null) {
+            startX = windowTug.centerX;
+            startY = windowTug.centerY;
+            curX = startX;
+            curY = startY;
+            winW = Math.max(1, target.getWidth());
+            winH = Math.max(1, target.getHeight());
+            lastSentX = Integer.MIN_VALUE;
+            lastSentY = Integer.MIN_VALUE;
+            glow = new GlowOverlay(false);
+            live = true;
+            synchronized (HOLDS) {
+                HOLDS.put(mascot, this);
+            }
+            faceWindow();
+            log.info("Telekinesis init: tugging a window with another Nigel");
+            com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
+            return;
+        }
         startX = target.getLeft();
         startY = target.getTop();
         curX = startX;
@@ -291,6 +526,11 @@ public class Telekinesis extends ActionBase {
 
     @Override
     public boolean hasNext() throws VariableException {
+        // Lost the tug: drop out so the winner keeps the prize.
+        if (tugLost) {
+            exitTugLoser();
+            return false;
+        }
         if (target == null && !pullMouse && victim == null) {
             return false;
         }
@@ -307,6 +547,7 @@ public class Telekinesis extends ActionBase {
      */
     private void initVictimMode(final Mascot mascot) {
         target = null;
+        ownsVictim = true;
         HELD_VICTIMS.add(victim);
         // Freeze the victim's own ticking: we become the sole writer of its
         // anchor and image, so placement and aura stay deterministic.
@@ -391,8 +632,11 @@ public class Telekinesis extends ActionBase {
             return;
         }
         // Rock left and right while lifted: fine tilt steps around the anchor.
+        // Always routes through the padded tilt path (even at step 0) so the
+        // canvas size never flips: a 192px frame one tick and a padded one
+        // the next would teleport getBounds() and the driven window with it.
         final int tiltStep = (int) Math.round(Math.sin(liftTicks * 0.12) * 2.0);
-        final String key = tiltStep == 0 ? baseKey : tiltedKey(baseKey, tiltStep, target);
+        final String key = tiltedKey(baseKey, tiltStep, target);
         if (key != null && com.group_finity.mascot.image.ImagePairs.contains(key)) {
             target.setImage(com.group_finity.mascot.image.ImagePairs.get(key)
                     .getImage(target.isLookRight()));
@@ -479,7 +723,18 @@ public class Telekinesis extends ActionBase {
             shaking = false;
             getMascot().getAnchor().setLocation(shakeBaseX, shakeBaseY);
         }
-        releaseVictim();
+        if (tug != null) {
+            // Mid-tug exit (Duration ran out, grabbed by the user, ...):
+            // forfeit, so the partner wins the prize immediately.
+            if (!leaveTugEarly() && target != null) {
+                // Last one out of a window tug: nobody holds it, so drop it
+                // with physics instead of freezing it mid-air.
+                beginFall();
+                return;
+            }
+        } else {
+            releaseVictim();
+        }
         disposeGlows();
     }
 
@@ -554,6 +809,51 @@ public class Telekinesis extends ActionBase {
         try {
             if (getEnvironment().isFullscreen() || getEnvironment().isMouseLocked()) {
                 throw new LostGroundException("Fullscreen/mouse-lock active");
+            }
+            // Lost the tug: drop out so the winner keeps the prize.
+            if (tugLost) {
+                exitTugLoser();
+                throw new LostGroundException("Lost the tug-of-war");
+            }
+            if (tug != null) {
+                final TugContest contest = tug;
+                synchronized (contest) {
+                    if (!contest.resolved) {
+                        if (tugExpired(contest)) {
+                            resolveTugLocked(contest, null);
+                        } else {
+                            final Telekinesis sole = singleLiveMemberLocked(contest);
+                            if (sole != null && contest.members.size() > 1) {
+                                resolveTugLocked(contest, sole);
+                            }
+                        }
+                    }
+                }
+                if (tugLost) {
+                    exitTugLoser();
+                    throw new LostGroundException("Lost the tug-of-war");
+                }
+                if (tug != null) {
+                    // Still contested: shake the prize instead of drifting it.
+                    if (pullMouse) {
+                        tickTugMouse(contest);
+                        shakeBody();
+                        getAnimation().apply(getMascot(), getTime());
+                        applyTugStrain();
+                        return;
+                    }
+                    if (victim != null) {
+                        tickTugVictim(contest);
+                        getAnimation().apply(getMascot(), getTime());
+                        applyTugStrain();
+                        return;
+                    }
+                    tickTugWindow(contest);
+                    getAnimation().apply(getMascot(), getTime());
+                    applyTugStrain();
+                    return;
+                }
+                // Won the tug this tick: fall through to the solo lift below.
             }
             // Mouse-reel mode: no window involved at all.
             if (pullMouse) {
@@ -919,10 +1219,619 @@ public class Telekinesis extends ActionBase {
                 (int) Math.round(raw.y + dy / distance * step));
     }
 
+    /**
+     * Core tug handshake for a prize key and its solo holder, if any. Joins
+     * the holder's contest when roomy, starts a fresh contest around a solo
+     * holder, or reports back for a solo lift ({@link TugTry#solo}) or a
+     * retry elsewhere ({@link TugTry#full}). Sets this hold's tug on join.
+     *
+     * @param key the contested prize
+     * @param holder another live hold on the same prize, or null
+     * @param centerX contest center if a fresh contest forms
+     * @param centerY contest center if a fresh contest forms
+     * @return the tug outcome
+     */
+    private TugTry tugHandshake(final TugKey key, final Telekinesis holder,
+            final double centerX, final double centerY) {
+        if (holder == null || holder == this || !holder.live) {
+            return TugTry.solo();
+        }
+        synchronized (TUGS) {
+            if (holder == this || !holder.live) {
+                return TugTry.solo();
+            }
+            final TugContest existing = holder.tug;
+            if (existing != null) {
+                synchronized (existing) {
+                    if (!existing.resolved && existing.key.equals(key)
+                            && existing.members.size() < TUG_MAX_MEMBERS && holder.live) {
+                        existing.members.add(this);
+                        tug = existing;
+                        return TugTry.joined(existing);
+                    }
+                    if (!existing.resolved) {
+                        return TugTry.full();
+                    }
+                    // Resolved under us: the holder is solo again, so form
+                    // a fresh contest around them below.
+                }
+            }
+            final TugContest fresh = new TugContest(key, centerX, centerY);
+            fresh.members.add(holder);
+            fresh.members.add(this);
+            if (holder.victim != null) {
+                fresh.pauseOwner = holder;
+            }
+            holder.tug = fresh;
+            tug = fresh;
+            TUGS.put(key, fresh);
+            return TugTry.joined(fresh);
+        }
+    }
+
+    /**
+     * Finds another live hold on the same prize, so a newcomer can contest
+     * it instead of starting a second solo lift over the same thing.
+     */
+    private Telekinesis findHolderHold(final TugKey key) {
+        synchronized (HOLDS) {
+            for (final Telekinesis hold : HOLDS.values()) {
+                if (hold == null || hold == this || !hold.live || hold.tugLost) {
+                    continue;
+                }
+                if (key.equals(keyOfHold(hold))) {
+                    return hold;
+                }
+            }
+        }
+        return null;
+    }
+
+    private TugKey keyOfHold(final Telekinesis hold) {
+        if (hold.pullMouse) {
+            return TugKey.forMouse();
+        }
+        if (hold.victim != null) {
+            return TugKey.forVictim(hold.victim);
+        }
+        if (hold.target != null) {
+            try {
+                return TugKey.forWindow(getEnvironment().getNativeWindowHandle(hold.target));
+            } catch (final RuntimeException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Re-adds live-held windows to the pick list. Held windows sit out the
+     * grab cooldown, so without this a second Nigel could never latch the
+     * same window and tugs would never start.
+     */
+    private void addHeldWindowTargets(final List<Area> candidates) {
+        synchronized (HOLDS) {
+            for (final Telekinesis hold : HOLDS.values()) {
+                if (hold == null || hold == this || !hold.live || hold.tugLost) {
+                    continue;
+                }
+                if (hold.pullMouse || hold.victim != null || hold.target == null) {
+                    continue;
+                }
+                try {
+                    if (!getEnvironment().isWindowOpen(hold.target)) {
+                        continue;
+                    }
+                } catch (final RuntimeException ignored) {
+                    continue;
+                }
+                if (!candidates.contains(hold.target)) {
+                    candidates.add(hold.target);
+                }
+            }
+        }
+    }
+
+    /**
+     * Picks a victim already held by another live lift, so the newcomer can
+     * steal it into a tug instead of only lifting free Nigels. Skips full
+     * contests and prizes that are being fought or dragged.
+     */
+    private Mascot pickHeldVictim(final Mascot mascot) {
+        try {
+            if (mascot.getManager() == null) {
+                return null;
+            }
+            final java.util.List<Mascot> candidates = new java.util.ArrayList<>();
+            synchronized (HOLDS) {
+                for (final Telekinesis hold : HOLDS.values()) {
+                    if (hold == null || !hold.live || hold.tugLost || hold.victim == null) {
+                        continue;
+                    }
+                    final Mascot held = hold.victim;
+                    if (held == mascot || held.isGrasping() || held.isDragging()
+                            || Mascot.getMouseOwner() == held || !HELD_VICTIMS.contains(held)) {
+                        continue;
+                    }
+                    final TugContest contest = hold.tug;
+                    if (contest != null) {
+                        synchronized (contest) {
+                            if (contest.resolved || contest.members.size() >= TUG_MAX_MEMBERS) {
+                                continue;
+                            }
+                        }
+                    }
+                    if (!candidates.contains(held)) {
+                        candidates.add(held);
+                    }
+                }
+            }
+            if (candidates.isEmpty()) {
+                return null;
+            }
+            return candidates.get((int) (Math.random() * candidates.size()));
+        } catch (final RuntimeException e) {
+            log.warn("Could not pick a tug victim mascot", e);
+            return null;
+        }
+    }
+
+    /**
+     * Latches a held victim into a tug: joins the holder's contest or forms
+     * a fresh one around them. The holder keeps owning the pause; the
+     * joiner never touches it.
+     *
+     * @return true when tugging (the caller is done with init)
+     */
+    private boolean joinVictimTug(final Mascot mascot, final Mascot steal) {
+        final TugKey key = TugKey.forVictim(steal);
+        final Telekinesis holder = findHolderHold(key);
+        final double centerX = holder == null ? steal.getAnchor().x : holder.curX;
+        final double centerY = holder == null ? steal.getAnchor().y : holder.curY;
+        final TugTry attempt = tugHandshake(key, holder, centerX, centerY);
+        if (attempt.contest == null) {
+            // Race lost: the holder left first. If the prize went free,
+            // lift it solo instead of skipping.
+            if (holder == null && !HELD_VICTIMS.contains(steal) && !steal.isGrasping()
+                    && !steal.isDragging() && Mascot.getMouseOwner() != steal) {
+                victim = steal;
+                initVictimMode(mascot);
+                return true;
+            }
+            return false;
+        }
+        target = null;
+        victim = steal;
+        ownsVictim = false;
+        startX = attempt.contest.centerX;
+        startY = attempt.contest.centerY;
+        curX = startX;
+        curY = startY;
+        glow = new GlowOverlay(false);
+        live = true;
+        synchronized (HOLDS) {
+            HOLDS.put(mascot, this);
+        }
+        log.info("Telekinesis init: tugging a fellow Nigel with another Nigel");
+        com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
+        return true;
+    }
+
+    private static boolean tugExpired(final TugContest contest) {
+        return System.nanoTime() - contest.startNanos >= TUG_DURATION_MILLIS * 1_000_000L;
+    }
+
+    /**
+     * The single live contender, or null when the tug is still fought (or
+     * nobody is left). Callers must hold the contest monitor.
+     */
+    private static Telekinesis singleLiveMemberLocked(final TugContest contest) {
+        Telekinesis sole = null;
+        for (final Telekinesis member : contest.members) {
+            if (member != null && member.live && !member.tugLost) {
+                if (sole != null) {
+                    return null;
+                }
+                sole = member;
+            }
+        }
+        return sole;
+    }
+
+    /**
+     * Settles a tug: time-up means a coin flip, otherwise the forced winner
+     * (last one standing) takes it. The winner keeps the prize from the
+     * last shaken spot with the drone still running; every loser drops out
+     * on its next tick. Callers must hold the contest monitor.
+     */
+    private static void resolveTugLocked(final TugContest contest, final Telekinesis forcedWinner) {
+        if (contest.resolved) {
+            return;
+        }
+        contest.resolved = true;
+        final java.util.List<Telekinesis> contenders = new java.util.ArrayList<>(TUG_MAX_MEMBERS);
+        for (final Telekinesis member : contest.members) {
+            if (member != null && member.live && !member.tugLost) {
+                contenders.add(member);
+            }
+        }
+        final Telekinesis winner;
+        if (forcedWinner != null && contenders.contains(forcedWinner)) {
+            winner = forcedWinner;
+        } else if (contenders.isEmpty()) {
+            winner = null;
+        } else if (contenders.size() == 1) {
+            winner = contenders.get(0);
+        } else {
+            winner = contenders.get((int) (Math.random() * contenders.size()));
+        }
+        if (winner != null && contest.pauseOwner != null && contest.pauseOwner != winner) {
+            winner.victimWasPaused = contest.pauseOwner.victimWasPaused;
+            contest.pauseOwner.ownsVictim = false;
+            winner.ownsVictim = true;
+        }
+        contest.pauseOwner = null;
+        if (winner != null) {
+            winner.tug = null;
+            winner.startX = contest.lastX;
+            winner.startY = contest.lastY;
+            winner.curX = contest.lastX;
+            winner.curY = contest.lastY;
+            com.group_finity.mascot.sound.NigelSounds.startHum(160.0, 0.0);
+            log.info("Tug-of-war settled: one Nigel wins the yoink");
+        }
+        for (final Telekinesis member : contest.members) {
+            if (member != null && member != winner) {
+                member.tugLost = true;
+                member.tug = null;
+                member.live = false;
+            }
+        }
+        TUGS.remove(contest.key, contest);
+    }
+
+    /**
+     * Bails a tug out with no winner: the prize is gone (window closed) or
+     * unholdable (victim grabbed by the user). Everyone drops out; a held
+     * victim is released so it answers its own engine (or the user) at once.
+     */
+    private void dissolveTug(final TugContest contest) {
+        final Telekinesis owner;
+        synchronized (TUGS) {
+            synchronized (contest) {
+                if (contest.resolved) {
+                    return;
+                }
+                contest.resolved = true;
+                owner = contest.pauseOwner;
+                contest.pauseOwner = null;
+                for (final Telekinesis member : contest.members) {
+                    if (member != null) {
+                        member.tugLost = true;
+                        member.tug = null;
+                        member.live = false;
+                    }
+                }
+                TUGS.remove(contest.key, contest);
+            }
+        }
+        // The pause dies with the contest so a grabbed victim answers the
+        // user immediately instead of hanging paused with no holder.
+        if (owner != null) {
+            owner.releaseVictim();
+        }
+    }
+
+    /**
+     * Forfeits a live tug: the partner wins the prize immediately (or the
+     * contest drops when nobody is left). Pause ownership passes to the
+     * survivor; only the last one out holding the pause releases it.
+     *
+     * @return true when a live partner still holds the prize
+     */
+    private boolean leaveTugEarly() {
+        final TugContest contest = tug;
+        tug = null;
+        if (contest == null) {
+            return true;
+        }
+        final boolean iOwnPause = ownsVictim;
+        Telekinesis heir = null;
+        boolean handedOver = true;
+        synchronized (TUGS) {
+            synchronized (contest) {
+                contest.members.remove(this);
+                if (!contest.resolved) {
+                    if (contest.pauseOwner == this) {
+                        heir = singleLiveMemberLocked(contest);
+                        contest.pauseOwner = heir;
+                    }
+                    final Telekinesis sole = singleLiveMemberLocked(contest);
+                    if (sole != null) {
+                        resolveTugLocked(contest, sole);
+                    } else {
+                        contest.resolved = true;
+                        TUGS.remove(contest.key, contest);
+                        handedOver = false;
+                    }
+                }
+            }
+        }
+        if (heir != null) {
+            heir.ownsVictim = true;
+            heir.victimWasPaused = victimWasPaused;
+            ownsVictim = false;
+        } else if (iOwnPause) {
+            // Last one out still owns the pause: nobody left to hold it.
+            // (No-op when resolveTugLocked already transferred it above.)
+            releaseVictim();
+        }
+        return handedOver;
+    }
+
+    /**
+     * Drops out after losing a tug. Never touches the prize: the winner (or
+     * the dissolve) owns it now.
+     */
+    private void exitTugLoser() {
+        live = false;
+        tug = null;
+        tugLost = false;
+        synchronized (HOLDS) {
+            HOLDS.remove(getMascot());
+        }
+        if (shaking) {
+            shaking = false;
+            getMascot().getAnchor().setLocation(shakeBaseX, shakeBaseY);
+        }
+        disposeGlows();
+    }
+
+    /**
+     * Wears the stronger tele frame while contesting: both attackers strain
+     * together, so each applies it to itself after the base tele animation.
+     * Reuses the existing mouse-reel strain sprite, no new asset needed.
+     */
+    private void applyTugStrain() {
+        final Mascot mascot = getMascot();
+        if (mascot == null) {
+            return;
+        }
+        ensureTeleFullImageLoaded();
+        if (teleStrongerKey != null
+                && com.group_finity.mascot.image.ImagePairs.contains(teleStrongerKey)) {
+            mascot.setImage(com.group_finity.mascot.image.ImagePairs.get(teleStrongerKey)
+                    .getImage(mascot.isLookRight()));
+        }
+    }
+
+    /**
+     * Whether this hold drives the prize glow. One tug shows one aura: the
+     * incumbent (first member) renders it and the challenger keeps a dark
+     * overlay for winner continuity, so stacked glows never double up.
+     */
+    private boolean isTugDriver(final TugContest contest) {
+        synchronized (contest) {
+            return !contest.members.isEmpty() && contest.members.get(0) == this;
+        }
+    }
+    /**
+     * Shared lift clock for a tug, in 40 ms ticks from the contest start.
+     * Both attackers derive the victim frame from this instead of their own
+     * elapsed time: per-attacker clocks disagree, so each would apply a
+     * different frame every tick and the victim would flicker between them.
+     */
+    private static int tugLiftTicks(final TugContest contest) {
+        return (int) ((System.nanoTime() - contest.startNanos) / 40_000_000L);
+    }
+
+    /**
+     * Shared shake around the contest center. Both holders compute the same
+     * spot from the wall clock, so duplicate moves stay idempotent instead
+     * of fighting each other.
+     */
+    private static double[] tugShake(final TugContest contest) {
+        final double time = System.nanoTime() / 1_000_000_000.0;
+        final double x = contest.centerX + Math.sin(time * 9.0) * TUG_SHAKE_PX + Math.sin(time * 23.0) * 3.0;
+        final double y = contest.centerY + Math.cos(time * 11.0) * TUG_SHAKE_PX * 0.7;
+        synchronized (contest) {
+            contest.lastX = x;
+            contest.lastY = y;
+        }
+        return new double[] {x, y};
+    }
+
+    /**
+     * Tugs a window: shakes it around the contest center instead of
+     * drifting it. Both holders send the same spot, so the moves never
+     * fight. A dead prize dissolves the whole contest with no winner.
+     */
+    private void tickTugWindow(final TugContest contest) throws LostGroundException, VariableException {
+        if (target == null) {
+            dissolveTug(contest);
+            throw new LostGroundException("No window to tug");
+        }
+        if (!getEnvironment().isWindowOpen(target)) {
+            log.info("Tug cancelled: window closed mid-tug");
+            com.group_finity.mascot.sound.NigelSounds.playTeleBreak();
+            dissolveTug(contest);
+            throw new LostGroundException("Window closed");
+        }
+        if (getEnvironment().isWindowMinimized(target)) {
+            log.info("Tug cancelled: window minimized mid-tug");
+            com.group_finity.mascot.sound.NigelSounds.playTeleBreak();
+            dissolveTug(contest);
+            throw new LostGroundException("Window minimized");
+        }
+        faceWindow();
+
+        final double[] shared = tugShake(contest);
+        final Area screen = getEnvironment().getScreen();
+        final double targetX = clampInside(shared[0], screen.getLeft() + EDGE_MARGIN,
+                screen.getRight() - winW - EDGE_MARGIN, screen.getLeft(), screen.getRight() - winW);
+        final double targetY = clampInside(shared[1], screen.getTop() + EDGE_MARGIN,
+                screen.getBottom() - winH - EDGE_MARGIN, screen.getTop(), screen.getBottom() - winH);
+        curX = targetX;
+        curY = targetY;
+
+        final int sendX = (int) Math.round(targetX);
+        final int sendY = (int) Math.round(targetY);
+        if (sendX != lastSentX || sendY != lastSentY) {
+            getEnvironment().moveWindow(target, sendX, sendY);
+            lastSentX = sendX;
+            lastSentY = sendY;
+        }
+        // One tug, one aura: only the driver renders the prize glow.
+        if (glow != null && isTugDriver(contest)) {
+            glow.showAt(new Rectangle(sendX - 10, sendY - 10, winW + 20, winH + 20), getTime(),
+                    getEnvironment().getNativeWindowHandle(target));
+        }
+    }
+
+    /**
+     * Tugs a fellow Nigel: shakes the victim around the contest center
+     * while both attackers strain. A user grab dissolves the contest and
+     * hands the victim straight back.
+     */
+    private void tickTugVictim(final TugContest contest) throws LostGroundException, VariableException {
+        if (victim == null) {
+            dissolveTug(contest);
+            throw new LostGroundException("No victim to tug");
+        }
+        if (victim.isDragging()) {
+            log.info("Tug victim grabbed by user, letting go");
+            dissolveTug(contest);
+            throw new LostGroundException("Victim grabbed");
+        }
+        getMascot().setLookRight(getMascot().getAnchor().x < victim.getAnchor().x);
+
+        final double[] shared = tugShake(contest);
+        final Area screen = getEnvironment().getScreen();
+        final double targetX = clampInside(shared[0], screen.getLeft() + 96 + EDGE_MARGIN,
+                screen.getRight() - 96 - EDGE_MARGIN, screen.getLeft(), screen.getRight());
+        final double targetY = clampInside(shared[1], screen.getTop() + 200 + EDGE_MARGIN,
+                screen.getBottom() - EDGE_MARGIN, screen.getTop(), screen.getBottom());
+        curX = targetX;
+        curY = targetY;
+
+        victim.getAnchor().setLocation((int) Math.round(targetX), (int) Math.round(targetY));
+        try {
+            final java.awt.Component victimWindow = victim.getWindowComponent();
+            if (victimWindow != null) {
+                final Rectangle windowBounds = victim.getBounds();
+                if (victimWindow.getX() != windowBounds.x || victimWindow.getY() != windowBounds.y
+                        || victimWindow.getWidth() != windowBounds.width
+                        || victimWindow.getHeight() != windowBounds.height) {
+                    final Rectangle frozen = new Rectangle(windowBounds);
+                    javax.swing.SwingUtilities.invokeLater(() -> victimWindow.setBounds(frozen));
+                }
+            }
+        } catch (final RuntimeException ignored) {
+        }
+        // Shared frame from the contest clock: both attackers agree, so the
+        // victim never flickers between two holders' phases.
+        applyVictimGrabImage(victim, tugLiftTicks(contest));
+        // One tug, one aura: only the driver renders the prize glow.
+        if (glow != null && isTugDriver(contest)) {
+            glow.showAt(tightFrame(victim), getTime(), 0);
+        }
+    }
+
+    /**
+     * Tugs the cursor: drags it toward the shaken midpoint between both
+     * holders' hands. Strain accrues through the tug, but the prize stays
+     * contested: no arrival handoff and no overload snap until the flip.
+     */
+    private void tickTugMouse(final TugContest contest) throws LostGroundException, VariableException {
+        if (robot == null) {
+            dissolveTug(contest);
+            throw new LostGroundException("No robot for tug");
+        }
+        final Point raw;
+        try {
+            final PointerInfo info = MouseInfo.getPointerInfo();
+            raw = info == null ? null : info.getLocation();
+        } catch (final SecurityException e) {
+            return;
+        }
+        if (raw == null) {
+            return;
+        }
+        double midX = getMascot().getAnchor().x;
+        double midY = getMascot().getAnchor().y + PULL_OFFSET_Y;
+        int partners = 1;
+        synchronized (contest) {
+            for (final Telekinesis member : contest.members) {
+                if (member == null || member == this) {
+                    continue;
+                }
+                try {
+                    final Mascot mate = member.getMascot();
+                    if (mate != null && member.live) {
+                        midX += mate.getAnchor().x;
+                        midY += mate.getAnchor().y + PULL_OFFSET_Y;
+                        partners++;
+                    }
+                } catch (final RuntimeException ignored) {
+                }
+            }
+        }
+        midX /= partners;
+        midY /= partners;
+        final double time = System.nanoTime() / 1_000_000_000.0;
+        final double goalX = midX + Math.sin(time * 9.0) * TUG_SHAKE_PX;
+        final double goalY = midY + Math.cos(time * 11.0) * TUG_SHAKE_PX * 0.7;
+        if (Math.abs(getMascot().getAnchor().x - raw.x) > 4) {
+            getMascot().setLookRight(getMascot().getAnchor().x < raw.x);
+        }
+        pullTicks++;
+        final double heat = Math.min(1.0, pullTicks / (double) PULL_RED_TICKS);
+        if (pullTicks % 50 == 0) {
+            final double strain = Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS);
+            com.group_finity.mascot.sound.NigelSounds.startHum(160.0 + strain * 160.0, strain * strain);
+        }
+        // One tug, one aura: only the driver renders the contested glow.
+        if (cursorGlow != null && isTugDriver(contest)) {
+            cursorGlow.showAt(new Rectangle(raw.x - 24, raw.y - 24, 48, 48), getTime(), 0, (float) heat);
+        }
+        final double dx = goalX - raw.x;
+        final double dy = goalY - raw.y;
+        final double distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > 1.0) {
+            final double sizeFactor =
+                    Math.max(0.25, Math.min(1.0, 32.0 / getEnvironment().getCursorSizePixels()));
+            final double step = PULL_STEP * (1.0 + 2.0 * Math.min(1.0, pullTicks / (double) PULL_RAMP_TICKS))
+                    * sizeFactor;
+            robot.mouseMove((int) Math.round(raw.x + dx / distance * step),
+                    (int) Math.round(raw.y + dy / distance * step));
+        }
+    }
+
+    /**
+     * Another hold is still live, so the shared telekinesis drone must keep
+     * running: overlapping lifts used to cut each other's hum on exit.
+     */
+    private boolean anyOtherLiveHold() {
+        final Mascot self = getMascot();
+        synchronized (HOLDS) {
+            for (final java.util.Map.Entry<Mascot, Telekinesis> entry : HOLDS.entrySet()) {
+                if (entry.getKey() != self && entry.getValue() != null
+                        && entry.getValue() != this && entry.getValue().live) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private void disposeGlows() {
-        // The drone lives exactly as long as the hold: every exit path
+        // The drone lives exactly as long as any hold: every exit path
         // (endHold, beginFall, finishFall, cancelFor) comes through here.
-        com.group_finity.mascot.sound.NigelSounds.stopHum();
+        // Overlapping lifts and tug winners keep it alive across a loser's
+        // exit instead of going silent mid-hold.
+        if (!anyOtherLiveHold()) {
+            com.group_finity.mascot.sound.NigelSounds.stopHum();
+        }
         if (glow != null) {
             try {
                 glow.dispose();
