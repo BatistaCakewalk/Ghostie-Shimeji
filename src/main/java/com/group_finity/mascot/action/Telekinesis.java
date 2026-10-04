@@ -632,8 +632,11 @@ public class Telekinesis extends ActionBase {
             return;
         }
         // Rock left and right while lifted: fine tilt steps around the anchor.
+        // Always routes through the padded tilt path (even at step 0) so the
+        // canvas size never flips: a 192px frame one tick and a padded one
+        // the next would teleport getBounds() and the driven window with it.
         final int tiltStep = (int) Math.round(Math.sin(liftTicks * 0.12) * 2.0);
-        final String key = tiltStep == 0 ? baseKey : tiltedKey(baseKey, tiltStep, target);
+        final String key = tiltedKey(baseKey, tiltStep, target);
         if (key != null && com.group_finity.mascot.image.ImagePairs.contains(key)) {
             target.setImage(com.group_finity.mascot.image.ImagePairs.get(key)
                     .getImage(target.isLookRight()));
@@ -1613,6 +1616,16 @@ public class Telekinesis extends ActionBase {
         }
     }
     /**
+     * Shared lift clock for a tug, in 40 ms ticks from the contest start.
+     * Both attackers derive the victim frame from this instead of their own
+     * elapsed time: per-attacker clocks disagree, so each would apply a
+     * different frame every tick and the victim would flicker between them.
+     */
+    private static int tugLiftTicks(final TugContest contest) {
+        return (int) ((System.nanoTime() - contest.startNanos) / 40_000_000L);
+    }
+
+    /**
      * Shared shake around the contest center. Both holders compute the same
      * spot from the wall clock, so duplicate moves stay idempotent instead
      * of fighting each other.
@@ -1715,7 +1728,9 @@ public class Telekinesis extends ActionBase {
             }
         } catch (final RuntimeException ignored) {
         }
-        applyVictimGrabImage(victim, getTime());
+        // Shared frame from the contest clock: both attackers agree, so the
+        // victim never flickers between two holders' phases.
+        applyVictimGrabImage(victim, tugLiftTicks(contest));
         // One tug, one aura: only the driver renders the prize glow.
         if (glow != null && isTugDriver(contest)) {
             glow.showAt(tightFrame(victim), getTime(), 0);
