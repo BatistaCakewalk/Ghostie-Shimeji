@@ -158,6 +158,14 @@ public class Telekinesis extends ActionBase {
     /** Prize fighters per contest. A third challenger picks another prize. */
     private static final int TUG_MAX_MEMBERS = 2;
 
+    /**
+     * How long a tug winner holds the prize uncontested before it can be
+     * challenged again, in milliseconds. Without this two Nigels and one
+     * window play tug-tennis forever: the cooldown bypass keeps the single
+     * prize contestable, so every fresh lift re-tugs instantly.
+     */
+    private static final long TUG_WINNER_IMMUNITY_MILLIS = 30000;
+
     /** This hold's contest, or null while lifting solo. */
     private volatile TugContest tug;
 
@@ -171,6 +179,13 @@ public class Telekinesis extends ActionBase {
      * unpause a prize someone else still holds.
      */
     private volatile boolean ownsVictim;
+
+    /**
+     * Wall-clock deadline (nanos) until which this hold's prize cannot be
+     * challenged. Set on tug winners so the solo aftermath isn't instantly
+     * re-tugged.
+     */
+    private volatile long tugImmuneUntilNanos = 0;
 
     /**
      * Identifies a tug prize: a window by native handle, a victim Nigel by
@@ -1250,6 +1265,10 @@ public class Telekinesis extends ActionBase {
             if (holder == this || !holder.live) {
                 return TugTry.solo();
             }
+            if (isTugImmune(holder)) {
+                // Fresh winner enjoying the aftermath: let them hold it.
+                return TugTry.full();
+            }
             final TugContest existing = holder.tug;
             if (existing != null) {
                 synchronized (existing) {
@@ -1322,7 +1341,7 @@ public class Telekinesis extends ActionBase {
     private void addHeldWindowTargets(final List<Area> candidates) {
         synchronized (HOLDS) {
             for (final Telekinesis hold : HOLDS.values()) {
-                if (hold == null || hold == this || !hold.live || hold.tugLost) {
+                if (hold == null || hold == this || !hold.live || hold.tugLost || isTugImmune(hold)) {
                     continue;
                 }
                 if (hold.pullMouse || hold.victim != null || hold.target == null) {
@@ -1355,7 +1374,8 @@ public class Telekinesis extends ActionBase {
             final java.util.List<Mascot> candidates = new java.util.ArrayList<>();
             synchronized (HOLDS) {
                 for (final Telekinesis hold : HOLDS.values()) {
-                    if (hold == null || !hold.live || hold.tugLost || hold.victim == null) {
+                    if (hold == null || !hold.live || hold.tugLost || hold.victim == null
+                            || isTugImmune(hold)) {
                         continue;
                     }
                     final Mascot held = hold.victim;
@@ -1435,6 +1455,15 @@ public class Telekinesis extends ActionBase {
     }
 
     /**
+     * Whether the holder's prize is still uncontested after winning a tug.
+     * Challengers treat immune holders as full contests: pick another prize
+     * or sit the lift out.
+     */
+    private static boolean isTugImmune(final Telekinesis hold) {
+        return hold != null && hold.tugImmuneUntilNanos - System.nanoTime() > 0;
+    }
+
+    /**
      * The single live contender, or null when the tug is still fought (or
      * nobody is left). Callers must hold the contest monitor.
      */
@@ -1486,6 +1515,7 @@ public class Telekinesis extends ActionBase {
         contest.pauseOwner = null;
         if (winner != null) {
             winner.tug = null;
+            winner.tugImmuneUntilNanos = System.nanoTime() + TUG_WINNER_IMMUNITY_MILLIS * 1_000_000L;
             winner.startX = contest.lastX;
             winner.startY = contest.lastY;
             winner.curX = contest.lastX;
