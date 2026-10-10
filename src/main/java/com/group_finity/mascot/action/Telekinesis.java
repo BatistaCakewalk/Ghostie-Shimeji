@@ -1619,9 +1619,10 @@ public class Telekinesis extends ActionBase {
     }
 
     /**
-     * Wears the stronger tele frame while contesting: both attackers strain
+     * Wears the strain frame while contesting: both attackers strain
      * together, so each applies it to itself after the base tele animation.
-     * Reuses the existing mouse-reel strain sprite, no new asset needed.
+     * Reuses the existing mouse-reel strain sprites, no new asset needed:
+     * full strength past the ramp, stronger before it.
      */
     private void applyTugStrain() {
         final Mascot mascot = getMascot();
@@ -1629,9 +1630,13 @@ public class Telekinesis extends ActionBase {
             return;
         }
         ensureTeleFullImageLoaded();
-        if (teleStrongerKey != null
-                && com.group_finity.mascot.image.ImagePairs.contains(teleStrongerKey)) {
-            mascot.setImage(com.group_finity.mascot.image.ImagePairs.get(teleStrongerKey)
+        String key = teleStrongerKey;
+        if (pullMouse && pullTicks >= PULL_RAMP_TICKS && teleFullKey != null
+                && com.group_finity.mascot.image.ImagePairs.contains(teleFullKey)) {
+            key = teleFullKey;
+        }
+        if (key != null && com.group_finity.mascot.image.ImagePairs.contains(key)) {
+            mascot.setImage(com.group_finity.mascot.image.ImagePairs.get(key)
                     .getImage(mascot.isLookRight()));
         }
     }
