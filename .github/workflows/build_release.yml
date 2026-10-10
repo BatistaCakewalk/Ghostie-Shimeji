@@ -33,6 +33,14 @@ jobs:
           if ($zips.Count -eq 0) {
             throw 'Missing distributable zip in target/'
           }
+          $view = gh release view $tag --json isDraft 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            if (($view | ConvertFrom-Json).isDraft -ne $true) {
+              throw "Release $tag is already published; delete it manually to re-run."
+            }
+            Write-Output "Replacing existing draft $tag"
+            gh release delete $tag -y
+          }
           $version = $tag.TrimStart('v')
           $title = "Nigel Shimeji $version"
           $create = @('release', 'create', $tag, 'target/Shimeji-ee.jar', 'target/Shimeji-ee.exe',
