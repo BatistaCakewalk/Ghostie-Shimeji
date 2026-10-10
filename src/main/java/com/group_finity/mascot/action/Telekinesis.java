@@ -1003,6 +1003,7 @@ public class Telekinesis extends ActionBase {
             }
 
             final Area screen = getEnvironment().getScreen();
+            refreshWindowSize();
             targetX = clampInside(targetX, screen.getLeft() + EDGE_MARGIN, screen.getRight() - winW - EDGE_MARGIN,
                     screen.getLeft(), screen.getRight() - winW);
             targetY = clampInside(targetY, screen.getTop() + EDGE_MARGIN, screen.getBottom() - winH - EDGE_MARGIN,
@@ -1656,6 +1657,25 @@ public class Telekinesis extends ActionBase {
     }
 
     /**
+     * Refreshes the held window's size from the live window, so resizes
+     * mid-lift track instead of clamping to the pick-time snapshot forever.
+     * Unknown on some platforms: then the snapshot simply stands.
+     */
+    private void refreshWindowSize() {
+        if (target == null) {
+            return;
+        }
+        try {
+            final java.awt.Dimension live = getEnvironment().getWindowSize(target);
+            if (live != null) {
+                winW = Math.max(1, live.width);
+                winH = Math.max(1, live.height);
+            }
+        } catch (final RuntimeException ignored) {
+        }
+    }
+
+    /**
      * Shared shake around the contest center. Both holders compute the same
      * spot from the wall clock, so duplicate moves stay idempotent instead
      * of fighting each other.
@@ -1696,6 +1716,7 @@ public class Telekinesis extends ActionBase {
         faceWindow();
 
         final double[] shared = tugShake(contest);
+        refreshWindowSize();
         final Area screen = getEnvironment().getScreen();
         final double targetX = clampInside(shared[0], screen.getLeft() + EDGE_MARGIN,
                 screen.getRight() - winW - EDGE_MARGIN, screen.getLeft(), screen.getRight() - winW);

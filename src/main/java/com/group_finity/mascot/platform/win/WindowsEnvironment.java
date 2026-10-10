@@ -651,6 +651,23 @@ class WindowsEnvironment extends AbstractEnvironment {
     }
 
     @Override
+    public Dimension getWindowSize(final Area area) {
+        final HWND hWnd = grabbableWindowHandles.get(area);
+        if (hWnd == null) {
+            return null;
+        }
+        try {
+            final Rectangle rect = getWindowRect(hWnd, true);
+            if (rect == null || rect.width <= 0 || rect.height <= 0) {
+                return null;
+            }
+            return new Dimension(rect.width, rect.height);
+        } catch (final RuntimeException e) {
+            return null;
+        }
+    }
+
+    @Override
     public boolean isWindowForeground(final Area area) {
         final HWND hWnd = grabbableWindowHandles.get(area);
         if (hWnd == null) {

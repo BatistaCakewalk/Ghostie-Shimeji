@@ -175,6 +175,17 @@ public interface Environment {
     }
 
     /**
+     * Gets the live size of the specified window, so lifts track resizes
+     * instead of clamping to a pick-time snapshot forever.
+     *
+     * @param area the window, as returned by {@link #getGrabbableWindows()}
+     * @return the window's current size, or {@code null} if unknown
+     */
+    default Dimension getWindowSize(final Area area) {
+        return null;
+    }
+
+    /**
      * Checks whether the specified window is currently the foreground window.
      *
      * @param area the window to check, as returned by {@link #getGrabbableWindows()}
