@@ -1,0 +1,32 @@
+name: Validate mascot config
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'conf/*.xml'
+      - 'conf/*.xsd'
+      - 'img/**/conf/*.xml'
+      - 'img/**/conf/*.xsd'
+  push:
+    branches:
+      - main
+    paths:
+      - 'conf/*.xml'
+      - 'conf/*.xsd'
+      - 'img/**/conf/*.xml'
+      - 'img/**/conf/*.xsd'
+
+jobs:
+  xmllint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 'Ensure xmllint'
+        run: xmllint --version || (sudo apt-get update && sudo apt-get install -y libxml2-utils)
+      - name: 'Validate against Mascot.xsd'
+        run: |
+          set -eu
+          xmllint --noout --schema conf/Mascot.xsd conf/actions.xml
+          xmllint --noout --schema conf/Mascot.xsd conf/behaviors.xml
+          xmllint --noout --schema img/NigelShimeji/conf/Mascot.xsd img/NigelShimeji/conf/actions.xml
+          xmllint --noout --schema img/NigelShimeji/conf/Mascot.xsd img/NigelShimeji/conf/behaviors.xml
