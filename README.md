@@ -3,6 +3,10 @@
 # Nigel Shimeji
 
 [![Qodana](https://github.com/BatistaCakewalk/Ghostie-Shimeji/actions/workflows/qodana_code_quality.yml/badge.svg)](https://github.com/BatistaCakewalk/Ghostie-Shimeji/actions/workflows/qodana_code_quality.yml)
+[![macOS compile](https://github.com/BatistaCakewalk/Ghostie-Shimeji/actions/workflows/build_macos.yml/badge.svg)](https://github.com/BatistaCakewalk/Ghostie-Shimeji/actions/workflows/build_macos.yml)
+[![Latest release](https://img.shields.io/github/v/release/BatistaCakewalk/Ghostie-Shimeji?label=release)](https://github.com/BatistaCakewalk/Ghostie-Shimeji/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/BatistaCakewalk/Ghostie-Shimeji/total?label=downloads)](https://github.com/BatistaCakewalk/Ghostie-Shimeji/releases)
+[![JDK](https://img.shields.io/badge/JDK-25-blue)](https://adoptium.net/)
 
 A strange little guy that lives on your desktop. He hovers, stares, and will most likely make your day worse.
 
