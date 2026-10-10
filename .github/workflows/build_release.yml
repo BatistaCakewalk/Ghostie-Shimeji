@@ -36,7 +36,7 @@ jobs:
           $version = $tag.TrimStart('v')
           $title = "Nigel Shimeji $version"
           $create = @('release', 'create', $tag, 'target/Shimeji-ee.jar', 'target/Shimeji-ee.exe',
-            $zips[0].FullName, '--draft', '--title', $title)
+            $zips[0].FullName, '--draft', '--generate-notes', '--title', $title)
           if ($tag -like '*pre*') {
             $create += '--prerelease'
           }
