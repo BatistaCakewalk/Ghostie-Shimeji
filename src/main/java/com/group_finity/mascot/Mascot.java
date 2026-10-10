@@ -174,6 +174,15 @@ public class Mascot {
     private boolean paused = false;
 
     /**
+     * Whether {@link #dispose()} has been called on this {@code Mascot}.
+     * Holders check this so a dismissed victim is let go instead of lifted
+     * as a corpse until the hold expires.
+     *
+     * @see #isDisposed()
+     */
+    private volatile boolean disposed = false;
+
+    /**
      * Whether this {@code Mascot} is being dragged by the mouse cursor.
      *
      * @see #isDragging()
@@ -831,6 +840,7 @@ public class Mascot {
         releaseMouse(this);
         com.group_finity.mascot.action.Telekinesis.cancelFor(this);
         pendingBehaviorName = null;
+        disposed = true;
         log.info("Destroying mascot \"{}\"", this);
 
         SwingUtilities.invokeLater(() -> {
@@ -1382,6 +1392,15 @@ public class Mascot {
      */
     public boolean isPaused() {
         return paused;
+    }
+
+    /**
+     * Gets whether {@link #dispose()} has been called on this {@code Mascot}.
+     *
+     * @return {@code true} once this {@code Mascot} has been disposed
+     */
+    public boolean isDisposed() {
+        return disposed;
     }
 
     /**

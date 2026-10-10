@@ -578,7 +578,7 @@ public class Telekinesis extends ActionBase {
             }
             final List<Mascot> candidates = new java.util.ArrayList<>();
             for (final Mascot other : mascot.getManager().getMascots()) {
-                if (other != mascot && !other.isGrasping() && Mascot.getMouseOwner() != other
+                if (other != mascot && !other.isDisposed() && !other.isGrasping() && Mascot.getMouseOwner() != other
                         && !other.isPaused() && !HELD_VICTIMS.contains(other)) {
                     candidates.add(other);
                 }
@@ -901,6 +901,10 @@ public class Telekinesis extends ActionBase {
             // drift the windows ride. It keeps ticking underneath, so its
             // own engine drops and recovers it the moment we let go.
             if (victim != null) {
+                if (victim.isDisposed()) {
+                    log.info("Telekinesis victim dismissed mid-lift, letting go");
+                    throw new LostGroundException("Victim dismissed");
+                }
                 if (victim.isDragging()) {
                     log.info("Telekinesis victim grabbed by user, letting go");
                     throw new LostGroundException("Victim grabbed");
@@ -1354,7 +1358,7 @@ public class Telekinesis extends ActionBase {
                         continue;
                     }
                     final Mascot held = hold.victim;
-                    if (held == mascot || held.isGrasping() || held.isDragging()
+                    if (held == mascot || held.isDisposed() || held.isGrasping() || held.isDragging()
                             || Mascot.getMouseOwner() == held || !HELD_VICTIMS.contains(held)) {
                         continue;
                     }
@@ -1728,6 +1732,11 @@ public class Telekinesis extends ActionBase {
             log.info("Tug victim grabbed by user, letting go");
             dissolveTug(contest);
             throw new LostGroundException("Victim grabbed");
+        }
+        if (victim.isDisposed()) {
+            log.info("Tug victim dismissed mid-tug, letting go");
+            dissolveTug(contest);
+            throw new LostGroundException("Victim dismissed");
         }
         getMascot().setLookRight(getMascot().getAnchor().x < victim.getAnchor().x);
 
