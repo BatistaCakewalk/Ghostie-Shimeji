@@ -14,7 +14,7 @@ Heavily customized fork of [Shimeji-ee](https://github.com/DalekCraft2/Shimeji-D
 
 ## Requirements
 
-* Windows 10/11 64-bit / macOS / Linux X11
+* Windows 10/11 64-bit / macOS 14+ / Linux X11
 * Java 25+
 * Maven 3 (bundled via IntelliJ) for building
 
