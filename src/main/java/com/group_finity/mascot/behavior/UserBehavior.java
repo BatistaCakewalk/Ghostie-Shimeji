@@ -189,7 +189,7 @@ public class UserBehavior implements Behavior {
                             <= screen.getLeft()
                             || screen.getRight() <= mascotBounds.getX()
                             || screen.getBottom() <= mascotBounds.getY()) {
-                        log.info("Out of the screen bounds ({}, {})", mascot, this);
+                        log.info("Out of the screen bounds ({}, {}) bounds={} screen={}", mascot, this, mascotBounds, screen);
 
                         Area area = Main.getInstance().getSettings().multiscreen
                                 ? screen : getEnvironment().getWorkArea();

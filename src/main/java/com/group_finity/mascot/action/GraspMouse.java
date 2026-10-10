@@ -130,11 +130,37 @@ public class GraspMouse extends ActionBase {
     private static final String PARAMETER_MAX_STRUGGLE_BONUS = "MaxStruggleBonus";
     private static final double DEFAULT_MAX_STRUGGLE_BONUS = 600.0;
 
+    private static final String PARAMETER_MAX_CATCHABLE_CURSOR_SIZE = "MaxCatchableCursorSize";
+    private static final double DEFAULT_MAX_CATCHABLE_CURSOR_SIZE = 96.0;
+
     private static final int CUDDLE_SHAKE_WINDOW = 30;
     private static final int CUDDLE_ANIM_INTERVAL = 30;
     private static final int SWALLOW_GULP_TICKS = 40;
     private static final int SWALLOW_AFTER_TICKS = 40;
     private static final int BLOAT_ANIM_INTERVAL = 30;
+
+    /**
+     * Stuffed-swallow intro choreography (big-cursor art): Big1/Big2/Big3,
+     * then After1 (5s dizzy), After2 (3s looking down), then After3/After4
+     * alternating 4 cycles (~10s). Suspended in the air throughout; normal
+     * sink/float resumes after.
+     */
+    private static final int BIG_SWALLOW1_TICKS = 125;
+    private static final int BIG_SWALLOW2_TICKS = 125;
+    private static final int BIG_SWALLOW3_TICKS = 75;
+    private static final int BIG_AFTER1_TICKS = 125;
+    private static final int BIG_AFTER2_TICKS = 75;
+    private static final int BIG_AFTER34_FRAME = 31;
+    private static final int BIG_AFTER34_CYCLES = 4;
+
+    /**
+     * Stuffed idle glance-back: roughly every this many ticks, the standing
+     * frame swaps to the look-back sprite for a blink below. Offset per
+     * swallow so it never lands on a round beat.
+     */
+    private static final int LOOKBACK_PERIOD = 300;
+    private static final int LOOKBACK_SHOW_TICKS = 100;    private static final int BIG_INTRO_END = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
+            + BIG_AFTER1_TICKS + BIG_AFTER2_TICKS + BIG_AFTER34_FRAME * 2 * BIG_AFTER34_CYCLES;
 
     /**
      * Closing speed (in px/tick) above which a catch counts as a head-on
@@ -208,6 +234,7 @@ public class GraspMouse extends ActionBase {
     // Cuddle mode state
     private int idleTicks;
     private boolean cuddleMode;
+    private boolean catchSoundPlayed;
     private int cuddleTicks;
     private int shakeCount;
     private int shakeWindowRemaining;
@@ -220,14 +247,27 @@ public class GraspMouse extends ActionBase {
     private int swallowTicks;
     private int swallowClicks;
     private int swallowWindowRemaining;
-    private int swallowDir;
-    private int swallowWander;
+    private int floatDir;
+    private int floatWander;
     private String swallowKeyStart;
     private String swallowKeyAfter;
     private String bloatKey1;
     private String bloatKey2;
     private String bloatWalkKey1;
     private String bloatWalkKey2;
+    private String bloatBigKey1;
+    private String bloatBigKey2;
+    private String bloatBigWalkKey1;
+    private String bloatBigWalkKey2;
+    private String lookBackKey;
+    private int lookBackPhase;
+    private String bigSwallowKey1;
+    private String bigSwallowKey2;
+    private String bigSwallowKey3;
+    private String bigAfterKey1;
+    private String bigAfterKey2;
+    private String bigAfterKey3;
+    private String bigAfterKey4;
     private boolean swallowImagesLoaded;
 
     // Sick + spit-fling state after a swallow is shaken loose
@@ -256,6 +296,24 @@ public class GraspMouse extends ActionBase {
     // Swallow failsafe state: ticks since the last registered click
     private int swallowStuckTicks;
 
+    // Raised-frame bob lift in pixels, scaled with the image set.
+    private int bobLift = 8;
+
+    // Swallow size multiplier cached at swallow enter: scales the gulp
+    // length, click requirement, window and bleed-off together.
+    private double swallowSizeMult = 1.0;
+
+    /**
+     * Scaled gulp phase lengths: bigger cursors take longer to force down.
+     */
+    private int getScaledSwallowGulpTicks() {
+        return Math.max(1, (int) Math.round(SWALLOW_GULP_TICKS * swallowSizeMult));
+    }
+
+    private int getScaledSwallowAfterTicks() {
+        return Math.max(1, (int) Math.round(SWALLOW_AFTER_TICKS * swallowSizeMult));
+    }
+
     // Mega-burp state: floor bounces left on the current fling
     private int flingBounces;
 
@@ -273,6 +331,10 @@ public class GraspMouse extends ActionBase {
     private String cuddleImageKey1;
     private String cuddleImageKey2;
     private boolean cuddleImagesLoaded;
+    private String cuddleBigKey1;
+    private String cuddleBigKey2;
+    private String bigStruggleKey;
+    private boolean bigCatchImagesLoaded;
 
     private static final class CursorSample {
         private final int x;
@@ -436,6 +498,7 @@ public class GraspMouse extends ActionBase {
         contactRemaining = Math.max(1, CURSOR_HISTORY_SIZE - 1);
         idleTicks = 0;
         cuddleMode = false;
+        catchSoundPlayed = false;
         cuddleTicks = 0;
         shakeCount = 0;
         shakeWindowRemaining = 0;
@@ -446,8 +509,8 @@ public class GraspMouse extends ActionBase {
         swallowTicks = 0;
         swallowClicks = 0;
         swallowWindowRemaining = 0;
-        swallowDir = 0;
-        swallowWander = 0;
+        floatDir = 0;
+        floatWander = 0;
         sickPhase = 0;
         sickTicks = 0;
         sickClicks = 0;
@@ -532,6 +595,16 @@ public class GraspMouse extends ActionBase {
                     throw new LostGroundException("Missed the cursor");
                 }
 
+                // Too big to hold, even delivered: telekinesis can drag a
+                // huge cursor onto the sprite, but the arms still refuse it.
+                if (isCursorTooBig()) {
+                    log.info("Grasp refused: cursor too big ({}px)", getEnvironment().getCursorSizePixels());
+                    Mascot.releaseMouse(getMascot());
+                    getMascot().consumeDevourNext();
+                    getMascot().consumeCuddleNext();
+                    throw new LostGroundException("Cursor too big to hold");
+                }
+
                 // Only one Nigel may hold the mouse at a time.
                 if (!Mascot.tryAcquireMouse(getMascot())) {
                     final Mascot owner = Mascot.getMouseOwner();
@@ -593,15 +666,20 @@ public class GraspMouse extends ActionBase {
     private void enterIdleReward(final boolean quickReenter) throws VariableException {
         idleTicks = 0;
         postCuddleGrace = 0;
-        if (Main.getInstance().getSettings().nigelSwallowEnabled && Math.random() < getSwallowChance()) {
-            log.info("Entering swallow mode (quick re-enter: {})", quickReenter);
+        if (Main.getInstance().getSettings().nigelSwallowEnabled && !isCursorTooBig()
+                && Math.random() < getSwallowChance()) {
+            log.info("Entering swallow mode (quick re-enter: {}, cursor {}px, needs {} clicks)",
+                    quickReenter, getEnvironment().getCursorSizePixels(), getSwallowClicksRequired());
+            com.group_finity.mascot.sound.NigelSounds.playGulp();
             swallowMode = true;
             swallowTicks = 0;
             swallowClicks = 0;
             swallowWindowRemaining = 0;
-            swallowDir = 0;
-            swallowWander = 0;
+            floatDir = 0;
+            floatWander = 0;
             swallowStuckTicks = 0;
+            lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
+            swallowSizeMult = getSwallowSizeMultiplier();
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
@@ -613,8 +691,10 @@ public class GraspMouse extends ActionBase {
             recoilVY = 0.0;
             return;
         }
-        log.info("Entering cuddle mode after idle (quick re-enter: {})", quickReenter);
+            log.info("Entering cuddle mode after idle (quick re-enter: {})", quickReenter);
+            com.group_finity.mascot.sound.NigelSounds.playCuddle();
         cuddleMode = true;
+        catchSoundPlayed = true;
         cuddleTicks = 0;
         shakeCount = 0;
         shakeWindowRemaining = 0;
@@ -643,14 +723,24 @@ public class GraspMouse extends ActionBase {
         // Drain presses every tick so the counter never goes stale in normal/cuddle mode.
         final int clicks = getMascot().getAndResetGraspClicks();
 
+        // Lock-in: the hold is real from this first tickGrasp call on. Hug
+        // and swallow orders route elsewhere with their own sounds, so
+        // reaching here unsuppressed means a genuine catch. Gotcha.
+        if (!catchSoundPlayed && !cuddleQueued && !devourQueued) {
+            catchSoundPlayed = true;
+            com.group_finity.mascot.sound.NigelSounds.playCatch();
+        }
+
         // Menu-ordered cuddle: skip the idle wait and enter cuddle mode immediately.
         if (cuddleQueued) {
             cuddleQueued = false;
             log.info("Entering cuddle mode immediately (menu-ordered)");
+            com.group_finity.mascot.sound.NigelSounds.playCuddle();
             hideCursor();
             idleTicks = 0;
             postCuddleGrace = 0;
             cuddleMode = true;
+            catchSoundPlayed = true;
             cuddleTicks = 0;
             shakeCount = 0;
             shakeWindowRemaining = 0;
@@ -658,24 +748,28 @@ public class GraspMouse extends ActionBase {
         }
 
         // Devoured straight out of a max-strength pull: no idle wait, no cuddle roll.
-        // (Unless swallowing is disabled in Nigel Settings: then the devour
-        // just becomes a normal grasp.)
-        if (devourQueued && !Main.getInstance().getSettings().nigelSwallowEnabled) {
+        // (Unless swallowing is disabled in Nigel Settings, or the cursor is
+        // too big to fit: then the devour just becomes a normal grasp.)
+        if (devourQueued && (!Main.getInstance().getSettings().nigelSwallowEnabled || isCursorTooBig())) {
             devourQueued = false;
-            log.info("Devoured but swallowing is disabled, normal grasp continues");
+            log.info("Devoured but swallowing is off the table, normal grasp continues");
         }
         if (devourQueued) {
             devourQueued = false;
-            log.info("Devoured straight into swallow mode");
+            log.info("Devoured straight into swallow mode (cursor {}px, needs {} clicks)",
+                    getEnvironment().getCursorSizePixels(), getSwallowClicksRequired());
+            com.group_finity.mascot.sound.NigelSounds.playGulp();
             // The contact window (which normally hides the cursor) was skipped.
             hideCursor();
             swallowMode = true;
             swallowTicks = 0;
             swallowClicks = 0;
             swallowWindowRemaining = 0;
-            swallowDir = 0;
-            swallowWander = 0;
+            floatDir = 0;
+            floatWander = 0;
             swallowStuckTicks = 0;
+            lookBackPhase = (int) (Math.random() * LOOKBACK_PERIOD);
+            swallowSizeMult = getSwallowSizeMultiplier();
             sickPhase = 0;
             sickTicks = 0;
             sickClicks = 0;
@@ -702,6 +796,22 @@ public class GraspMouse extends ActionBase {
                 return;
             }
             swallowTicks++;
+            final boolean bigIntro = isStuffedSwallow() && hasBigSwallowArt();
+            // Glug marks the moment it's fully inside: SwallowAfter's first
+            // frame normally, Big3's last frame for the stuffed intro.
+            final int gulpEnd = bigIntro
+                    ? BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
+                    : getScaledSwallowGulpTicks();
+            if (swallowTicks == gulpEnd) {
+                com.group_finity.mascot.sound.NigelSounds.playGlug();
+            }
+            final boolean forcingDown = bigIntro
+                    ? swallowTicks < BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS + BIG_SWALLOW3_TICKS
+                    : swallowTicks <= getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks();
+            final boolean inIntro = bigIntro && swallowTicks < BIG_INTRO_END;
+            final boolean gulping = forcingDown || inIntro;
+            final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
+            boolean floating = false;
 
             if (swallowWindowRemaining > 0) {
                 swallowWindowRemaining--;
@@ -709,20 +819,26 @@ public class GraspMouse extends ActionBase {
                     swallowClicks = 0;
                 }
             }
-            if (clicks > 0) {
+            // No clicking out during the stuffed intro: the choreography
+            // plays first, escape starts once he's floating with it.
+            if (clicks > 0 && !inBigSwallowIntro()) {
                 if (swallowWindowRemaining == 0) {
-                    swallowWindowRemaining = getSwallowClickWindow();
+                    swallowWindowRemaining = (int) Math.round(
+                            getSwallowClickWindow() * getSwallowSizeMultiplier());
                     swallowClicks = clicks;
                 } else {
                     swallowClicks += clicks;
                 }
                 log.info("Swallow clicks: {} this tick, {} in window", clicks, swallowClicks);
-            } else if (swallowClicks > 0 && swallowTicks % 15 == 0) {
-                // Stale clicks bleed off: stop clicking and progress fades ~1 click per 15 ticks.
+            } else if (swallowClicks > 0
+                    && swallowTicks % Math.max(1, Math.round(15 * getSwallowSizeMultiplier())) == 0) {
+                // Stale clicks bleed off, slower for big cursors: stop
+                // clicking and progress fades ~1 click per scaled interval.
                 swallowClicks--;
             }
-            if (swallowClicks >= getSwallowClickCount()) {
+            if (swallowClicks >= getSwallowClicksRequired()) {
                 log.info("Swallow shaken loose after {} clicks, Nigel feels sick", swallowClicks);
+                com.group_finity.mascot.sound.NigelSounds.playHeave();
                 sickPhase = 1;
                 sickTicks = 0;
                 sickClicks = 0;
@@ -741,38 +857,53 @@ public class GraspMouse extends ActionBase {
             }
 
             // Fully trapped: HP frozen, cursor pinned hard.
-            final boolean gulping = swallowTicks <= SWALLOW_GULP_TICKS + SWALLOW_AFTER_TICKS;
-            final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
-            boolean waddling = false;
             if (gulping) {
-                // Gulp in place where he caught it.
-                wrestle(0.0, false);
-            } else if (!grounded) {
+                // Gulp in place where he caught it. While forcing down a
+                // stuffed cursor, the body heaves once with each choke;
+                // otherwise he holds still and strains. Smaller cursors go
+                // down easy with no theatrics at all.
+                if (forcingDown && isStuffedSwallow() && swallowTicks % 30 == 0) {
+                    com.group_finity.mascot.sound.NigelSounds.playChoke();
+                    getMascot().getAnchor().translate(
+                            (int) Math.round(Math.random() * 4.0 - 2.0),
+                            (int) Math.round(Math.random() * 4.0 - 2.0));
+                } else {
+                    wrestle(0.0, false);
+                }
+            } else if (!grounded && !inIntro) {
                 // Sway side to side on the way down instead of dropping like an elevator.
+                // Clamp the sink to not overshoot the floor: isOn() is an exact Y match,
+                // so a 3px step that lands past floor Y means grounded never becomes true.
                 final int sway = (int) Math.round(Math.sin(swallowTicks * 0.15) * 2.0);
-                getMascot().getAnchor().translate(sway, 3);
+                final int floorY = getEnvironment().getWorkArea().getBottom();
+                final int sinkDy = Math.min(3, Math.max(0, floorY - getMascot().getAnchor().y));
+                getMascot().getAnchor().translate(sway, sinkDy);
             } else {
-                // Waddle in bursts with idle pauses, like he's showing off his prize.
-                if (swallowWander == 0) {
-                    if (swallowDir == 0 || Math.random() < 0.6) {
-                        swallowDir = Math.random() < 0.5 ? -1 : 1;
-                        swallowWander = 60 + (int) (Math.random() * 90);
+                // Float in bursts with idle pauses, like he's showing off his prize.
+                // Stuffed, he lumbers: shorter bursts, longer breathers.
+                final boolean lumbering = isStuffedSwallow();
+                if (floatWander == 0) {
+                    if (floatDir == 0 || Math.random() < 0.6) {
+                        floatDir = Math.random() < 0.5 ? -1 : 1;
+                        floatWander = lumbering ? 30 + (int) (Math.random() * 45)
+                                : 60 + (int) (Math.random() * 90);
                     } else {
-                        swallowWander = -(40 + (int) (Math.random() * 60));
+                        floatWander = lumbering ? -(80 + (int) (Math.random() * 100))
+                                : -(40 + (int) (Math.random() * 60));
                     }
                 }
-                if (swallowWander > 0) {
-                    getMascot().getAnchor().translate(swallowDir * 2, 0);
+                if (floatWander > 0) {
+                    getMascot().getAnchor().translate(floatDir * 2, 0);
                     final Area screen = getEnvironment().getScreen();
                     final Point anchor = getMascot().getAnchor();
                     if (anchor.x <= screen.getLeft() + 2 || anchor.x >= screen.getRight() - 2) {
-                        swallowDir = -swallowDir;
+                        floatDir = -floatDir;
                     }
-                    getMascot().setLookRight(swallowDir > 0);
-                    waddling = true;
-                    swallowWander--;
+                    getMascot().setLookRight(floatDir > 0);
+                    floating = true;
+                    floatWander--;
                 } else {
-                    swallowWander++;
+                    floatWander++;
                 }
             }
             // Fully trapped, pinned dead center on Nigel: clicks only
@@ -780,7 +911,7 @@ public class GraspMouse extends ActionBase {
             clampAnchorToScreen();
             final Point hands = getGraspPoint();
             robot.mouseMove(hands.x, hands.y);
-            applySwallowAnimation(waddling);
+            applySwallowAnimation(floating, grounded);
             reassertCursorHidden();
             return;
         }
@@ -887,6 +1018,11 @@ public class GraspMouse extends ActionBase {
             // Fighting: frantic shaking is dulled by the curve, and sustained
             // mashing tires itself out through fatigue. Per-tick drain is
             // capped so full-screen whips can't nuke the meter in one frame.
+            // Audible strain every so often, hotter the harder the fight.
+            if (getTime() % 15 == 0) {
+                com.group_finity.mascot.sound.NigelSounds.playStruggle(
+                        Math.min(1.0, struggle / 150.0));
+            }
             fatigue++;
             final double fatigueMultiplier = Math.max(0.2, 1.0 - fatigue / 100.0);
             hp -= Math.min(applyStruggleCurve(struggle) * fatigueMultiplier, MAX_DRAIN_PER_TICK);
@@ -903,6 +1039,11 @@ public class GraspMouse extends ActionBase {
 
         // Look like we're holding on.
         getAnimation().apply(getMascot(), getTime());
+        // Big cursor, big struggle frame.
+        ensureBigCatchImagesLoaded();
+        if (isStuffedSwallow() && bigStruggleKey != null && ImagePairs.contains(bigStruggleKey)) {
+            getMascot().setImage(ImagePairs.get(bigStruggleKey).getImage(getMascot().isLookRight()));
+        }
 
         // The mascot's own hover logic resets its window cursor on every
         // mouse motion event, which our yanks trigger constantly, so
@@ -916,6 +1057,7 @@ public class GraspMouse extends ActionBase {
 
         if (hp <= 0) {
             log.info("Grasp broken: ticksHeld={}, finalStruggle={}, fatigue={}", getTime(), struggle, fatigue);
+            com.group_finity.mascot.sound.NigelSounds.playBreakFree();
             throw new LostGroundException("The mouse broke free of Nigel's grasp");
         }
     }
@@ -1074,6 +1216,7 @@ public class GraspMouse extends ActionBase {
             return;
         }
         final double knockback = getTackleKnockback();
+        com.group_finity.mascot.sound.NigelSounds.playBonk();
         getMascot().getAnchor().translate(
                 (int) Math.round(-dx / speed * knockback),
                 (int) Math.round(-dy / speed * knockback));
@@ -1220,9 +1363,37 @@ public class GraspMouse extends ActionBase {
 
     private void applyCuddleAnimation() {
         ensureCuddleImagesLoaded();
-        final String key = (cuddleTicks / CUDDLE_ANIM_INTERVAL) % 2 == 0 ? cuddleImageKey1 : cuddleImageKey2;
+        ensureBigCatchImagesLoaded();
+        final boolean big = isStuffedSwallow();
+        final String key = (cuddleTicks / CUDDLE_ANIM_INTERVAL) % 2 == 0
+                ? orElse(cuddleBigKey1, cuddleImageKey1, big)
+                : orElse(cuddleBigKey2, cuddleImageKey2, big);
         if (key != null && ImagePairs.contains(key)) {
             getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
+        }
+    }
+
+    /**
+     * Big-catch sprites (struggle + cuddle variants for oversized cursors).
+     * Optional per file: anything missing falls back to the normal sprites.
+     */
+    private void ensureBigCatchImagesLoaded() {
+        if (bigCatchImagesLoaded) {
+            return;
+        }
+        bigCatchImagesLoaded = true;
+        try {
+            final double scaling = Main.getInstance().getSettings().scaling;
+            final Filter filter = Main.getInstance().getSettings().filter;
+            final double opacity = Main.getInstance().getSettings().opacity;
+            final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                    ? getMascot().getImageSet() : "NigelShimeji";
+            // All 192x192 with anchor 96,200 matching the struggle pose
+            bigStruggleKey = loadOptionalSwallowImage(imageSet, "StruggleBiggerMouse.png", scaling, filter, opacity);
+            cuddleBigKey1 = loadOptionalSwallowImage(imageSet, "cuddlebiggermouse1.png", scaling, filter, opacity);
+            cuddleBigKey2 = loadOptionalSwallowImage(imageSet, "cuddlebiggermouse2.png", scaling, filter, opacity);
+        } catch (final RuntimeException e) {
+            log.warn("Failed to load big-catch images for GraspMouse", e);
         }
     }
 
@@ -1249,29 +1420,127 @@ public class GraspMouse extends ActionBase {
             ImagePairs.addUsage(bloatWalkKey1, imageSet);
             bloatWalkKey2 = ImagePairs.load(Path.of(imageSet, "BloatWalk2.png"), null, 96, 200, scaling, filter, opacity);
             ImagePairs.addUsage(bloatWalkKey2, imageSet);
+            // Stuffed tier (BloatBig*.png) is optional: missing files just fall
+            // back to the normal bloat sprites, one file at a time.
+            bloatBigKey1 = loadOptionalSwallowImage(imageSet, "FatterStand.png", scaling, filter, opacity);
+            bloatBigKey2 = loadOptionalSwallowImage(imageSet, "FatterStand2.png", scaling, filter, opacity);
+            bloatBigWalkKey1 = loadOptionalSwallowImage(imageSet, "WalkBigBloated1.png", scaling, filter, opacity);
+            bloatBigWalkKey2 = loadOptionalSwallowImage(imageSet, "WalkBigBloated2.png", scaling, filter, opacity);
+            lookBackKey = loadOptionalSwallowImage(imageSet, "FatterStandLookBack.png", scaling, filter, opacity);
+            bobLift = Math.max(2, (int) Math.round(8 * scaling));
+            // Stuffed intro set (SwallowBig1-3, SwallowAfter1-4): all or
+            // nothing, the choreography needs every frame.
+            bigSwallowKey1 = loadOptionalSwallowImage(imageSet, "SwallowBig1.png", scaling, filter, opacity);
+            bigSwallowKey2 = loadOptionalSwallowImage(imageSet, "SwallowBig2.png", scaling, filter, opacity);
+            bigSwallowKey3 = loadOptionalSwallowImage(imageSet, "SwallowBig3.png", scaling, filter, opacity);
+            bigAfterKey1 = loadOptionalSwallowImage(imageSet, "SwallowAfter1.png", scaling, filter, opacity);
+            bigAfterKey2 = loadOptionalSwallowImage(imageSet, "SwallowAfter2.png", scaling, filter, opacity);
+            bigAfterKey3 = loadOptionalSwallowImage(imageSet, "SwallowAfter3.png", scaling, filter, opacity);
+            bigAfterKey4 = loadOptionalSwallowImage(imageSet, "SwallowAfter4.png", scaling, filter, opacity);
             swallowImagesLoaded = true;
         } catch (final IOException | RuntimeException e) {
             log.warn("Failed to load swallow images for GraspMouse", e);
         }
     }
 
-    private void applySwallowAnimation(final boolean waddling) {
+    private static String loadOptionalSwallowImage(final String imageSet, final String file,
+            final double scaling, final Filter filter, final double opacity) {
+        try {
+            final String key = ImagePairs.load(Path.of(imageSet, file), null, 96, 200, scaling, filter, opacity);
+            ImagePairs.addUsage(key, imageSet);
+            return key;
+        } catch (final IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    private void applySwallowAnimation(final boolean floating, final boolean grounded) {
         ensureSwallowImagesLoaded();
+        final boolean stuffed = isStuffedSwallow();
+        // Staircase hover, grounded only: mid-sink the descent already
+        // moves him, so the frames stay flat until touchdown.
+        final int stage = grounded ? (swallowTicks / 5) % 8 : 0;
         final String key;
-        if (swallowTicks < SWALLOW_GULP_TICKS) {
+        if (inBigSwallowIntro()) {
+            final int t = swallowTicks;
+            final int big2End = BIG_SWALLOW1_TICKS + BIG_SWALLOW2_TICKS;
+            final int big3End = big2End + BIG_SWALLOW3_TICKS;
+            final int after1End = big3End + BIG_AFTER1_TICKS;
+            final int after2End = after1End + BIG_AFTER2_TICKS;
+            if (t < BIG_SWALLOW1_TICKS) {
+                key = bigSwallowKey1;
+            } else if (t < big2End) {
+                key = bigSwallowKey2;
+            } else if (t < big3End) {
+                key = bigSwallowKey3;
+            } else if (t < after1End) {
+                key = bigAfterKey1;
+            } else if (t < after2End) {
+                key = bigAfterKey2;
+            } else {
+                key = ((t - after2End) / BIG_AFTER34_FRAME) % 2 == 0 ? bigAfterKey3 : bigAfterKey4;
+            }
+        } else if (swallowTicks < getScaledSwallowGulpTicks()) {
             key = swallowKeyStart;
-        } else if (swallowTicks < SWALLOW_GULP_TICKS + SWALLOW_AFTER_TICKS) {
+        } else if (swallowTicks < getScaledSwallowGulpTicks() + getScaledSwallowAfterTicks()) {
             key = swallowKeyAfter;
-        } else if (waddling) {
-            key = ((swallowTicks - SWALLOW_GULP_TICKS - SWALLOW_AFTER_TICKS) / BLOAT_ANIM_INTERVAL) % 2 == 0
-                    ? bloatWalkKey1 : bloatWalkKey2;
+        } else if (floating) {
+            final String walkBase = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
+                    ? orElse(bloatBigWalkKey1, bloatWalkKey1, stuffed) : orElse(bloatBigWalkKey2, bloatWalkKey2, stuffed);
+            key = floatKey(walkBase, stage);
         } else {
-            key = ((swallowTicks - SWALLOW_GULP_TICKS - SWALLOW_AFTER_TICKS) / BLOAT_ANIM_INTERVAL) % 2 == 0
-                    ? bloatKey1 : bloatKey2;
+            // Stuffed idle glance-back: every so often the standing frame
+            // swaps to the look-back for a while, then back to the bloat.
+            // Grounded only: the sinking descent sways sideways, which would
+            // read as the glance itself drifting.
+            if (grounded && stuffed && lookBackKey != null && ImagePairs.contains(lookBackKey)
+                    && (swallowTicks + lookBackPhase) % LOOKBACK_PERIOD < LOOKBACK_SHOW_TICKS) {
+                key = floatKey(lookBackKey, stage);
+            } else {
+                final String standBase = ((swallowTicks - getScaledSwallowGulpTicks() - getScaledSwallowAfterTicks()) / BLOAT_ANIM_INTERVAL) % 2 == 0
+                        ? orElse(bloatBigKey1, bloatKey1, stuffed) : orElse(bloatBigKey2, bloatKey2, stuffed);
+                key = floatKey(standBase, stage);
+            }
         }
         if (key != null && ImagePairs.contains(key)) {
             getMascot().setImage(ImagePairs.get(key).getImage(getMascot().isLookRight()));
         }
+    }
+
+    private static String orElse(final String big, final String normal, final boolean stuffed) {
+        if (stuffed && big != null && ImagePairs.contains(big)) {
+            return big;
+        }
+        return normal;
+    }
+
+    /**
+     * Float step: base frame or a raised twin from the 8-stage hover cycle.
+     * The anchor never moves for visuals, so physics always reads the true
+     * position.
+     */
+    private String floatKey(final String baseKey, final int stage) {
+        if (baseKey == null) {
+            return null;
+        }
+        final String imageSet = getMascot() != null && getMascot().getImageSet() != null
+                ? getMascot().getImageSet() : "NigelShimeji";
+        return ImagePairs.raisedVariant(baseKey, ImagePairs.hoverLift(stage, bobLift), imageSet);
+    }
+
+    private boolean hasBigSwallowArt() {
+        return bigSwallowKey1 != null && ImagePairs.contains(bigSwallowKey1)
+                && bigSwallowKey2 != null && ImagePairs.contains(bigSwallowKey2)
+                && bigSwallowKey3 != null && ImagePairs.contains(bigSwallowKey3)
+                && bigAfterKey1 != null && ImagePairs.contains(bigAfterKey1)
+                && bigAfterKey2 != null && ImagePairs.contains(bigAfterKey2)
+                && bigAfterKey3 != null && ImagePairs.contains(bigAfterKey3)
+                && bigAfterKey4 != null && ImagePairs.contains(bigAfterKey4);
+    }
+
+    private boolean inBigSwallowIntro() {
+        return isStuffedSwallow() && hasBigSwallowArt() && swallowTicks < BIG_INTRO_END
+                && !getEnvironment().getFloor().isOn(getMascot().getAnchor());
     }
 
     /**
@@ -1412,6 +1681,8 @@ public class GraspMouse extends ActionBase {
             getMascot().setImage(ImagePairs.get(burpKey).getImage(getMascot().isLookRight()));
         }
         spawnDroplets(flingX, flingY, power);
+        com.group_finity.mascot.sound.NigelSounds.playBurp(power);
+        com.group_finity.mascot.sound.NigelSounds.playLaunch();
         log.info("Spit fling launched: power={}, bounces={}, v=({},{})", power, flingBounces, flingVX, flingVY);
     }
 
@@ -1428,7 +1699,13 @@ public class GraspMouse extends ActionBase {
         final boolean grounded = getEnvironment().getFloor().isOn(getMascot().getAnchor());
         if (!grounded) {
             final int sway = (int) Math.round(Math.sin(getTime() * 0.15) * 2.0);
-            getMascot().getAnchor().translate(sway, 3);
+            // Clamp the sink so we never overshoot the floor Y by more than
+            // one step. isOn() requires an exact Y match, so a 3px step that
+            // lands past the floor means grounded never becomes true and Nigel
+            // gets stuck in the floating-down animation indefinitely.
+            final int floorY = getEnvironment().getWorkArea().getBottom();
+            final int dy = Math.min(3, Math.max(0, floorY - getMascot().getAnchor().y));
+            getMascot().getAnchor().translate(sway, dy);
             clampAnchorToScreen();
             if (burpAftermathKey != null && ImagePairs.contains(burpAftermathKey)) {
                 getMascot().setImage(ImagePairs.get(burpAftermathKey).getImage(getMascot().isLookRight()));
@@ -1623,5 +1900,44 @@ public class GraspMouse extends ActionBase {
 
     private double getMaxStruggleBonus() throws VariableException {
         return eval(getSchema().getString(PARAMETER_MAX_STRUGGLE_BONUS), Number.class, DEFAULT_MAX_STRUGGLE_BONUS).doubleValue();
+    }
+
+    private double getMaxCatchableCursorSize() throws VariableException {
+        return eval(getSchema().getString(PARAMETER_MAX_CATCHABLE_CURSOR_SIZE), Number.class, DEFAULT_MAX_CATCHABLE_CURSOR_SIZE).doubleValue();
+    }
+
+    private boolean isCursorTooBig() throws VariableException {
+        return getEnvironment().getCursorSizePixels() > getMaxCatchableCursorSize();
+    }
+
+    /**
+     * Swallow difficulty multiplier from cursor size: 1x at normal size
+     * (32px and under), up to 4x at the refusal threshold. Scales the click
+     * requirement, the click window, and the bleed-off together, so big
+     * cursors take longer but stay feasible.
+     */
+    private double getSwallowSizeMultiplier() {
+        final int size = getEnvironment().getCursorSizePixels();
+        if (size <= 32) {
+            return 1.0;
+        }
+        return 1.0 + 3.0 * Math.min(1.0, (size - 32) / 64.0);
+    }
+
+    /**
+     * Swallow click requirement scaled by cursor size: normal cursors need
+     * the base count, bigger ones up to quadruple it. He has to work the
+     * big ones down before they fit.
+     */
+    private int getSwallowClicksRequired() throws VariableException {
+        return (int) Math.round(getSwallowClickCount() * getSwallowSizeMultiplier());
+    }
+
+    /**
+     * Stuffed tier: cursors over 64px show the big-belly sprites while
+     * swallowed, when the image set provides them.
+     */
+    private boolean isStuffedSwallow() {
+        return getEnvironment().getCursorSizePixels() > 64;
     }
 }

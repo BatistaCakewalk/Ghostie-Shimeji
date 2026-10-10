@@ -175,6 +175,17 @@ public interface Environment {
     }
 
     /**
+     * Gets the live size of the specified window, so lifts track resizes
+     * instead of clamping to a pick-time snapshot forever.
+     *
+     * @param area the window, as returned by {@link #getGrabbableWindows()}
+     * @return the window's current size, or {@code null} if unknown
+     */
+    default Dimension getWindowSize(final Area area) {
+        return null;
+    }
+
+    /**
      * Checks whether the specified window is currently the foreground window.
      *
      * @param area the window to check, as returned by {@link #getGrabbableWindows()}
@@ -263,6 +274,16 @@ public interface Environment {
      */
     default boolean isMouseLocked() {
         return false;
+    }
+
+    /**
+     * OS cursor size in pixels (largest dimension). Used to refuse cursors
+     * Nigel wants no part of. Platform default: 32.
+     *
+     * @return the cursor size in pixels
+     */
+    default int getCursorSizePixels() {
+        return 32;
     }
 
     /**

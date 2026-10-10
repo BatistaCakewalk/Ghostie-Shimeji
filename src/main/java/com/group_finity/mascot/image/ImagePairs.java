@@ -113,9 +113,92 @@ public final class ImagePairs {
     }
 
     /**
+     * Gets (creating on first use) a raised variant of an image pair: same
+     * pixels, anchor lifted by the given amount. Lets callers bob purely
+     * visually, without ever moving the mascot anchor that physics
+     * (floor checks, pins) reads.
+     *
+     * @param baseKey the key of the image pair to raise
+     * @param lift pixels to lift the anchor by
+     * @param imageSet image set to attribute the variant to for cleanup
+     * @return the raised variant's key, or the base key when it cannot be built
+     */
+    public static String raisedVariant(final String baseKey, final int lift, final String imageSet) {
+        if (baseKey == null || lift == 0) {
+            return baseKey;
+        }
+        final String raised = baseKey + ":up" + lift;
+        if (imagePairs.containsKey(raised)) {
+            return raised;
+        }
+        final ImagePair pair = imagePairs.get(baseKey);
+        if (pair == null) {
+            return baseKey;
+        }
+        final MascotImage left = pair.leftImage();
+        final MascotImage right = pair.rightImage();
+        final int anchorX = left.getCenter().x;
+        final int anchorY = left.getCenter().y - lift;
+        loadRendered(raised, left.getImage(), right.getImage(), anchorX, anchorY);
+        addUsage(raised, imageSet);
+        return raised;
+    }
+
+    /**
+     * Hover lift for an 8-stage staircase cycle (0-2-4-6-8-6-4-2 shaped):
+     * fine gradations like the XML pose bobs, instead of a binary flip.
+     *
+     * @param stage8 cycle position, 0-7
+     * @param maxLift peak lift in pixels
+     * @return lift for this stage, 0 at the bottom
+     */
+    public static int hoverLift(final int stage8, final int maxLift) {
+        final int[] steps = { 0, 2, 4, 6, 8, 6, 4, 2 };
+        return steps[Math.floorMod(stage8, steps.length)] * maxLift / 8;
+    }
+
+    /**
+     * Composites two mascot images with the given foreground fraction.
+     *
+     * @param fgKey foreground key
+     * @param bgKey background key
+     * @param alpha foreground share
+     * @return the composited ImagePair
+     */
+    public static ImagePair blendMascotImages(final String fgKey, final String bgKey, final double alpha) {
+        final ImagePair fg = imagePairs.get(fgKey);
+        final ImagePair bg = imagePairs.get(bgKey);
+        if (fg == null) {
+            return bg;
+        }
+        if (bg == null) {
+            return fg;
+        }
+        final BufferedImage left = new BufferedImage(
+                fg.leftImage().getImage().getWidth(), fg.leftImage().getImage().getHeight(),
+                BufferedImage.TYPE_INT_ARGB);
+        final java.awt.Graphics2D g = left.createGraphics();
+        g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER));
+        g.drawImage(bg.leftImage().getImage(), 0, 0, null);
+        g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, (float) Math.max(0.0, Math.min(1.0, alpha))));
+        g.drawImage(fg.leftImage().getImage(), 0, 0, null);
+        g.dispose();
+        final BufferedImage right = new BufferedImage(
+                fg.rightImage().getImage().getWidth(), fg.rightImage().getImage().getHeight(),
+                BufferedImage.TYPE_INT_ARGB);
+        final java.awt.Graphics2D g2 = right.createGraphics();
+        g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER));
+        g2.drawImage(bg.rightImage().getImage(), 0, 0, null);
+        g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, (float) Math.max(0.0, Math.min(1.0, alpha))));
+        g2.drawImage(fg.rightImage().getImage(), 0, 0, null);
+        g2.dispose();
+        return new ImagePair(new MascotImage(left, fg.leftImage().getCenter()),
+                new MascotImage(right, fg.rightImage().getCenter()));
+    }
+
+    /**
      * Checks whether there is an image pair associated with the given key.
      *
-     * @param key the key whose presence is to be checked
      * @return whether the key has an associated image pair
      */
     public static boolean contains(String key) {

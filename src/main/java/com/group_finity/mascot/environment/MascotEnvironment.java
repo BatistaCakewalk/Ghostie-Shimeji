@@ -398,6 +398,17 @@ public class MascotEnvironment {
     }
 
     /**
+     * Gets the live size of the specified window.
+     *
+     * @param area the window to check
+     * @return the window's current size, or {@code null} if unknown
+     * @see Environment#getWindowSize(Area)
+     */
+    public java.awt.Dimension getWindowSize(final Area area) {
+        return impl.getWindowSize(area);
+    }
+
+    /**
      * Checks whether the specified window is currently minimized.
      *
      * @param area the window to check
@@ -458,6 +469,16 @@ public class MascotEnvironment {
      */
     public boolean isMouseLocked() {
         return impl.isMouseLocked();
+    }
+
+    /**
+     * OS cursor size in pixels (largest dimension).
+     *
+     * @return the cursor size in pixels
+     * @see Environment#getCursorSizePixels()
+     */
+    public int getCursorSizePixels() {
+        return impl.getCursorSizePixels();
     }
 
     /**

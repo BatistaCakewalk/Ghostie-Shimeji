@@ -174,6 +174,15 @@ public class Mascot {
     private boolean paused = false;
 
     /**
+     * Whether {@link #dispose()} has been called on this {@code Mascot}.
+     * Holders check this so a dismissed victim is let go instead of lifted
+     * as a corpse until the hold expires.
+     *
+     * @see #isDisposed()
+     */
+    private volatile boolean disposed = false;
+
+    /**
      * Whether this {@code Mascot} is being dragged by the mouse cursor.
      *
      * @see #isDragging()
@@ -831,6 +840,7 @@ public class Mascot {
         releaseMouse(this);
         com.group_finity.mascot.action.Telekinesis.cancelFor(this);
         pendingBehaviorName = null;
+        disposed = true;
         log.info("Destroying mascot \"{}\"", this);
 
         SwingUtilities.invokeLater(() -> {
@@ -1385,6 +1395,15 @@ public class Mascot {
     }
 
     /**
+     * Gets whether {@link #dispose()} has been called on this {@code Mascot}.
+     *
+     * @return {@code true} once this {@code Mascot} has been disposed
+     */
+    public boolean isDisposed() {
+        return disposed;
+    }
+
+    /**
      * Sets whether this {@code Mascot} is paused, and notifies the program's tray menu to update the text
      * of its "Pause/Resume Animations" button.
      * When a {@code Mascot} is paused, {@link #tick()} and {@link #apply()} will do nothing.
@@ -1545,6 +1564,33 @@ public class Mascot {
      */
     public void setApproachClosingSpeed(final double approachClosingSpeed) {
         this.approachClosingSpeed = approachClosingSpeed;
+    }
+
+    /**
+     * How far the most recent fall dropped in pixels, as recorded by the
+     * {@code NigelFall} action. The landing Select routes high falls to the
+     * splat show; small ones bounce like always.
+     */
+    private volatile int lastFallHeight = 0;
+
+    /**
+     * Gets the drop distance of the most recent fall in pixels.
+     *
+     * @return the last fall height in pixels
+     * @see #setLastFallHeight(int)
+     */
+    public int getLastFallHeight() {
+        return lastFallHeight;
+    }
+
+    /**
+     * Sets the drop distance of the most recent fall in pixels.
+     *
+     * @param lastFallHeight the last fall height in pixels
+     * @see #getLastFallHeight()
+     */
+    public void setLastFallHeight(final int lastFallHeight) {
+        this.lastFallHeight = lastFallHeight;
     }
 
     /**

@@ -8,7 +8,10 @@ import com.group_finity.mascot.platform.win.jna.User32Extra;
 import com.sun.jna.Pointer;
 import com.sun.jna.platform.WindowUtils;
 import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Advapi32Util;
 import com.sun.jna.platform.win32.User32;
+import com.sun.jna.platform.win32.WinReg;
+import com.sun.jna.platform.win32.WinUser;
 import com.sun.jna.platform.win32.VersionHelpers;
 import com.sun.jna.platform.win32.Win32Exception;
 import com.sun.jna.platform.win32.WinDef.HWND;
@@ -280,6 +283,29 @@ class WindowsEnvironment extends AbstractEnvironment {
         } catch (final Exception ignored) {
         }
         return super.isMouseLocked();
+    }
+
+    @Override
+    public int getCursorSizePixels() {
+        // Accessibility pointer size lives in CursorBaseSize; fall back to
+        // the system cursor metric, then the default. Big cursors welcome
+        // nowhere near Nigel.
+        try {
+            final int base = Advapi32Util.registryGetIntValue(
+                    WinReg.HKEY_CURRENT_USER, "Control Panel\\Cursors", "CursorBaseSize");
+            if (base > 0) {
+                return base;
+            }
+        } catch (final RuntimeException ignored) {
+        }
+        try {
+            final int metric = User32.INSTANCE.GetSystemMetrics(WinUser.SM_CXCURSOR);
+            if (metric > 0) {
+                return metric;
+            }
+        } catch (final RuntimeException ignored) {
+        }
+        return 32;
     }
 
     /**
@@ -621,6 +647,23 @@ class WindowsEnvironment extends AbstractEnvironment {
             return com.sun.jna.Pointer.nativeValue(hWnd.getPointer());
         } catch (final RuntimeException e) {
             return 0;
+        }
+    }
+
+    @Override
+    public Dimension getWindowSize(final Area area) {
+        final HWND hWnd = grabbableWindowHandles.get(area);
+        if (hWnd == null) {
+            return null;
+        }
+        try {
+            final Rectangle rect = getWindowRect(hWnd, true);
+            if (rect == null || rect.width <= 0 || rect.height <= 0) {
+                return null;
+            }
+            return new Dimension(rect.width, rect.height);
+        } catch (final RuntimeException e) {
+            return null;
         }
     }
 
