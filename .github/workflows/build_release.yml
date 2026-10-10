@@ -1,0 +1,52 @@
+name: Build and attach release
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Release creation needs write access to contents.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 'Set up JDK 25'
+        uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: 25
+          cache: maven
+      - name: 'Package (no tests)'
+        run: mvn -B -DskipTests package
+      - name: 'Create draft release with artifacts'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = '${{ github.ref_name }}'
+          $zips = @(Get-ChildItem -Path 'target' -Filter 'Shimeji-ee_*.zip')
+          if ($zips.Count -eq 0) {
+            throw 'Missing distributable zip in target/'
+          }
+          $view = gh release view $tag --json isDraft 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            if (($view | ConvertFrom-Json).isDraft -ne $true) {
+              throw "Release $tag is already published; delete it manually to re-run."
+            }
+            Write-Output "Replacing existing draft $tag"
+            gh release delete $tag -y
+          }
+          $version = $tag.TrimStart('v')
+          $title = "Nigel Shimeji $version"
+          $create = @('release', 'create', $tag, 'target/Shimeji-ee.jar', 'target/Shimeji-ee.exe',
+            $zips[0].FullName, '--draft', '--generate-notes', '--title', $title)
+          if ($tag -like '*pre*') {
+            $create += '--prerelease'
+          }
+          gh @create
+          Write-Output "Draft release $tag created with $($zips[0].Name) attached"

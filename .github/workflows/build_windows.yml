@@ -1,0 +1,39 @@
+name: Windows build check
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 'Set up JDK 25'
+        uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: 25
+          cache: maven
+      - name: 'Package (no tests)'
+        run: mvn -B -DskipTests package
+      - name: 'Verify artifacts'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($artifact in @('target/Shimeji-ee.jar', 'target/Shimeji-ee.exe')) {
+            if (-not (Test-Path -LiteralPath $artifact)) {
+              throw "Missing expected artifact: $artifact"
+            }
+          }
+          $zips = @(Get-ChildItem -Path 'target' -Filter 'Shimeji-ee_*.zip')
+          if ($zips.Count -eq 0) {
+            throw 'Missing distributable zip in target/'
+          }
+          $main = jar tf target/Shimeji-ee.jar | Select-String -Pattern 'com/group_finity/mascot/Main\.class'
+          if ($null -eq $main) {
+            throw 'Main.class missing from Shimeji-ee.jar'
+          }
+          Write-Output "Artifacts OK: jar, exe, $($zips[0].Name), Main.class present"
